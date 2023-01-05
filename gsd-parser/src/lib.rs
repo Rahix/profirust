@@ -1,14 +1,11 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+use std::path::Path;
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct GenericStationDescription {
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+impl GenericStationDescription {
+    pub fn parse_from_file<P: AsRef<Path>>(file: P) -> Self {
+        Self {}
     }
 }

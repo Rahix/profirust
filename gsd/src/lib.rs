@@ -58,6 +58,26 @@ pub struct SlaveFamily {
     sub: Vec<String>,
 }
 
+bitflags::bitflags! {
+    pub struct SupportedSpeeds: u16 {
+        const B9600 = 1 << 1;
+        const B19200 = 1 << 2;
+        const B93750 = 1 << 3;
+        const B187500 = 1 << 4;
+        const B500000 = 1 << 5;
+        const B1500000 = 1 << 6;
+        const B3000000 = 1 << 7;
+        const B6000000 = 1 << 8;
+        const B12000000 = 1 << 9;
+    }
+}
+
+impl Default for SupportedSpeeds {
+    fn default() -> Self {
+        SupportedSpeeds::empty()
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct GenericStationDescription {
     pub gsd_revision: u8,
@@ -91,6 +111,11 @@ pub struct GenericStationDescription {
     pub default_usr_prm_data: Vec<u8>,
     pub min_slave_intervall_us: u16,
     pub modular_station: bool,
+    pub max_modules: u8,
+    pub max_input_length: u8,
+    pub max_output_length: u8,
+    pub max_data_length: u8,
+    pub supported_speeds: SupportedSpeeds,
 }
 
 pub fn parse_from_file<P: AsRef<Path>>(file: P) -> GenericStationDescription {

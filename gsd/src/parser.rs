@@ -64,6 +64,9 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     "revision_number" => gsd.revision_number = parse_number(value_pair) as u8,
                     "ident_number" => gsd.ident_number = parse_number(value_pair) as u16,
                     //
+                    "hardware_release" => gsd.hardware_release = parse_string_literal(value_pair),
+                    "software_release" => gsd.software_release = parse_string_literal(value_pair),
+                    //
                     "9.6_supp" => {
                         if parse_number(value_pair) != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B9600;
@@ -109,6 +112,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                             gsd.supported_speeds |= crate::SupportedSpeeds::B12000000;
                         }
                     }
+                    "implementation_type" => gsd.implementation_type = parse_string_literal(value_pair),
                     //
                     "modular_station" => gsd.modular_station = parse_number(value_pair) != 0,
                     _ => (),

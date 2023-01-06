@@ -1,0 +1,51 @@
+COMMENT = _{ ";" ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+
+WHITESPACE = _{ " " }
+
+start = { "#" ~ "Profibus_DP" ~ NEWLINE }
+
+number = _{ hex_number | dec_number }
+hex_number = @{ "0x" ~ ASCII_HEX_DIGIT+ }
+dec_number = @{ ASCII_DIGIT+ }
+
+number_list = { number ~ (("," ~ number) | ("\\" ~ NEWLINE) | ("," ~ "\\" ~ NEWLINE ~ number))* }
+
+family_ident = @{ number ~ "@" ~ (!NEWLINE ~ ANY)* }
+
+string_literal = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+
+identifier_part = _{ ASCII_ALPHANUMERIC | "_" | "." }
+identifier = @{ identifier_part+ }
+
+
+prm_text = {
+    "PrmText" ~ "=" ~ number ~ NEWLINE ~
+    prm_text_value+ ~
+    "EndPrmText"
+}
+prm_text_value = { "Text" ~ "(" ~ number ~ ")" ~ "=" ~ string_literal ~ NEWLINE }
+
+ext_user_prm_data = {
+    "ExtUserPrmData" ~ "=" ~ number ~ string_literal ~ NEWLINE ~
+    (!"EndExtUserPrmData" ~ ANY)* ~
+    "EndExtUserPrmData"
+}
+
+module = {
+    "Module" ~ "=" ~ string_literal ~ number_list ~ NEWLINE ~
+    number ~ NEWLINE ~
+    setting? ~ (NEWLINE+ ~ setting)* ~ NEWLINE ~
+    "EndModule"
+}
+
+setting_value = {
+    string_literal |
+    (&(number ~ ",") ~ number_list) |
+    (&(number ~ "@") ~ family_ident) |
+    number
+}
+setting = { identifier ~ ( "(" ~ number ~ ")" )? ~ "=" ~ setting_value }
+
+statement = { prm_text | ext_user_prm_data | module | setting }
+
+gsd = { SOI ~ start ~ statement ~ (NEWLINE+ ~ statement)* ~ NEWLINE* ~ EOI }

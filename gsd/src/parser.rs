@@ -9,7 +9,9 @@ mod gsd_parser {
 fn parse_number(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> u32 {
     match pair.as_rule() {
         gsd_parser::Rule::dec_number => pair.as_str().parse().unwrap(),
-        gsd_parser::Rule::hex_number => pair.as_str().parse().unwrap(),
+        gsd_parser::Rule::hex_number => {
+            u32::from_str_radix(pair.as_str().trim_start_matches("0x"), 16).unwrap()
+        }
         _ => unreachable!("Called parse_number() on a non-number pair: {:?}", pair),
     }
 }
@@ -56,6 +58,11 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                 let value_pair = pairs.next().unwrap();
                 match key.to_lowercase().as_str() {
                     "gsd_revision" => gsd.gsd_revision = parse_number(value_pair) as u8,
+                    "vendor_name" => gsd.vendor = parse_string_literal(value_pair),
+                    "model_name" => gsd.model = parse_string_literal(value_pair),
+                    "revision" => gsd.revision = parse_string_literal(value_pair),
+                    "revision_number" => gsd.revision_number = parse_number(value_pair) as u8,
+                    "ident_number" => gsd.ident_number = parse_number(value_pair) as u16,
                     _ => (),
                 }
             }

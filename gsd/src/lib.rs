@@ -101,7 +101,5 @@ pub fn parse_from_file<P: AsRef<Path>>(file: P) -> GenericStationDescription {
     f.read_to_end(&mut source_bytes).unwrap();
     let source = String::from_utf8_lossy(&source_bytes);
 
-    parser::parse(file.as_ref(), &source);
-
-    Default::default()
+    parser::parse(file.as_ref(), &source)
 }

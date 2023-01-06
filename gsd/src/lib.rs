@@ -1,5 +1,7 @@
 use std::path::Path;
 
+pub mod parser;
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub enum ProtocolIdent {
     #[default]
@@ -91,30 +93,14 @@ pub struct GenericStationDescription {
     pub modular_station: bool,
 }
 
-pub mod parser {
-    #[derive(pest_derive::Parser)]
-    #[grammar = "gsd.pest"]
-    pub struct GsdParser;
-}
-
 pub fn parse_from_file<P: AsRef<Path>>(file: P) -> GenericStationDescription {
     use std::io::Read;
-    use pest::Parser;
 
     let mut f = std::fs::File::open(file.as_ref()).unwrap();
     let mut source = String::new();
     f.read_to_string(&mut source).unwrap();
 
-    let res = match parser::GsdParser::parse(parser::Rule::gsd, &source) {
-        Ok(mut res) => res.next().unwrap(),
-        Err(e) => panic!("{}", e.with_path(&file.as_ref().to_string_lossy())),
-    };
-
-    for f in res.into_inner() {
-        dbg!(f);
-    }
-
-    todo!();
+    parser::parse(file.as_ref(), &source);
 
     Default::default()
 }

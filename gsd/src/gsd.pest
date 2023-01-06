@@ -1,8 +1,8 @@
-COMMENT = _{ ";" ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+COMMENT = _{ ";" ~ (!NEWLINE ~ ANY)* }
 
-WHITESPACE = _{ " " }
+WHITESPACE = _{ " " | "\t" }
 
-start = { "#" ~ "Profibus_DP" ~ NEWLINE }
+start = _{ "#" ~ "Profibus_DP" ~ NEWLINE }
 
 number = _{ hex_number | dec_number }
 hex_number = @{ "0x" ~ ASCII_HEX_DIGIT+ }
@@ -33,12 +33,19 @@ ext_user_prm_data = {
 
 module = {
     "Module" ~ "=" ~ string_literal ~ number_list ~ NEWLINE ~
+    ("Info_Text" ~ "=" ~ string_literal ~ NEWLINE)? ~
     number ~ NEWLINE ~
     setting? ~ (NEWLINE+ ~ setting)* ~ NEWLINE ~
     "EndModule"
 }
 
-setting_value = {
+slot_definition = {
+    "SlotDefinition" ~ NEWLINE ~
+    (!"EndSlotDefinition" ~ ANY)* ~
+    "EndSlotDefinition"
+}
+
+setting_value = _{
     string_literal |
     (&(number ~ ",") ~ number_list) |
     (&(number ~ "@") ~ family_ident) |
@@ -46,6 +53,6 @@ setting_value = {
 }
 setting = { identifier ~ ( "(" ~ number ~ ")" )? ~ "=" ~ setting_value }
 
-statement = { prm_text | ext_user_prm_data | module | setting }
+statement = _{ prm_text | ext_user_prm_data | module | slot_definition | setting }
 
-gsd = { SOI ~ start ~ statement ~ (NEWLINE+ ~ statement)* ~ NEWLINE* ~ EOI }
+gsd = { SOI ~ NEWLINE* ~ start ~ NEWLINE* ~ statement ~ (NEWLINE+ ~ statement)* ~ NEWLINE* ~ EOI }

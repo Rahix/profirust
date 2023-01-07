@@ -79,6 +79,14 @@ impl Default for SupportedSpeeds {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct Module {
+    name: String,
+    config: Vec<u8>,
+    input_length: u8,
+    output_length: u8,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct GenericStationDescription {
     pub gsd_revision: u8,
     pub vendor: String,
@@ -116,6 +124,8 @@ pub struct GenericStationDescription {
     // pub max_output_length: u8,
     // pub max_data_length: u8,
     pub supported_speeds: SupportedSpeeds,
+    //
+    pub available_modules: Vec<Module>,
 }
 
 pub fn parse_from_file<P: AsRef<Path>>(file: P) -> GenericStationDescription {

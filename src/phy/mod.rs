@@ -23,7 +23,9 @@ pub trait ProfibusPhy<'a> {
     fn poll_tx(&mut self) -> Option<BufferHandle<'a>>;
 
     /// Schedule receival of data into the given buffer.
-    fn schedule_rx(&'a mut self, data: BufferHandle<'a>);
+    fn schedule_rx<'b>(&'b mut self, data: BufferHandle<'a>)
+    where
+        'a: 'b;
 
     /// Peek at received data without touching the scheduled receival.
     ///
@@ -35,5 +37,5 @@ pub trait ProfibusPhy<'a> {
     ///
     /// This function must always immediately release the receive buffer and return a length of how
     /// much data was received.
-    fn poll_rx(&mut self) -> (BufferHandle, usize);
+    fn poll_rx(&mut self) -> (BufferHandle<'a>, usize);
 }

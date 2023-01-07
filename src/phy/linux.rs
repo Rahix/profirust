@@ -63,7 +63,6 @@ impl LinuxRs485Phy<'_> {
     }
 
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        // SAFETY: Just writing a known buffer into the file.
         match unsafe { libc::write(self.fd, buffer.as_ptr() as *const c_void, buffer.len()) } {
             -1 => {
                 let err = io::Error::last_os_error();
@@ -84,6 +83,20 @@ impl LinuxRs485Phy<'_> {
             return Err(io::Error::last_os_error());
         }
         Ok(arg as usize)
+    }
+
+    fn read(fd: RawFd, buffer: &mut [u8]) -> io::Result<usize> {
+        match unsafe { libc::read(fd, buffer.as_mut_ptr() as *mut c_void, buffer.len()) } {
+            -1 => {
+                let err = io::Error::last_os_error();
+                if err.kind() == io::ErrorKind::WouldBlock {
+                    Ok(0)
+                } else {
+                    Err(err)
+                }
+            }
+            written => Ok(written as usize),
+        }
     }
 }
 
@@ -126,27 +139,47 @@ impl<'a> super::ProfibusPhy<'a> for LinuxRs485Phy<'a> {
                 self.tx = Some(tx);
                 None
             }
-            None => panic!("polled without an ongoing tx!"),
+            None => panic!("polled without ongoing tx!"),
         }
     }
 
-    fn schedule_rx(&'a mut self, data: super::BufferHandle<'a>) {
-        self.rx = Some(TransmissionData {
+    fn schedule_rx<'b>(&'b mut self, data: super::BufferHandle<'a>)
+    where
+        'a: 'b,
+    {
+        let mut rx = TransmissionData {
             buffer: data,
             length: 0, // unused
             cursor: 0,
-        });
+        };
+
+        let read = Self::read(self.fd, &mut rx.buffer).unwrap();
+        debug_assert!(read <= rx.buffer.len());
+        rx.cursor += read;
+        self.rx = Some(rx);
     }
 
     fn peek_rx(&mut self) -> &[u8] {
-        if let Some(rx) = self.rx.as_ref() {
-            &rx.buffer[..rx.cursor]
-        } else {
-            &[]
-        }
+        let rx = self
+            .rx
+            .as_mut()
+            .unwrap_or_else(|| panic!("peeked without ongoing rx!"));
+
+        let read = Self::read(self.fd, &mut rx.buffer[rx.cursor..]).unwrap();
+        rx.cursor += read;
+        log::trace!("rx cursor {}", rx.cursor);
+        debug_assert!(rx.cursor <= rx.buffer.len());
+        &rx.buffer[..rx.cursor]
     }
 
-    fn poll_rx(&mut self) -> (super::BufferHandle, usize) {
-        todo!()
+    fn poll_rx(&mut self) -> (super::BufferHandle<'a>, usize) {
+        let mut rx = self
+            .rx
+            .take()
+            .unwrap_or_else(|| panic!("polled without ongoing rx!"));
+
+        let read = Self::read(self.fd, &mut rx.buffer[rx.cursor..]).unwrap();
+        rx.cursor += read;
+        (rx.buffer, rx.cursor)
     }
 }

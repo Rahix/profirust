@@ -1,4 +1,5 @@
 use std::ffi::c_void;
+use std::io;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
@@ -29,17 +30,20 @@ impl LinuxRs485Phy<'_> {
         let fd = unsafe { libc::open(path.as_ptr() as *const i8, libc::O_RDWR | libc::O_NONBLOCK) };
 
         if fd < 0 {
-            let error = std::io::Error::last_os_error();
+            let error = io::Error::last_os_error();
             Result::<(), _>::Err(error).unwrap();
         }
 
-        // rs485::SerialRs485::new()
-        //     .set_enabled(true)
-        //     .set_rts_on_send(true)
-        //     .set_rts_after_send(false)
-        //     .set_rx_during_tx(false)
-        //     .set_on_fd(fd)
-        //     .unwrap();
+        let res = rs485::SerialRs485::new()
+            .set_enabled(true)
+            .set_rts_on_send(true)
+            .set_rts_after_send(false)
+            .set_rx_during_tx(false)
+            .set_on_fd(fd);
+
+        if let Err(e) = res {
+            log::warn!("Could not configure RS485 mode: {}", e);
+        }
 
         Self {
             fd,
@@ -48,12 +52,22 @@ impl LinuxRs485Phy<'_> {
         }
     }
 
-    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+    /// Wait/block until the current transmission completes.
+    ///
+    /// This is useful to save CPU time as the PROFIBUS stack can't do much anyway until the
+    /// transmission is over.
+    pub fn wait_transmit(&mut self) {
+        if self.tx.is_some() {
+            unsafe { libc::tcdrain(self.fd) };
+        }
+    }
+
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
         // SAFETY: Just writing a known buffer into the file.
         match unsafe { libc::write(self.fd, buffer.as_ptr() as *const c_void, buffer.len()) } {
             -1 => {
-                let err = std::io::Error::last_os_error();
-                if err.kind() == std::io::ErrorKind::WouldBlock {
+                let err = io::Error::last_os_error();
+                if err.kind() == io::ErrorKind::WouldBlock {
                     Ok(0)
                 } else {
                     Err(err)
@@ -61,6 +75,15 @@ impl LinuxRs485Phy<'_> {
             }
             written => Ok(written as usize),
         }
+    }
+
+    fn get_output_queue(&mut self) -> io::Result<usize> {
+        let mut arg: std::ffi::c_int = 0;
+        let res = unsafe { libc::ioctl(self.fd, libc::TIOCOUTQ, &mut arg) };
+        if res < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(arg as usize)
     }
 }
 
@@ -79,19 +102,26 @@ impl<'a> super::ProfibusPhy<'a> for LinuxRs485Phy<'a> {
         let written = self.write(&tx.buffer[..tx.length]).unwrap();
         debug_assert!(written <= tx.length);
         tx.cursor += written;
-        log::debug!("TX cursor: {}", tx.cursor);
 
         self.tx = Some(tx);
     }
 
     fn poll_tx(&mut self) -> Option<super::BufferHandle<'a>> {
         match self.tx.take() {
-            Some(tx) if tx.length == tx.cursor => Some(tx.buffer),
+            Some(tx) if tx.length == tx.cursor => {
+                let out_queue = self.get_output_queue().unwrap();
+                if out_queue == 0 {
+                    // all data was sent
+                    Some(tx.buffer)
+                } else {
+                    self.tx = Some(tx);
+                    None
+                }
+            }
             Some(mut tx) => {
                 let written = self.write(&tx.buffer[tx.cursor..tx.length]).unwrap();
                 debug_assert!(written <= tx.length - tx.cursor);
                 tx.cursor += written;
-                log::debug!("TX cursor (poll): {}", tx.cursor);
 
                 self.tx = Some(tx);
                 None

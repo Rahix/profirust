@@ -27,6 +27,26 @@ pub enum RequestType {
     LsapStatus = 15,
 }
 
+impl RequestType {
+    pub fn from_u8(b: u8) -> Option<RequestType> {
+        match b {
+            0x80 => Some(Self::ClockValue),
+            0 => Some(Self::TimeEvent),
+            3 => Some(Self::SdaLow),
+            4 => Some(Self::SdnLow),
+            5 => Some(Self::SdaHigh),
+            6 => Some(Self::SdnHigh),
+            7 => Some(Self::MulticastSrd),
+            9 => Some(Self::FdlStatus),
+            12 => Some(Self::SrdLow),
+            13 => Some(Self::SrdHigh),
+            14 => Some(Self::Ident),
+            15 => Some(Self::LsapStatus),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum ResponseState {
@@ -38,6 +58,18 @@ pub enum ResponseState {
     MasterWithoutToken = 2,
     /// Master is ready and in token ring
     MasterInRing = 3,
+}
+
+impl ResponseState {
+    pub fn from_u8(b: u8) -> Option<ResponseState> {
+        match b {
+            0 => Some(Self::Slave),
+            1 => Some(Self::MasterNotReady),
+            2 => Some(Self::MasterWithoutToken),
+            3 => Some(Self::MasterInRing),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -63,6 +95,23 @@ pub enum ResponseStatus {
     NotReceivedDataHigh = 13,
 }
 
+impl ResponseStatus {
+    pub fn from_u8(b: u8) -> Option<ResponseStatus> {
+        match b {
+            0 => Some(Self::Ok),
+            1 => Some(Self::UserError),
+            2 => Some(Self::NoResources),
+            3 => Some(Self::SapNotEnabled),
+            8 => Some(Self::DataLow),
+            9 => Some(Self::NoDataReady),
+            10 => Some(Self::DataHigh),
+            12 => Some(Self::NotReceivedDataLow),
+            13 => Some(Self::NotReceivedDataHigh),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum FunctionCode {
     /// This marks a request telegram
@@ -85,6 +134,19 @@ impl FunctionCode {
                 (1 << 6) | req as u8 | ((fcv as u8) << 4) | ((fcb as u8) << 5)
             }
             FunctionCode::Response { state, status } => ((state as u8) << 4) | status as u8,
+        }
+    }
+
+    pub fn from_byte(b: u8) -> Result<Self, ()> {
+        if b & (1 << 6) != 0 {
+            let fcv = b & (1 << 4) != 0;
+            let fcb = b & (1 << 5) != 0;
+            let req = RequestType::from_u8(b & 0x8F).ok_or(())?;
+            Ok(Self::Request { fcv, fcb, req })
+        } else {
+            let state = ResponseState::from_u8((b & 0x30) >> 4).ok_or(())?;
+            let status = ResponseStatus::from_u8(b & 0x0F).ok_or(())?;
+            Ok(Self::Response { state, status })
         }
     }
 }
@@ -148,10 +210,21 @@ impl Telegram<'_> {
 
         let checksum_start = cursor;
 
-        buffer[cursor] = self.da;
-        buffer[cursor + 1] = self.sa;
+        let da_ext = if self.dsap.is_some() { 0x80 } else { 0x00 };
+        buffer[cursor] = self.da | da_ext;
+        let sa_ext = if self.ssap.is_some() { 0x80 } else { 0x00 };
+        buffer[cursor + 1] = self.sa | sa_ext;
         buffer[cursor + 2] = self.fc.to_byte();
         cursor += 3;
+
+        if let Some(dsap) = self.dsap {
+            buffer[cursor] = dsap;
+            cursor += 1;
+        }
+        if let Some(ssap) = self.ssap {
+            buffer[cursor] = ssap;
+            cursor += 1;
+        }
 
         buffer[cursor..cursor + self.pdu.len()].copy_from_slice(self.pdu);
         cursor += self.pdu.len();
@@ -164,6 +237,102 @@ impl Telegram<'_> {
         cursor += 2;
 
         cursor
+    }
+
+    pub fn deserialize(mut buffer: &[u8]) -> Option<Result<Self, ()>> {
+        if buffer.len() < 6 {
+            return None;
+        }
+
+        let length = match buffer[0] {
+            crate::consts::SD1 => 0,
+            crate::consts::SD2 => {
+                let l1 = buffer[1];
+                let l2 = buffer[2];
+                buffer = &buffer[3..];
+                if l1 != l2 {
+                    return Some(Err(()));
+                }
+                l1 - 3
+            }
+            crate::consts::SD3 => 8,
+            _ => unreachable!(),
+        };
+        let mut length = length as usize;
+
+        if buffer.len() < length as usize + 2 {
+            return None;
+        }
+
+        let buffer_checksum = &buffer[1..];
+        let checksum_length = length + 3;
+
+        let da = buffer[1];
+        let (has_dsap, da) = if da & 0x80 != 0 {
+            (true, da & !0x80)
+        } else {
+            (false, da)
+        };
+        let sa = buffer[2];
+        let (has_ssap, sa) = if sa & 0x80 != 0 {
+            (true, sa & !0x80)
+        } else {
+            (false, sa)
+        };
+
+        let fc = match FunctionCode::from_byte(buffer[3]) {
+            Ok(fc) => fc,
+            Err(_) => {
+                log::debug!("Unparseable function code");
+                return Some(Err(()));
+            }
+        };
+
+        let mut buffer = &buffer[4..];
+
+        let dsap = if has_dsap {
+            let dsap = buffer[0];
+            length -= 1;
+            buffer = &buffer[1..];
+            Some(dsap)
+        } else {
+            None
+        };
+        let ssap = if has_ssap {
+            let ssap = buffer[0];
+            length -= 1;
+            buffer = &buffer[1..];
+            Some(ssap)
+        } else {
+            None
+        };
+
+        let pdu = &buffer[..length];
+
+        let checksum_received = buffer[length];
+        let checksum_calculated = buffer_checksum[..checksum_length]
+            .iter()
+            .copied()
+            .fold(0, u8::wrapping_add);
+
+        if checksum_received != checksum_calculated {
+            log::debug!("Checksum mismatch");
+            return Some(Err(()));
+        }
+
+        if buffer[length + 1] != crate::consts::ED {
+            log::debug!("No end delimiter");
+            return Some(Err(()));
+        }
+
+        Some(Ok(Telegram {
+            da,
+            sa,
+            dsap,
+            ssap,
+            fc,
+            pdu: &[],
+        }))
     }
 }
 
@@ -186,6 +355,19 @@ impl TokenTelegram {
         buffer[2] = self.sa;
         3
     }
+
+    pub fn deserialize(buffer: &[u8]) -> Option<Result<Self, ()>> {
+        if buffer.len() < 3 {
+            return None;
+        }
+
+        // already checked by calling code
+        debug_assert!(buffer[0] == crate::consts::SD4);
+        let da = buffer[1];
+        let sa = buffer[2];
+
+        Some(Ok(Self { da, sa }))
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -198,6 +380,7 @@ impl ShortConfirmation {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AnyTelegram<'a> {
     Telegram(Telegram<'a>),
     TokenTelegram(TokenTelegram),
@@ -238,6 +421,10 @@ impl AnyTelegram<'_> {
 
         match buffer[0] {
             crate::consts::SC => Some(Ok(ShortConfirmation.into())),
+            crate::consts::SD4 => TokenTelegram::deserialize(buffer).map(|v| v.map(|v| v.into())),
+            crate::consts::SD1 | crate::consts::SD2 | crate::consts::SD3 => {
+                Telegram::deserialize(buffer).map(|v| v.map(|v| v.into()))
+            }
             _ => Some(Err(())),
         }
     }
@@ -248,11 +435,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fdl_status() {
+    fn generate_fdl_status() {
         let mut buffer = vec![0x00; 256];
         let length = Telegram::fdl_status(34, 2).serialize(&mut buffer);
         let msg = &buffer[..length];
         let expected = &[0x10, 0x22, 0x02, 0x49, 0x6D, 0x16];
         assert_eq!(msg, expected);
+    }
+
+    #[test]
+    fn parse_fdl_status() {
+        let _ = env_logger::try_init();
+        let msg = &[0x10, 0x22, 0x02, 0x49, 0x6D, 0x16];
+        let telegram = AnyTelegram::deserialize(msg).unwrap().unwrap();
+        assert_eq!(telegram, Telegram::fdl_status(34, 2).into());
+    }
+
+    #[test]
+    fn parse_fdl_response() {
+        let _ = env_logger::try_init();
+        let msg = &[0x10, 0x02, 0x22, 0x00, 0x24, 0x16];
+        let telegram = AnyTelegram::deserialize(msg).unwrap().unwrap();
+        dbg!(telegram);
     }
 }

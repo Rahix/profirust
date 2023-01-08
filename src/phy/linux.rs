@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use std::io;
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::RawFd;
 use std::path::Path;
 
 #[derive(Debug)]

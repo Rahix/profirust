@@ -2,6 +2,10 @@ mod master;
 mod telegram;
 
 pub use master::FdlMaster;
+pub use telegram::{
+    AnyTelegram, FunctionCode, RequestType, ResponseState, ResponseStatus, ShortConfirmation,
+    Telegram, TokenTelegram,
+};
 
 pub enum Baudrate {
     B9600 = 9600,

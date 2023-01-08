@@ -89,6 +89,7 @@ impl FunctionCode {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Telegram<'a> {
     /// Destination Address
     pub da: u8,
@@ -105,6 +106,7 @@ pub struct Telegram<'a> {
 }
 
 impl Telegram<'_> {
+    /// Generate an FDL Status request telegram
     pub fn fdl_status(da: u8, sa: u8) -> Self {
         Self {
             da,
@@ -163,9 +165,81 @@ impl Telegram<'_> {
 
         cursor
     }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct TokenTelegram {
+    /// Destination Address
+    pub da: u8,
+    /// Source Address
+    pub sa: u8,
+}
+
+impl TokenTelegram {
+    pub fn new(da: u8, sa: u8) -> Self {
+        Self { da, sa }
+    }
+
+    pub fn serialize(&self, buffer: &mut [u8]) -> usize {
+        buffer[0] = crate::consts::SD4;
+        buffer[1] = self.da;
+        buffer[2] = self.sa;
+        3
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct ShortConfirmation;
+
+impl ShortConfirmation {
+    pub fn serialize(&self, buffer: &mut [u8]) -> usize {
+        buffer[0] = crate::consts::SC;
+        1
+    }
+}
+
+pub enum AnyTelegram<'a> {
+    Telegram(Telegram<'a>),
+    TokenTelegram(TokenTelegram),
+    ShortConfirmation(ShortConfirmation),
+}
+
+impl<'a> From<Telegram<'a>> for AnyTelegram<'a> {
+    fn from(value: Telegram<'a>) -> Self {
+        Self::Telegram(value)
+    }
+}
+
+impl From<TokenTelegram> for AnyTelegram<'_> {
+    fn from(value: TokenTelegram) -> Self {
+        Self::TokenTelegram(value)
+    }
+}
+
+impl From<ShortConfirmation> for AnyTelegram<'_> {
+    fn from(value: ShortConfirmation) -> Self {
+        Self::ShortConfirmation(value)
+    }
+}
+
+impl AnyTelegram<'_> {
+    pub fn serialize(&self, buffer: &mut [u8]) -> usize {
+        match self {
+            Self::Telegram(t) => t.serialize(buffer),
+            Self::TokenTelegram(t) => t.serialize(buffer),
+            Self::ShortConfirmation(t) => t.serialize(buffer),
+        }
+    }
 
     pub fn deserialize(buffer: &[u8]) -> Option<Result<Self, ()>> {
-        todo!()
+        if buffer.len() == 0 {
+            return None;
+        }
+
+        match buffer[0] {
+            crate::consts::SC => Some(Ok(ShortConfirmation.into())),
+            _ => Some(Err(())),
+        }
     }
 }
 

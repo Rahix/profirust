@@ -1,4 +1,5 @@
 mod master;
+mod telegram;
 
 pub use master::FdlMaster;
 

@@ -1,7 +1,7 @@
 mod master;
 mod telegram;
 
-pub use master::FdlMaster;
+pub use master::{FdlMaster, Parameters};
 pub use telegram::{
     AnyTelegram, FunctionCode, RequestType, ResponseState, ResponseStatus, ShortConfirmation,
     Telegram, TokenTelegram,

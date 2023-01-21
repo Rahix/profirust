@@ -3,8 +3,8 @@ mod telegram;
 
 pub use master::{FdlMaster, Parameters};
 pub use telegram::{
-    Telegram, FunctionCode, RequestType, ResponseState, ResponseStatus, ShortConfirmation,
-    DataTelegram, TokenTelegram,
+    DataTelegram, FunctionCode, RequestType, ResponseState, ResponseStatus, ShortConfirmation,
+    Telegram, TokenTelegram,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -41,6 +41,7 @@ impl Baudrate {
     }
 
     pub fn bits_to_time(self, bits: u32) -> crate::time::Duration {
+        // TODO: Overflow?
         crate::time::Duration::from_micros(bits as u64 * 1000000 / self.to_rate())
     }
 }

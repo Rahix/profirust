@@ -5,7 +5,7 @@ pub struct Parameters {
     /// Baudrate
     pub baudrate: crate::fdl::Baudrate,
     /// T<sub>SL</sub>: Slot time in bits
-    pub slot_time: u16,
+    pub slot_bits: u16,
     /// Planned token circulation time
     pub ttr: u32,
     /// GAP: update factor (how many token rotations to wait before polling the gap again)
@@ -21,7 +21,7 @@ impl Default for Parameters {
         Parameters {
             address: 1,
             baudrate: crate::fdl::Baudrate::B19200,
-            slot_time: 100,
+            slot_bits: 100,
             ttr: 20000, // TODO: really sane default?  This was at least recommended somewhere...
             gap: 10,    // TODO: sane default?
             hsa: 125,
@@ -35,12 +35,17 @@ impl Parameters {
         self.baudrate.bits_to_time(bits)
     }
 
+    /// T<sub>SL</sub> (slit time) converted to duration
+    pub fn slot_time(&self) -> crate::time::Duration {
+        self.bits_to_time(self.slot_bits as u32)
+    }
+
     /// Timeout after which the token is considered lost.
     ///
     /// Calculated as 6 * T<sub>SL</sub> + 2 * Addr * T<sub>SL</sub>.
     pub fn token_lost_timeout(&self) -> crate::time::Duration {
         let timeout_bits =
-            6 * self.slot_time as u32 + 2 * self.address as u32 * self.slot_time as u32;
+            6 * self.slot_bits as u32 + 2 * self.address as u32 * self.slot_bits as u32;
         self.bits_to_time(timeout_bits)
     }
 }
@@ -81,20 +86,6 @@ impl FdlMaster {
         &self.p
     }
 
-    fn handle_transmitting<PHY: crate::phy::ProfibusPhy>(
-        &mut self,
-        now: crate::time::Instant,
-        phy: &mut PHY,
-    ) -> bool {
-        // While sending, we can't do anything else.
-        if phy.is_transmitting() {
-            self.last_telegram_time = Some(now);
-            true
-        } else {
-            false
-        }
-    }
-
     fn handle_lost_token<PHY: crate::phy::ProfibusPhy>(
         &mut self,
         now: crate::time::Instant,
@@ -121,7 +112,7 @@ impl FdlMaster {
         phy: &mut PHY,
     ) {
         let acquire_time = *self.have_token.as_ref().unwrap();
-        if (now - acquire_time) >= self.p.bits_to_time(self.p.slot_time as u32 * 6) {
+        if (now - acquire_time) >= self.p.slot_time() * 6 {
             // TODO: For now, just immediately send the token to the next master after one slot time.
             let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
             phy.transmit_telegram(token_telegram.into());
@@ -157,16 +148,18 @@ impl FdlMaster {
                 }
             }
             // TODO: We must at least respond to FDL Status requests so we may at some point get
-            // into the ring.
+            // into the ring if other masters are present.
             Some(t) => log::trace!("Unhandled telegram: {:?}", t),
             None => (),
         }
     }
 
     pub fn poll<PHY: crate::phy::ProfibusPhy>(&mut self, now: crate::time::Instant, phy: &mut PHY) {
-        if self.handle_transmitting(now, phy) {
+        if phy.is_transmitting() {
+            self.last_telegram_time = Some(now);
             return;
         }
+
         if self.have_token.is_some() {
             self.handle_with_token(now, phy);
         } else {
@@ -176,6 +169,7 @@ impl FdlMaster {
                 self.handle_with_token(now, phy);
             }
         }
+
         self.handle_lost_token(now, phy);
     }
 }

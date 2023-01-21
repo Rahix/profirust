@@ -141,7 +141,6 @@ impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
             if length != cursor {
                 // Need to submit more data.
                 let written = Self::write(self.fd, &buffer[*cursor..*length]).unwrap();
-                log::trace!("TX more {}", written);
                 debug_assert!(written <= *length - *cursor);
                 *cursor += written;
                 false
@@ -150,12 +149,10 @@ impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
                 let queued = self.get_output_queue().unwrap();
                 if queued == 0 {
                     // All data was sent.
-                    log::trace!("TX complete!");
                     self.data.make_rx();
                     false
                 } else {
                     // Still sending.
-                    log::trace!("TX queue {}", queued);
                     true
                 }
             }
@@ -182,7 +179,6 @@ impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
                 }
                 let (length, res) = f(&mut buffer[..]);
                 let cursor = Self::write(self.fd, &buffer[..length]).unwrap();
-                log::trace!("TX {}", cursor);
                 debug_assert!(cursor <= length);
                 let buffer = std::mem::replace(buffer, [].into());
                 self.data = PhyData::Tx {
@@ -203,7 +199,6 @@ impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
             PhyData::Tx { .. } => panic!("receive_data() while transmitting!"),
             PhyData::Rx { buffer, length } => {
                 *length += Self::read(self.fd, &mut buffer[*length..]).unwrap();
-                log::trace!("RX cursor {}", length);
                 debug_assert!(*length <= buffer.len());
                 let (drop, res) = f(&buffer[..*length]);
                 match drop {

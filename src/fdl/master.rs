@@ -115,18 +115,14 @@ impl FdlMaster {
         }
     }
 
-    pub fn poll<PHY: crate::phy::ProfibusPhy>(&mut self, now: crate::time::Instant, phy: &mut PHY) {
-        if self.handle_transmitting(now, phy) {
-            return;
-        }
-        if self.handle_lost_token(now, phy) {
-            return;
-        }
-
-        if self.have_token.is_some() {
-            // We know the bus is idle and we have the token so start sending scheduled telegrams.
-
-            // TODO: For now, just immediately send the token to the next master.
+    fn handle_with_token<PHY: crate::phy::ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+    ) {
+        let acquire_time = *self.have_token.as_ref().unwrap();
+        if (now - acquire_time) >= self.p.bits_to_time(self.p.slot_time as u32 * 6) {
+            // TODO: For now, just immediately send the token to the next master after one slot time.
             let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
             phy.transmit_telegram(token_telegram.into());
             self.last_telegram_time = Some(now);
@@ -135,20 +131,51 @@ impl FdlMaster {
             } else {
                 None
             };
-            return;
-        } else {
-            // No token, check for received telegrams.
-            let maybe_received = phy.receive_telegram();
-            if maybe_received.is_some() {
-                self.last_telegram_time = Some(now);
-            }
-            match maybe_received {
-                Some(crate::fdl::Telegram::Token(token_telegram)) => {
-                    log::trace!("handle token telegram {:?}", token_telegram)
+        }
+    }
+
+    fn handle_without_token<PHY: crate::phy::ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+    ) {
+        let maybe_received = phy.receive_telegram();
+        if maybe_received.is_some() {
+            self.last_telegram_time = Some(now);
+        }
+        match maybe_received {
+            Some(crate::fdl::Telegram::Token(token_telegram)) => {
+                if token_telegram.da == self.p.address {
+                    // Heyy, we got the token!
+                    self.have_token = Some(now);
+                } else {
+                    log::trace!(
+                        "Witnessed token passing: {} => {}",
+                        token_telegram.sa,
+                        token_telegram.da,
+                    );
                 }
-                Some(t) => log::trace!("{:?}", t),
-                None => (),
+            }
+            // TODO: We must at least respond to FDL Status requests so we may at some point get
+            // into the ring.
+            Some(t) => log::trace!("Unhandled telegram: {:?}", t),
+            None => (),
+        }
+    }
+
+    pub fn poll<PHY: crate::phy::ProfibusPhy>(&mut self, now: crate::time::Instant, phy: &mut PHY) {
+        if self.handle_transmitting(now, phy) {
+            return;
+        }
+        if self.have_token.is_some() {
+            self.handle_with_token(now, phy);
+        } else {
+            self.handle_without_token(now, phy);
+            // We may have just received the token so do one more pass "with token".
+            if self.have_token.is_some() {
+                self.handle_with_token(now, phy);
             }
         }
+        self.handle_lost_token(now, phy);
     }
 }

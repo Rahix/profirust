@@ -5,12 +5,14 @@ edition = "2021"
 
 [features]
 phy-linux = ["rs485", "libc", "std"]
+phy-testbus = ["bus", "std"]
 std = ["managed/std"]
 alloc = ["managed/alloc"]
 
-default = ["std", "phy-linux"]
+default = ["std", "phy-linux", "phy-testbus"]
 
 [dependencies]
+bus = { version = "2.3.0", optional = true }
 libc = { version = "0.2.139", optional = true }
 log = "0.4.17"
 managed = { version = "0.8.0", default-features = false, features = ["map"] }

@@ -5,17 +5,45 @@ use std::os::unix::io::RawFd;
 use std::path::Path;
 
 #[derive(Debug)]
-struct TransmissionData<'a> {
-    buffer: crate::phy::BufferHandle<'a>,
-    length: usize,
-    cursor: usize,
+enum PhyData<'a> {
+    Rx {
+        buffer: crate::phy::BufferHandle<'a>,
+        length: usize,
+    },
+    Tx {
+        buffer: crate::phy::BufferHandle<'a>,
+        length: usize,
+        cursor: usize,
+    },
+}
+
+impl PhyData<'_> {
+    pub fn is_rx(&self) -> bool {
+        match self {
+            PhyData::Rx { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_tx(&self) -> bool {
+        match self {
+            PhyData::Tx { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn make_rx(&mut self) {
+        if let PhyData::Tx { buffer, .. } = self {
+            let buffer = std::mem::replace(buffer, [].into());
+            *self = PhyData::Rx { buffer, length: 0 };
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct LinuxRs485Phy<'a> {
     fd: RawFd,
-    tx: Option<TransmissionData<'a>>,
-    rx: Option<TransmissionData<'a>>,
+    data: PhyData<'a>,
 }
 
 impl LinuxRs485Phy<'_> {
@@ -45,10 +73,12 @@ impl LinuxRs485Phy<'_> {
             log::warn!("Could not configure RS485 mode: {}", e);
         }
 
+        // TODO: Allow configuring this buffer?
+        let buffer = crate::phy::BufferHandle::from(vec![0u8; 512]);
+
         Self {
             fd,
-            tx: None,
-            rx: None,
+            data: PhyData::Rx { buffer, length: 0 },
         }
     }
 
@@ -57,13 +87,13 @@ impl LinuxRs485Phy<'_> {
     /// This is useful to save CPU time as the PROFIBUS stack can't do much anyway until the
     /// transmission is over.
     pub fn wait_transmit(&mut self) {
-        if self.tx.is_some() {
+        if self.data.is_tx() {
             unsafe { libc::tcdrain(self.fd) };
         }
     }
 
-    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        match unsafe { libc::write(self.fd, buffer.as_ptr() as *const c_void, buffer.len()) } {
+    fn write(fd: RawFd, buffer: &[u8]) -> io::Result<usize> {
+        match unsafe { libc::write(fd, buffer.as_ptr() as *const c_void, buffer.len()) } {
             -1 => {
                 let err = io::Error::last_os_error();
                 if err.kind() == io::ErrorKind::WouldBlock {
@@ -100,86 +130,89 @@ impl LinuxRs485Phy<'_> {
     }
 }
 
-impl<'a> super::ProfibusPhy<'a> for LinuxRs485Phy<'a> {
-    fn schedule_tx<'b>(&'b mut self, data: super::BufferHandle<'a>, length: usize)
-    where
-        'a: 'b,
-    {
-        assert!(self.tx.is_none());
-        let mut tx = TransmissionData {
-            buffer: data,
+impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
+    fn is_transmitting(&mut self) -> bool {
+        if let PhyData::Tx {
+            buffer,
             length,
-            cursor: 0,
-        };
-
-        let written = self.write(&tx.buffer[..tx.length]).unwrap();
-        debug_assert!(written <= tx.length);
-        tx.cursor += written;
-
-        self.tx = Some(tx);
-    }
-
-    fn poll_tx(&mut self) -> Option<super::BufferHandle<'a>> {
-        match self.tx.take() {
-            Some(tx) if tx.length == tx.cursor => {
-                let out_queue = self.get_output_queue().unwrap();
-                if out_queue == 0 {
-                    // all data was sent
-                    Some(tx.buffer)
+            cursor,
+        } = &mut self.data
+        {
+            if length != cursor {
+                // Need to submit more data.
+                let written = Self::write(self.fd, &buffer[*cursor..*length]).unwrap();
+                log::trace!("TX more {}", written);
+                debug_assert!(written <= *length - *cursor);
+                *cursor += written;
+                false
+            } else {
+                // Everything was submitted already.
+                let queued = self.get_output_queue().unwrap();
+                if queued == 0 {
+                    // All data was sent.
+                    log::trace!("TX complete!");
+                    self.data.make_rx();
+                    false
                 } else {
-                    self.tx = Some(tx);
-                    None
+                    // Still sending.
+                    log::trace!("TX queue {}", queued);
+                    true
                 }
             }
-            Some(mut tx) => {
-                let written = self.write(&tx.buffer[tx.cursor..tx.length]).unwrap();
-                debug_assert!(written <= tx.length - tx.cursor);
-                tx.cursor += written;
-
-                self.tx = Some(tx);
-                None
-            }
-            None => panic!("polled without ongoing tx!"),
+        } else {
+            false
         }
     }
 
-    fn schedule_rx<'b>(&'b mut self, data: super::BufferHandle<'a>)
+    fn transmit_data<F, R>(&mut self, f: F) -> R
     where
-        'a: 'b,
+        F: FnOnce(&mut [u8]) -> (usize, R),
     {
-        let mut rx = TransmissionData {
-            buffer: data,
-            length: 0, // unused
-            cursor: 0,
-        };
-
-        let read = Self::read(self.fd, &mut rx.buffer).unwrap();
-        debug_assert!(read <= rx.buffer.len());
-        rx.cursor += read;
-        self.rx = Some(rx);
+        match &mut self.data {
+            PhyData::Tx { .. } => panic!("transmit_data() while already transmitting!"),
+            PhyData::Rx {
+                buffer,
+                length: receive_length,
+            } => {
+                if *receive_length != 0 {
+                    log::warn!(
+                        "{} bytes in the receive buffer and we go into transmission?",
+                        receive_length
+                    );
+                }
+                let (length, res) = f(&mut buffer[..]);
+                let cursor = Self::write(self.fd, &buffer[..length]).unwrap();
+                log::trace!("TX {}", cursor);
+                debug_assert!(cursor <= length);
+                let buffer = std::mem::replace(buffer, [].into());
+                self.data = PhyData::Tx {
+                    buffer,
+                    length,
+                    cursor,
+                };
+                res
+            }
+        }
     }
 
-    fn peek_rx(&mut self) -> &[u8] {
-        let rx = self
-            .rx
-            .as_mut()
-            .unwrap_or_else(|| panic!("peeked without ongoing rx!"));
-
-        let read = Self::read(self.fd, &mut rx.buffer[rx.cursor..]).unwrap();
-        rx.cursor += read;
-        log::trace!("rx cursor {}", rx.cursor);
-        debug_assert!(rx.cursor <= rx.buffer.len());
-        &rx.buffer[..rx.cursor]
-    }
-
-    fn poll_rx(&mut self) -> (super::BufferHandle<'a>, usize) {
-        let mut rx = self
-            .rx
-            .take()
-            .unwrap_or_else(|| panic!("polled without ongoing rx!"));
-
-        let read = Self::read(self.fd, &mut rx.buffer[rx.cursor..]).unwrap();
-        rx.cursor += read;
-        (rx.buffer, rx.cursor)
+    fn receive_data<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce(&[u8]) -> (usize, R),
+    {
+        match &mut self.data {
+            PhyData::Tx { .. } => panic!("receive_data() while transmitting!"),
+            PhyData::Rx { buffer, length } => {
+                *length += Self::read(self.fd, &mut buffer[*length..]).unwrap();
+                log::trace!("RX cursor {}", length);
+                debug_assert!(*length <= buffer.len());
+                let (drop, res) = f(&buffer[..*length]);
+                match drop {
+                    0 => (),
+                    d if d == *length => *length = 0,
+                    d => todo!("drop partial receive buffer ({} bytes of {})", d, *length),
+                }
+                res
+            }
+        }
     }
 }

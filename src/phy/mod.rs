@@ -34,6 +34,7 @@ pub trait ProfibusPhy {
     /// ## Panics
     /// This function may panic when a transmission is already ongoing.
     fn transmit_telegram(&mut self, telegram: crate::fdl::Telegram) {
+        log::trace!("PHY TX {:?}", telegram);
         self.transmit_data(|buffer| (telegram.serialize(buffer), ()));
     }
 
@@ -64,7 +65,10 @@ pub trait ProfibusPhy {
                 // Discard all received data on error.
                 Some(Err(_)) => (buffer.len(), None),
                 // TODO: Only drop telegram length bytes instead of whole buffer.
-                Some(Ok(telegram)) => (buffer.len(), Some(telegram)),
+                Some(Ok(telegram)) => {
+                    log::trace!("PHY RX {:?}", telegram);
+                    (buffer.len(), Some(telegram))
+                }
                 // Don't drop any bytes yet if the telegram isn't complete.
                 None => (0, None),
             }

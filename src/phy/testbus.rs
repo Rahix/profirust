@@ -41,6 +41,10 @@ impl crate::phy::ProfibusPhy for TestBusPhy {
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
+        // We can be sure that in the real world, no received messages would exist here, so clear
+        // the buffer.
+        while let Ok(_) = self.rx.try_recv() {}
+
         let mut buffer = vec![0u8; 256];
         let (length, res) = f(&mut buffer);
         buffer.truncate(length);

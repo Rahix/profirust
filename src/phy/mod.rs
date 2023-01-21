@@ -5,37 +5,69 @@ pub use linux::LinuxRs485Phy;
 
 pub type BufferHandle<'a> = managed::ManagedSlice<'a, u8>;
 
-pub trait ProfibusPhy<'a> {
+pub trait ProfibusPhy {
+    /// Check whether a transmission is currently ongoing.
+    ///
+    /// While this function returns `true`, calling any of the `transmit_*()` or `receive_*()`
+    /// functions may panic.
+    fn is_transmitting(&mut self) -> bool;
+
     /// Schedule transmission of some data.
     ///
-    /// The first `length` bytes from `data` should be transmitted.
+    /// The data is written by the closure `f` into the buffer passed to it.  `f` then returns how
+    /// many bytes were written.  Only this many bytes must be transmitted.
     ///
-    /// **Important:** This function must not block on the actual transmission!
-    fn schedule_tx<'b>(&'b mut self, data: BufferHandle<'a>, length: usize)
+    /// **Important**: This function must not block on the actual transmission!
+    ///
+    /// ## Panics
+    /// This function may panic when a transmission is already ongoing.
+    fn transmit_data<F, R>(&mut self, f: F) -> R
     where
-        'a: 'b;
+        F: FnOnce(&mut [u8]) -> (usize, R);
 
-    /// Poll whether the ongoing transmission was completed.
+    /// Schedule transmission of a telegram.
     ///
-    /// If completed, the buffer that was passed for transmission is returned.
+    /// Default implementation based on [`ProfibusPhy::transmit_data()`].
     ///
-    /// `poll_tx()` may panic when called again after returning the buffer.
-    fn poll_tx(&mut self) -> Option<BufferHandle<'a>>;
+    /// **Important**: This function must not block on the actual transmission!
+    ///
+    /// ## Panics
+    /// This function may panic when a transmission is already ongoing.
+    fn transmit_telegram(&mut self, telegram: crate::fdl::Telegram) {
+        self.transmit_data(|buffer| (telegram.serialize(buffer), ()));
+    }
 
-    /// Schedule receival of data into the given buffer.
-    fn schedule_rx<'b>(&'b mut self, data: BufferHandle<'a>)
+    /// Try receiving some data.
+    ///
+    /// The closure `f` will process all received data and return how many bytes should be dropped
+    /// from the receive buffer.
+    ///
+    /// **Important**: This function must not block on the actually receiving data and should
+    /// instead return an empty buffer if no data is available!
+    ///
+    /// ## Panics
+    /// This function may panic when a transmission is ongoing.
+    fn receive_data<F, R>(&mut self, f: F) -> R
     where
-        'a: 'b;
+        F: FnOnce(&[u8]) -> (usize, R);
 
-    /// Peek at received data without touching the scheduled receival.
+    /// Try receiving a telegram.
     ///
-    /// If data was already received, peek into the receive buffer without releasing it.  The FDL
-    /// may use this to check if a full telegram was received.
-    fn peek_rx(&mut self) -> &[u8];
-
-    /// Poll received data.
+    /// **Important**: This function must not block on the actually receiving a telegram and should
+    /// return `None` in case no full telegram was received yet!
     ///
-    /// This function must always immediately release the receive buffer and return a length of how
-    /// much data was received.
-    fn poll_rx(&mut self) -> (BufferHandle<'a>, usize);
+    /// ## Panics
+    /// This function may panic when a transmission is ongoing.
+    fn receive_telegram(&mut self) -> Option<crate::fdl::Telegram> {
+        self.receive_data(|buffer| {
+            match crate::fdl::Telegram::deserialize(buffer) {
+                // Discard all received data on error.
+                Some(Err(_)) => (buffer.len(), None),
+                // TODO: Only drop telegram length bytes instead of whole buffer.
+                Some(Ok(telegram)) => (buffer.len(), Some(telegram)),
+                // Don't drop any bytes yet if the telegram isn't complete.
+                None => (0, None),
+            }
+        })
+    }
 }

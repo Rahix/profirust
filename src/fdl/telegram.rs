@@ -152,7 +152,7 @@ impl FunctionCode {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Telegram<'a> {
+pub struct DataTelegram<'a> {
     /// Destination Address
     pub da: u8,
     /// Source Address
@@ -167,7 +167,7 @@ pub struct Telegram<'a> {
     pub pdu: &'a [u8],
 }
 
-impl Telegram<'_> {
+impl DataTelegram<'_> {
     /// Generate an FDL Status request telegram
     pub fn fdl_status(da: u8, sa: u8) -> Self {
         Self {
@@ -325,7 +325,7 @@ impl Telegram<'_> {
             return Some(Err(()));
         }
 
-        Some(Ok(Telegram {
+        Some(Ok(DataTelegram {
             da,
             sa,
             dsap,
@@ -381,35 +381,35 @@ impl ShortConfirmation {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum AnyTelegram<'a> {
-    Telegram(Telegram<'a>),
-    TokenTelegram(TokenTelegram),
+pub enum Telegram<'a> {
+    Data(DataTelegram<'a>),
+    Token(TokenTelegram),
     ShortConfirmation(ShortConfirmation),
 }
 
-impl<'a> From<Telegram<'a>> for AnyTelegram<'a> {
-    fn from(value: Telegram<'a>) -> Self {
-        Self::Telegram(value)
+impl<'a> From<DataTelegram<'a>> for Telegram<'a> {
+    fn from(value: DataTelegram<'a>) -> Self {
+        Self::Data(value)
     }
 }
 
-impl From<TokenTelegram> for AnyTelegram<'_> {
+impl From<TokenTelegram> for Telegram<'_> {
     fn from(value: TokenTelegram) -> Self {
-        Self::TokenTelegram(value)
+        Self::Token(value)
     }
 }
 
-impl From<ShortConfirmation> for AnyTelegram<'_> {
+impl From<ShortConfirmation> for Telegram<'_> {
     fn from(value: ShortConfirmation) -> Self {
         Self::ShortConfirmation(value)
     }
 }
 
-impl AnyTelegram<'_> {
+impl Telegram<'_> {
     pub fn serialize(&self, buffer: &mut [u8]) -> usize {
         match self {
-            Self::Telegram(t) => t.serialize(buffer),
-            Self::TokenTelegram(t) => t.serialize(buffer),
+            Self::Data(t) => t.serialize(buffer),
+            Self::Token(t) => t.serialize(buffer),
             Self::ShortConfirmation(t) => t.serialize(buffer),
         }
     }
@@ -423,7 +423,7 @@ impl AnyTelegram<'_> {
             crate::consts::SC => Some(Ok(ShortConfirmation.into())),
             crate::consts::SD4 => TokenTelegram::deserialize(buffer).map(|v| v.map(|v| v.into())),
             crate::consts::SD1 | crate::consts::SD2 | crate::consts::SD3 => {
-                Telegram::deserialize(buffer).map(|v| v.map(|v| v.into()))
+                DataTelegram::deserialize(buffer).map(|v| v.map(|v| v.into()))
             }
             _ => Some(Err(())),
         }
@@ -437,7 +437,7 @@ mod tests {
     #[test]
     fn generate_fdl_status() {
         let mut buffer = vec![0x00; 256];
-        let length = Telegram::fdl_status(34, 2).serialize(&mut buffer);
+        let length = DataTelegram::fdl_status(34, 2).serialize(&mut buffer);
         let msg = &buffer[..length];
         let expected = &[0x10, 0x22, 0x02, 0x49, 0x6D, 0x16];
         assert_eq!(msg, expected);
@@ -447,15 +447,15 @@ mod tests {
     fn parse_fdl_status() {
         let _ = env_logger::try_init();
         let msg = &[0x10, 0x22, 0x02, 0x49, 0x6D, 0x16];
-        let telegram = AnyTelegram::deserialize(msg).unwrap().unwrap();
-        assert_eq!(telegram, Telegram::fdl_status(34, 2).into());
+        let telegram = Telegram::deserialize(msg).unwrap().unwrap();
+        assert_eq!(telegram, DataTelegram::fdl_status(34, 2).into());
     }
 
     #[test]
     fn parse_fdl_response() {
         let _ = env_logger::try_init();
         let msg = &[0x10, 0x02, 0x22, 0x00, 0x24, 0x16];
-        let telegram = AnyTelegram::deserialize(msg).unwrap().unwrap();
+        let telegram = Telegram::deserialize(msg).unwrap().unwrap();
         dbg!(telegram);
     }
 }

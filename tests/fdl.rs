@@ -20,8 +20,11 @@ fn dummy_fdl_test() {
 
     let mut phy = phy::LinuxRs485Phy::new("/dev/ttyUSB0");
 
+    let mut i = 0;
     loop {
+        log::trace!("I: {:8}", i);
         master.poll(profirust::time::Instant::now(), &mut phy);
         std::thread::sleep(std::time::Duration::from_millis(10));
+        i += 1;
     }
 }

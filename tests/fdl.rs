@@ -38,4 +38,7 @@ fn two_masters_and_their_tokens() {
             break;
         }
     }
+
+    assert!(master1.is_in_ring());
+    assert!(master2.is_in_ring());
 }

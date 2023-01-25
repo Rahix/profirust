@@ -168,22 +168,6 @@ pub struct DataTelegram<'a> {
 }
 
 impl DataTelegram<'_> {
-    /// Generate an FDL Status request telegram
-    pub fn fdl_status(da: u8, sa: u8) -> Self {
-        Self {
-            da,
-            sa,
-            dsap: None,
-            ssap: None,
-            fc: FunctionCode::Request {
-                fcv: false,
-                fcb: false,
-                req: RequestType::FdlStatus,
-            },
-            pdu: &[],
-        }
-    }
-
     pub fn serialize(&self, buffer: &mut [u8]) -> usize {
         let length_byte =
             self.pdu.len() + self.dsap.is_some() as usize + self.ssap.is_some() as usize + 3;
@@ -336,6 +320,56 @@ impl DataTelegram<'_> {
     }
 }
 
+impl DataTelegram<'_> {
+    /// Generate an FDL Status request telegram
+    pub fn new_fdl_status_request(da: u8, sa: u8) -> Self {
+        Self {
+            da,
+            sa,
+            dsap: None,
+            ssap: None,
+            fc: FunctionCode::Request {
+                fcv: false,
+                fcb: false,
+                req: RequestType::FdlStatus,
+            },
+            pdu: &[],
+        }
+    }
+
+    /// Returns the source address if this telegram is an FDL status request for us.
+    pub fn is_fdl_status_request(&self) -> Option<u8> {
+        if matches!(
+            self.fc,
+            FunctionCode::Request {
+                req: RequestType::FdlStatus,
+                ..
+            }
+        ) {
+            Some(self.sa)
+        } else {
+            None
+        }
+    }
+
+    /// Generate an FDL Status response telegram
+    pub fn new_fdl_status_response(
+        da: u8,
+        sa: u8,
+        state: ResponseState,
+        status: ResponseStatus,
+    ) -> Self {
+        Self {
+            da,
+            sa,
+            dsap: None,
+            ssap: None,
+            fc: FunctionCode::Response { state, status },
+            pdu: &[],
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TokenTelegram {
     /// Destination Address
@@ -437,7 +471,7 @@ mod tests {
     #[test]
     fn generate_fdl_status() {
         let mut buffer = vec![0x00; 256];
-        let length = DataTelegram::fdl_status(34, 2).serialize(&mut buffer);
+        let length = DataTelegram::new_fdl_status_request(34, 2).serialize(&mut buffer);
         let msg = &buffer[..length];
         let expected = &[0x10, 0x22, 0x02, 0x49, 0x6D, 0x16];
         assert_eq!(msg, expected);
@@ -448,7 +482,7 @@ mod tests {
         let _ = env_logger::try_init();
         let msg = &[0x10, 0x22, 0x02, 0x49, 0x6D, 0x16];
         let telegram = Telegram::deserialize(msg).unwrap().unwrap();
-        assert_eq!(telegram, DataTelegram::fdl_status(34, 2).into());
+        assert_eq!(telegram, DataTelegram::new_fdl_status_request(34, 2).into());
     }
 
     #[test]

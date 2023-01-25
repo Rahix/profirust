@@ -85,7 +85,7 @@ mod tests {
         let mut phy2 = phy1.clone();
         let mut phy3 = phy1.clone();
 
-        let telegram = crate::fdl::DataTelegram::fdl_status(4, 2);
+        let telegram = crate::fdl::DataTelegram::new_fdl_status_request(4, 2);
         phy1.transmit_telegram(telegram.clone().into());
         let res = phy2.receive_telegram().unwrap();
         assert_eq!(res, telegram.clone().into());

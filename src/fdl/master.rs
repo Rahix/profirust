@@ -9,12 +9,12 @@ pub struct Parameters {
     pub baudrate: crate::fdl::Baudrate,
     /// T<sub>SL</sub>: Slot time in bits
     pub slot_bits: u16,
-    /// Planned token circulation time
-    pub ttr: u32,
+    /// Time until the token should have rotated through all masters once.
+    pub token_rotation_bits: u32,
     /// GAP: update factor (how many token rotations to wait before polling the gap again)
-    pub gap: u8,
+    pub gap_wait_rotations: u8,
     /// HSA: Highest projected station address
-    pub hsa: u8,
+    pub highest_station_address: u8,
     /// Maximum number of retries when no answer was received
     pub max_retry_limit: u8,
 }
@@ -25,9 +25,9 @@ impl Default for Parameters {
             address: 1,
             baudrate: crate::fdl::Baudrate::B19200,
             slot_bits: 100,
-            ttr: 20000, // TODO: really sane default?  This was at least recommended somewhere...
-            gap: 10,    // TODO: sane default?
-            hsa: 125,
+            token_rotation_bits: 20000, // TODO: really sane default?  This was at least recommended somewhere...
+            gap_wait_rotations: 100,    // TODO: sane default?
+            highest_station_address: 125,
             max_retry_limit: 6, // TODO: sane default?
         }
     }
@@ -51,12 +51,41 @@ impl Parameters {
             6 * self.slot_bits as u32 + 2 * self.address as u32 * self.slot_bits as u32;
         self.bits_to_time(timeout_bits)
     }
+
+    /// T<sub>TR</sub> (projected token rotation time)
+    pub fn token_rotation_time(&self) -> crate::time::Duration {
+        self.bits_to_time(self.token_rotation_bits)
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum GapState {
+    /// Waiting for some time until the next gap polling cycle is performed.
     Waiting(u8),
-    NextCheck(u8),
+
+    /// A poll of the given address is scheduled next.
+    NextPoll(u8),
+}
+
+impl GapState {
+    pub fn increment_wait(&mut self) {
+        match self {
+            GapState::Waiting(ref mut r) => *r += 1,
+            _ => (),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum MasterState {
+    /// Master has nothing to do.
+    Idle,
+
+    /// Awaiting a response telegram from a station with the given address.
+    AwaitingResponse(u8, crate::time::Instant),
+
+    /// Awaiting response to an FDL status telegram from the gap polling machinery.
+    AwaitingGapResponse(u8, crate::time::Instant),
 }
 
 #[derive(Debug)]
@@ -79,11 +108,17 @@ pub struct FdlMaster {
 
     /// Timestamp of last token acquisition.
     last_token_time: Option<crate::time::Instant>,
+    /// Timestamp of the second to last token acquisition.
+    previous_token_time: Option<crate::time::Instant>,
 
+    /// State of the gap polling machinery.
     gap_state: GapState,
 
     /// List of live stations.
     live_list: bitvec::BitArr!(for 256),
+
+    /// State of the master.
+    master_state: MasterState,
 }
 
 impl FdlMaster {
@@ -92,13 +127,17 @@ impl FdlMaster {
         // Mark ourselves as "live".
         live_list.set(param.address as usize, true);
 
+        debug_assert!(param.highest_station_address <= 125);
+
         Self {
             next_master: param.address,
             last_telegram_time: None,
             have_token: false,
             last_token_time: None,
-            gap_state: GapState::NextCheck(param.address.wrapping_add(1)),
+            previous_token_time: None,
+            gap_state: GapState::NextPoll(param.address.wrapping_add(1)),
             live_list,
+            master_state: MasterState::Idle,
 
             p: param,
         }
@@ -151,11 +190,14 @@ impl FdlMaster {
     fn acquire_token(&mut self, now: crate::time::Instant, token: &crate::fdl::TokenTelegram) {
         debug_assert!(token.da == self.p.address);
         self.have_token = true;
+        self.previous_token_time = self.last_token_time;
         self.last_token_time = Some(now);
+        self.gap_state.increment_wait();
     }
 
     #[must_use = "tx token"]
     fn forward_token(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) -> TxMarker {
+        self.master_state = MasterState::Idle;
         let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
         if self.next_master == self.p.address {
             // Special case when the token is also fowarded to ourselves.
@@ -181,19 +223,134 @@ impl FdlMaster {
     }
 
     #[must_use = "tx token"]
+    fn try_start_message_cycle(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+        high_prio_only: bool,
+    ) -> Option<TxMarker> {
+        None
+    }
+
+    fn check_for_response(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+    ) -> bool {
+        todo!()
+    }
+
+    fn check_for_status_response(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+        addr: u8,
+    ) -> bool {
+        false
+    }
+
+    fn next_gap_poll(&self, addr: u8) -> GapState {
+        if addr == self.next_master && addr != self.p.address {
+            // Don't poll beyond the gap.
+            GapState::Waiting(0)
+        } else if (addr + 1) == self.p.address {
+            // Don't poll self.
+            GapState::Waiting(0)
+        } else if addr == self.p.highest_station_address {
+            // Wrap around.
+            GapState::NextPoll(0)
+        } else {
+            GapState::NextPoll(addr + 1)
+        }
+    }
+
+    #[must_use = "tx token"]
+    fn handle_gap(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+    ) -> Option<TxMarker> {
+        debug_assert!(matches!(self.master_state, MasterState::Idle));
+
+        if let GapState::Waiting(r) = self.gap_state {
+            if r >= self.p.gap_wait_rotations {
+                // We're done waiting, do a poll now!
+                log::debug!("Starting next gap polling cycle!");
+                self.gap_state = self.next_gap_poll(self.p.address);
+            }
+        }
+
+        if let GapState::NextPoll(addr) = self.gap_state {
+            self.gap_state = self.next_gap_poll(addr);
+            self.master_state = MasterState::AwaitingGapResponse(addr, now);
+
+            let fdl_status = crate::fdl::DataTelegram::fdl_status(addr, self.p.address);
+            return Some(self.transmit_telegram(now, phy, fdl_status));
+        }
+
+        None
+    }
+
+    #[must_use = "tx token"]
     fn handle_with_token(
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
     ) -> Option<TxMarker> {
         debug_assert!(self.have_token);
-        let acquire_time = *self.last_token_time.get_or_insert(now);
-        if (now - acquire_time) >= self.p.slot_time() * 6 {
-            // TODO: For now, just immediately send the token to the next master after one slot time.
-            Some(self.forward_token(now, phy))
-        } else {
-            None
+
+        // First check for ongoing message cycles and handle them.
+        match self.master_state {
+            MasterState::Idle => (),
+            MasterState::AwaitingResponse(addr, sent_time) => {
+                if self.check_for_response(now, phy) {
+                    self.master_state = MasterState::Idle;
+                } else if (now - sent_time) >= self.p.slot_time() {
+                    todo!("handle message cycle response timeout");
+                } else {
+                    // Still waiting for the response, nothing to do here.
+                    // TODO: shouldn't we also return the marker here?
+                    return None;
+                }
+            }
+            MasterState::AwaitingGapResponse(addr, sent_time) => {
+                if self.check_for_status_response(now, phy, addr) {
+                    // After the gap response, we pass on the token.
+                    return Some(self.forward_token(now, phy));
+                } else if (now - sent_time) >= self.p.slot_time() {
+                    // Mark this address as not alive and pass on the token.
+                    self.live_list.set(addr as usize, false);
+                    return Some(self.forward_token(now, phy));
+                } else {
+                    // Still waiting for the response, nothing to do here.
+                    // TODO: shouldn't we also return the marker here?
+                    return None;
+                }
+            }
         }
+
+        // Check if there is still time to start a message cycle.
+        if let Some(rotation_time) = self.previous_token_time.map(|p| now - p) {
+            if rotation_time >= self.p.token_rotation_time() {
+                // If we're over the rotation time and just acquired the token, we are allowed to
+                // perform one more high priority message cycle.
+                if self.last_token_time == Some(now) {
+                    return_if_tx!(self.try_start_message_cycle(now, phy, true));
+                }
+
+                // In any other case, we pass on the token to the next master.
+                return Some(self.forward_token(now, phy));
+            }
+        }
+
+        // We have time, try doing useful things.
+        return_if_tx!(self.try_start_message_cycle(now, phy, false));
+
+        // If we end up here, there's nothing useful left to do so now handle the gap polling cycle.
+        return_if_tx!(self.handle_gap(now, phy));
+
+        // And if even the gap poll didn't lead to a message, pass token immediately.
+        return Some(self.forward_token(now, phy));
     }
 
     #[must_use = "tx token"]

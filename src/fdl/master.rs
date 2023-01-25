@@ -106,6 +106,9 @@ pub struct FdlMaster {
     /// Whether we currently hold the token.
     have_token: bool,
 
+    /// Whether we believe to be a part of the token ring.
+    in_ring: bool,
+
     /// Timestamp of last token acquisition.
     last_token_time: Option<crate::time::Instant>,
     /// Timestamp of the second to last token acquisition.
@@ -138,6 +141,7 @@ impl FdlMaster {
             gap_state: GapState::NextPoll(param.address.wrapping_add(1)),
             live_list,
             master_state: MasterState::Idle,
+            in_ring: false,
 
             p: param,
         }
@@ -145,6 +149,10 @@ impl FdlMaster {
 
     pub fn parameters(&self) -> &Parameters {
         &self.p
+    }
+
+    pub fn is_in_ring(&self) -> bool {
+        self.in_ring
     }
 }
 
@@ -205,6 +213,7 @@ impl FdlMaster {
         self.previous_token_time = self.last_token_time;
         self.last_token_time = Some(now);
         self.gap_state.increment_wait();
+        self.in_ring = true;
     }
 
     #[must_use = "tx token"]
@@ -405,16 +414,31 @@ impl FdlMaster {
                         token_telegram.sa,
                         token_telegram.da,
                     );
+                    if token_telegram.sa == token_telegram.da {
+                        if self.in_ring {
+                            log::info!(
+                                "Left the token ring due to self-passing by addr {}.",
+                                token_telegram.sa
+                            );
+                        }
+                        self.in_ring = false;
+                    }
                     return None;
                 }
             }
             // Telegram for us!
             Some(crate::fdl::Telegram::Data(telegram)) if telegram.da == self.p.address => {
                 if let Some(da) = telegram.is_fdl_status_request() {
+                    let state = if self.in_ring {
+                        crate::fdl::ResponseState::MasterInRing
+                    } else {
+                        crate::fdl::ResponseState::MasterWithoutToken
+                    };
+
                     let response = crate::fdl::DataTelegram::new_fdl_status_response(
                         da,
                         self.p.address,
-                        crate::fdl::ResponseState::MasterWithoutToken,
+                        state,
                         crate::fdl::ResponseStatus::Ok,
                     );
 

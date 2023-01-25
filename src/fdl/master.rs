@@ -110,12 +110,12 @@ impl FdlMaster {
 }
 
 #[must_use = "Transmission marker must lead to exit of poll function!"]
-struct TransmissionMarker();
+struct TxMarker();
 
 macro_rules! return_if_tx {
     ($expr:expr) => {
         match $expr {
-            e @ Some(TransmissionMarker()) => return e,
+            e @ Some(TxMarker()) => return e,
             None => (),
         }
     };
@@ -126,10 +126,10 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-    ) -> Option<TransmissionMarker> {
+    ) -> Option<TxMarker> {
         if phy.is_transmitting() {
             self.last_telegram_time = Some(now);
-            Some(TransmissionMarker())
+            Some(TxMarker())
         } else {
             None
         }
@@ -140,10 +140,10 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
         telegram: T,
-    ) -> TransmissionMarker {
+    ) -> TxMarker {
         phy.transmit_telegram(telegram.into());
         self.last_telegram_time = Some(now);
-        TransmissionMarker()
+        TxMarker()
     }
 }
 
@@ -155,11 +155,7 @@ impl FdlMaster {
     }
 
     #[must_use = "tx token"]
-    fn forward_token(
-        &mut self,
-        now: crate::time::Instant,
-        phy: &mut impl ProfibusPhy,
-    ) -> TransmissionMarker {
+    fn forward_token(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) -> TxMarker {
         let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
         if self.next_master == self.p.address {
             // Special case when the token is also fowarded to ourselves.
@@ -173,7 +169,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-    ) -> Option<TransmissionMarker> {
+    ) -> Option<TxMarker> {
         let last_telegram_time = *self.last_telegram_time.get_or_insert(now);
         if (now - last_telegram_time) >= self.p.token_lost_timeout() {
             log::warn!("Token lost! Generating a new one.");
@@ -189,7 +185,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-    ) -> Option<TransmissionMarker> {
+    ) -> Option<TxMarker> {
         debug_assert!(self.have_token);
         let acquire_time = *self.last_token_time.get_or_insert(now);
         if (now - acquire_time) >= self.p.slot_time() * 6 {
@@ -205,7 +201,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-    ) -> Option<TransmissionMarker> {
+    ) -> Option<TxMarker> {
         let maybe_received = phy.receive_telegram();
         if maybe_received.is_some() {
             self.last_telegram_time = Some(now);
@@ -241,7 +237,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-    ) -> Option<TransmissionMarker> {
+    ) -> Option<TxMarker> {
         return_if_tx!(self.check_for_ongoing_transmision(now, phy));
 
         if self.have_token {

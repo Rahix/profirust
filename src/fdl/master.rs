@@ -54,6 +54,12 @@ impl Parameters {
 }
 
 #[derive(Debug)]
+enum GapState {
+    Waiting(u8),
+    NextCheck(u8),
+}
+
+#[derive(Debug)]
 pub struct FdlMaster {
     p: Parameters,
 
@@ -73,16 +79,28 @@ pub struct FdlMaster {
 
     /// Timestamp of last token acquisition.
     last_token_time: Option<crate::time::Instant>,
+
+    gap_state: GapState,
+
+    /// List of live stations.
+    live_list: bitvec::BitArr!(for 256),
 }
 
 impl FdlMaster {
     pub fn new(param: Parameters) -> Self {
+        let mut live_list = bitvec::array::BitArray::ZERO;
+        // Mark ourselves as "live".
+        live_list.set(param.address as usize, true);
+
         Self {
             next_master: param.address,
-            p: param,
             last_telegram_time: None,
             have_token: false,
             last_token_time: None,
+            gap_state: GapState::NextCheck(param.address.wrapping_add(1)),
+            live_list,
+
+            p: param,
         }
     }
 
@@ -97,7 +115,7 @@ struct TransmissionMarker();
 macro_rules! return_if_tx {
     ($expr:expr) => {
         match $expr {
-            Some(TransmissionMarker()) => return,
+            e @ Some(TransmissionMarker()) => return e,
             None => (),
         }
     };
@@ -182,7 +200,12 @@ impl FdlMaster {
         }
     }
 
-    fn handle_without_token<PHY: ProfibusPhy>(&mut self, now: crate::time::Instant, phy: &mut PHY) {
+    #[must_use = "tx token"]
+    fn handle_without_token(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+    ) -> Option<TransmissionMarker> {
         let maybe_received = phy.receive_telegram();
         if maybe_received.is_some() {
             self.last_telegram_time = Some(now);
@@ -192,28 +215,39 @@ impl FdlMaster {
                 if token_telegram.da == self.p.address {
                     // Heyy, we got the token!
                     self.acquire_token(now, &token_telegram);
+                    return None;
                 } else {
                     log::trace!(
                         "Witnessed token passing: {} => {}",
                         token_telegram.sa,
                         token_telegram.da,
                     );
+                    return None;
                 }
             }
             // TODO: We must at least respond to FDL Status requests so we may at some point get
             // into the ring if other masters are present.
             Some(t) => log::trace!("Unhandled telegram: {:?}", t),
             None => (),
-        }
+        };
+        None
     }
 
     pub fn poll<PHY: ProfibusPhy>(&mut self, now: crate::time::Instant, phy: &mut PHY) {
+        let _ = self.poll_inner(now, phy);
+    }
+
+    fn poll_inner<PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+    ) -> Option<TransmissionMarker> {
         return_if_tx!(self.check_for_ongoing_transmision(now, phy));
 
         if self.have_token {
             return_if_tx!(self.handle_with_token(now, phy));
         } else {
-            self.handle_without_token(now, phy);
+            return_if_tx!(self.handle_without_token(now, phy));
             // We may have just received the token so do one more pass "with token".
             if self.have_token {
                 return_if_tx!(self.handle_with_token(now, phy));
@@ -221,5 +255,6 @@ impl FdlMaster {
         }
 
         return_if_tx!(self.handle_lost_token(now, phy));
+        None
     }
 }

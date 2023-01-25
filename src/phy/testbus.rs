@@ -52,6 +52,11 @@ impl crate::phy::ProfibusPhy for TestBusPhy {
             .lock()
             .expect("failed locking testbus mutex")
             .broadcast(buffer);
+
+        // And immediately receive the message again to ensure we're not reading it.  Yes, this is
+        // a racy thing to do...
+        self.rx.recv().unwrap();
+
         res
     }
 

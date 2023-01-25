@@ -1,3 +1,6 @@
+#![deny(unused_must_use)]
+use crate::phy::ProfibusPhy;
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Parameters {
     /// Station address for this master
@@ -66,10 +69,10 @@ pub struct FdlMaster {
     last_telegram_time: Option<crate::time::Instant>,
 
     /// Whether we currently hold the token.
-    ///
-    /// If we have the token, `have_token` stores the timestamp when we got it.  This is used to
-    /// check whether we still have time to perform more transmissions.
-    have_token: Option<crate::time::Instant>,
+    have_token: bool,
+
+    /// Timestamp of last token acquisition.
+    last_token_time: Option<crate::time::Instant>,
 }
 
 impl FdlMaster {
@@ -78,58 +81,108 @@ impl FdlMaster {
             next_master: param.address,
             p: param,
             last_telegram_time: None,
-            have_token: None,
+            have_token: false,
+            last_token_time: None,
         }
     }
 
     pub fn parameters(&self) -> &Parameters {
         &self.p
     }
+}
 
-    fn handle_lost_token<PHY: crate::phy::ProfibusPhy>(
+#[must_use = "Transmission marker must lead to exit of poll function!"]
+struct TransmissionMarker();
+
+macro_rules! return_if_tx {
+    ($expr:expr) => {
+        match $expr {
+            Some(TransmissionMarker()) => return,
+            None => (),
+        }
+    };
+}
+
+impl FdlMaster {
+    fn check_for_ongoing_transmision(
         &mut self,
         now: crate::time::Instant,
-        phy: &mut PHY,
-    ) -> bool {
+        phy: &mut impl ProfibusPhy,
+    ) -> Option<TransmissionMarker> {
+        if phy.is_transmitting() {
+            self.last_telegram_time = Some(now);
+            Some(TransmissionMarker())
+        } else {
+            None
+        }
+    }
+
+    fn transmit_telegram<'a, T: Into<crate::fdl::Telegram<'a>>>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+        telegram: T,
+    ) -> TransmissionMarker {
+        phy.transmit_telegram(telegram.into());
+        self.last_telegram_time = Some(now);
+        TransmissionMarker()
+    }
+}
+
+impl FdlMaster {
+    fn acquire_token(&mut self, now: crate::time::Instant, token: &crate::fdl::TokenTelegram) {
+        debug_assert!(token.da == self.p.address);
+        self.have_token = true;
+        self.last_token_time = Some(now);
+    }
+
+    #[must_use = "tx token"]
+    fn forward_token(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+    ) -> TransmissionMarker {
+        let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
+        if self.next_master == self.p.address {
+            // Special case when the token is also fowarded to ourselves.
+            self.acquire_token(now, &token_telegram);
+        }
+        self.transmit_telegram(now, phy, token_telegram)
+    }
+
+    #[must_use = "tx token"]
+    fn handle_lost_token(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+    ) -> Option<TransmissionMarker> {
         let last_telegram_time = *self.last_telegram_time.get_or_insert(now);
         if (now - last_telegram_time) >= self.p.token_lost_timeout() {
             log::warn!("Token lost! Generating a new one.");
             self.next_master = self.p.address;
-            let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
-            // We are allowed to send here, even though we don't currently hold the token.
-            phy.transmit_telegram(token_telegram.into());
-            self.last_telegram_time = Some(now);
-            self.have_token = Some(now);
-            true
+            Some(self.forward_token(now, phy))
         } else {
-            false
+            None
         }
     }
 
-    fn handle_with_token<PHY: crate::phy::ProfibusPhy>(
+    #[must_use = "tx token"]
+    fn handle_with_token(
         &mut self,
         now: crate::time::Instant,
-        phy: &mut PHY,
-    ) {
-        let acquire_time = *self.have_token.as_ref().unwrap();
+        phy: &mut impl ProfibusPhy,
+    ) -> Option<TransmissionMarker> {
+        debug_assert!(self.have_token);
+        let acquire_time = *self.last_token_time.get_or_insert(now);
         if (now - acquire_time) >= self.p.slot_time() * 6 {
             // TODO: For now, just immediately send the token to the next master after one slot time.
-            let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
-            phy.transmit_telegram(token_telegram.into());
-            self.last_telegram_time = Some(now);
-            self.have_token = if self.next_master == self.p.address {
-                Some(now)
-            } else {
-                None
-            };
+            Some(self.forward_token(now, phy))
+        } else {
+            None
         }
     }
 
-    fn handle_without_token<PHY: crate::phy::ProfibusPhy>(
-        &mut self,
-        now: crate::time::Instant,
-        phy: &mut PHY,
-    ) {
+    fn handle_without_token<PHY: ProfibusPhy>(&mut self, now: crate::time::Instant, phy: &mut PHY) {
         let maybe_received = phy.receive_telegram();
         if maybe_received.is_some() {
             self.last_telegram_time = Some(now);
@@ -138,7 +191,7 @@ impl FdlMaster {
             Some(crate::fdl::Telegram::Token(token_telegram)) => {
                 if token_telegram.da == self.p.address {
                     // Heyy, we got the token!
-                    self.have_token = Some(now);
+                    self.acquire_token(now, &token_telegram);
                 } else {
                     log::trace!(
                         "Witnessed token passing: {} => {}",
@@ -154,22 +207,19 @@ impl FdlMaster {
         }
     }
 
-    pub fn poll<PHY: crate::phy::ProfibusPhy>(&mut self, now: crate::time::Instant, phy: &mut PHY) {
-        if phy.is_transmitting() {
-            self.last_telegram_time = Some(now);
-            return;
-        }
+    pub fn poll<PHY: ProfibusPhy>(&mut self, now: crate::time::Instant, phy: &mut PHY) {
+        return_if_tx!(self.check_for_ongoing_transmision(now, phy));
 
-        if self.have_token.is_some() {
-            self.handle_with_token(now, phy);
+        if self.have_token {
+            return_if_tx!(self.handle_with_token(now, phy));
         } else {
             self.handle_without_token(now, phy);
             // We may have just received the token so do one more pass "with token".
-            if self.have_token.is_some() {
-                self.handle_with_token(now, phy);
+            if self.have_token {
+                return_if_tx!(self.handle_with_token(now, phy));
             }
         }
 
-        self.handle_lost_token(now, phy);
+        return_if_tx!(self.handle_lost_token(now, phy));
     }
 }

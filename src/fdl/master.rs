@@ -1,12 +1,54 @@
 #![deny(unused_must_use)]
 use crate::phy::ProfibusPhy;
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
+pub enum Baudrate {
+    B9600,
+    B19200,
+    B31250,
+    B45450,
+    B93750,
+    B187500,
+    B500000,
+    B1500000,
+    B3000000,
+    B6000000,
+    B12000000,
+}
+
+impl Baudrate {
+    pub fn to_rate(self) -> u64 {
+        match self {
+            Baudrate::B9600 => 9600,
+            Baudrate::B19200 => 19200,
+            Baudrate::B31250 => 31250,
+            Baudrate::B45450 => 45450,
+            Baudrate::B93750 => 93750,
+            Baudrate::B187500 => 187500,
+            Baudrate::B500000 => 500000,
+            Baudrate::B1500000 => 1500000,
+            Baudrate::B3000000 => 3000000,
+            Baudrate::B6000000 => 6000000,
+            Baudrate::B12000000 => 12000000,
+        }
+    }
+
+    pub fn bits_to_time(self, bits: u32) -> crate::time::Duration {
+        crate::time::Duration::from_micros(bits as u64 * 1000000 / self.to_rate())
+    }
+
+    pub fn time_to_bits(self, time: crate::time::Duration) -> u64 {
+        time.total_micros() * self.to_rate() / 1000000
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Parameters {
     /// Station address for this master
     pub address: u8,
     /// Baudrate
-    pub baudrate: crate::fdl::Baudrate,
+    pub baudrate: Baudrate,
     /// T<sub>SL</sub>: Slot time in bits
     pub slot_bits: u16,
     /// Time until the token should have rotated through all masters once.
@@ -23,7 +65,7 @@ impl Default for Parameters {
     fn default() -> Self {
         Parameters {
             address: 1,
-            baudrate: crate::fdl::Baudrate::B19200,
+            baudrate: Baudrate::B19200,
             slot_bits: 100,
             token_rotation_bits: 20000, // TODO: really sane default?  This was at least recommended somewhere...
             gap_wait_rotations: 100,    // TODO: sane default?
@@ -477,5 +519,60 @@ impl FdlMaster {
 
         return_if_tx!(self.handle_lost_token(now, phy));
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn baudrate_time_conversions() {
+        let all_bauds = &[
+            Baudrate::B9600,
+            Baudrate::B19200,
+            Baudrate::B31250,
+            Baudrate::B45450,
+            Baudrate::B93750,
+            Baudrate::B187500,
+            Baudrate::B500000,
+            Baudrate::B1500000,
+            Baudrate::B3000000,
+            Baudrate::B6000000,
+            Baudrate::B12000000,
+        ];
+        let test_values = &[0, 1, 10, 100, 2000, 65536, u32::MAX];
+
+        for baud in all_bauds.iter().copied() {
+            for bits in test_values.iter().copied() {
+                let time = baud.bits_to_time(bits);
+                let micros = time.total_micros();
+                let bits2 = baud.time_to_bits(time);
+
+                let max_difference = match baud {
+                    Baudrate::B9600 => 1,
+                    Baudrate::B19200 => 1,
+                    Baudrate::B31250 => 1,
+                    Baudrate::B45450 => 1,
+                    Baudrate::B93750 => 1,
+                    Baudrate::B187500 => 1,
+                    Baudrate::B500000 => 1,
+                    Baudrate::B1500000 => 1,
+                    Baudrate::B3000000 => 2,
+                    Baudrate::B6000000 => 4,
+                    Baudrate::B12000000 => 10,
+                };
+                assert!(
+                    bits as u64 - bits2 <= max_difference,
+                    "{bits} (={micros}us) was converted to {bits2} (at {baud:?})"
+                );
+            }
+        }
+    }
+
+    /// Ensure the `FdlMaster` struct size doesn't completely get out of control.
+    #[test]
+    fn fdl_master_size() {
+        assert!(std::mem::size_of::<FdlMaster>() <= 256);
     }
 }

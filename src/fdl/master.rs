@@ -198,6 +198,10 @@ impl FdlMaster {
     pub fn is_in_ring(&self) -> bool {
         self.in_ring
     }
+
+    pub fn check_address_live(&self, addr: u8) -> bool {
+        *self.live_list.get(addr as usize).expect("invalid address")
+    }
 }
 
 #[must_use = "Transmission marker must lead to exit of poll function!"]

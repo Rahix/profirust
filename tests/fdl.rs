@@ -41,4 +41,17 @@ fn two_masters_and_their_tokens() {
 
     assert!(master1.is_in_ring());
     assert!(master2.is_in_ring());
+
+    for i in 0..24 {
+        assert_eq!(
+            master1.check_address_live(i),
+            i == 2 || i == 7,
+            "wrong liveness of address {i} reported by master1"
+        );
+        assert_eq!(
+            master2.check_address_live(i),
+            i == 2 || i == 7,
+            "wrong liveness of address {i} reported by master2"
+        );
+    }
 }

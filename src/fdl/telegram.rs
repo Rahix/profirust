@@ -1,4 +1,5 @@
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 #[repr(u8)]
 pub enum RequestType {
     /// Clock Value
@@ -48,6 +49,7 @@ impl RequestType {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 #[repr(u8)]
 pub enum ResponseState {
     /// Slave
@@ -73,6 +75,7 @@ impl ResponseState {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 #[repr(u8)]
 pub enum ResponseStatus {
     /// OK
@@ -113,6 +116,7 @@ impl ResponseStatus {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 pub enum FunctionCode {
     /// This marks a request telegram
     Request {
@@ -467,6 +471,7 @@ impl Telegram<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     #[test]
     fn generate_fdl_status_telegram() {
@@ -493,45 +498,12 @@ mod tests {
         dbg!(telegram);
     }
 
-    mod enum_consistency {
-        use super::*;
-
+    proptest! {
         #[test]
-        fn request_type() {
-            for req_type in [
-                RequestType::ClockValue,
-                RequestType::TimeEvent,
-                RequestType::SdaLow,
-                RequestType::SdnLow,
-                RequestType::SdaHigh,
-                RequestType::SdnHigh,
-                RequestType::MulticastSrd,
-                RequestType::FdlStatus,
-                RequestType::SrdLow,
-                RequestType::SrdHigh,
-                RequestType::Ident,
-                RequestType::LsapStatus,
-            ]
-            .into_iter()
-            {
-                let int_value = req_type as u8;
-                let req_type_again = RequestType::from_u8(int_value);
-                assert_eq!(Some(req_type), req_type_again);
-            }
-        }
-
-        #[test]
-        fn response_state() {
-            for resp_state in [
-                ResponseState::Slave,
-                ResponseState::MasterNotReady,
-                ResponseState::MasterWithoutToken,
-                ResponseState::MasterInRing,
-            ].into_iter() {
-                let int_value = resp_state as u8;
-                let resp_state_again = ResponseState::from_u8(int_value);
-                assert_eq!(Some(resp_state), resp_state_again);
-            }
+        fn function_code_serdes(fc in any::<FunctionCode>()) {
+            let fc_byte = fc.to_byte();
+            let fc_again = FunctionCode::from_byte(fc_byte);
+            assert_eq!(Ok(fc), fc_again);
         }
     }
 }

@@ -469,7 +469,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn generate_fdl_status() {
+    fn generate_fdl_status_telegram() {
         let mut buffer = vec![0x00; 256];
         let length = DataTelegram::new_fdl_status_request(34, 2).serialize(&mut buffer);
         let msg = &buffer[..length];
@@ -478,7 +478,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_fdl_status() {
+    fn parse_fdl_status_telegram() {
         let _ = env_logger::try_init();
         let msg = &[0x10, 0x22, 0x02, 0x49, 0x6D, 0x16];
         let telegram = Telegram::deserialize(msg).unwrap().unwrap();
@@ -486,10 +486,52 @@ mod tests {
     }
 
     #[test]
-    fn parse_fdl_response() {
+    fn parse_fdl_response_telegram() {
         let _ = env_logger::try_init();
         let msg = &[0x10, 0x02, 0x22, 0x00, 0x24, 0x16];
         let telegram = Telegram::deserialize(msg).unwrap().unwrap();
         dbg!(telegram);
+    }
+
+    mod enum_consistency {
+        use super::*;
+
+        #[test]
+        fn request_type() {
+            for req_type in [
+                RequestType::ClockValue,
+                RequestType::TimeEvent,
+                RequestType::SdaLow,
+                RequestType::SdnLow,
+                RequestType::SdaHigh,
+                RequestType::SdnHigh,
+                RequestType::MulticastSrd,
+                RequestType::FdlStatus,
+                RequestType::SrdLow,
+                RequestType::SrdHigh,
+                RequestType::Ident,
+                RequestType::LsapStatus,
+            ]
+            .into_iter()
+            {
+                let int_value = req_type as u8;
+                let req_type_again = RequestType::from_u8(int_value);
+                assert_eq!(Some(req_type), req_type_again);
+            }
+        }
+
+        #[test]
+        fn response_state() {
+            for resp_state in [
+                ResponseState::Slave,
+                ResponseState::MasterNotReady,
+                ResponseState::MasterWithoutToken,
+                ResponseState::MasterInRing,
+            ].into_iter() {
+                let int_value = resp_state as u8;
+                let resp_state_again = ResponseState::from_u8(int_value);
+                assert_eq!(Some(resp_state), resp_state_again);
+            }
+        }
     }
 }

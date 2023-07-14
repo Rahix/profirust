@@ -103,6 +103,8 @@ impl Parameters {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum GapState {
     /// Waiting for some time until the next gap polling cycle is performed.
+    ///
+    /// The `u8` value is the number of token rotations since the last polling cycle.
     Waiting(u8),
 
     /// A poll of the given address is scheduled next.

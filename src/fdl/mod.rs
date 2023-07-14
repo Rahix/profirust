@@ -1,3 +1,4 @@
+//! FDL - Fieldbus Data Link
 mod master;
 mod telegram;
 

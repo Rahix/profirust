@@ -1,23 +1,40 @@
 #![deny(unused_must_use)]
 use crate::phy::ProfibusPhy;
 
+/// Baudrate for fieldbus communication.
+///
+/// - PROFIBUS DP networks can run at any of the available baudrates given that all stations
+///   support the selected speed.
+/// - PROFIBUS PA networks must use `B31250` (31.25 kbit/s).
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum Baudrate {
+    /// 9.6 kbit/s
     B9600,
+    /// 19.2 kbit/s
     B19200,
+    /// 31.25 kbit/s
     B31250,
+    /// 45.45 kbit/s
     B45450,
+    /// 93.75 kbit/s
     B93750,
+    /// 187.5 kbit/s
     B187500,
+    /// 500 kbit/s
     B500000,
+    /// 1.5 Mbit/s
     B1500000,
+    /// 3 Mbit/s
     B3000000,
+    /// 6 Mbit/s
     B6000000,
+    /// 12 Mbit/s
     B12000000,
 }
 
 impl Baudrate {
+    /// Convert baudrate into its numeric value in bit/s.
     pub fn to_rate(self) -> u64 {
         match self {
             Baudrate::B9600 => 9600,
@@ -34,15 +51,31 @@ impl Baudrate {
         }
     }
 
+    /// At this baudrate, return how long a given number of bits take to transmit.
     pub fn bits_to_time(self, bits: u32) -> crate::time::Duration {
         crate::time::Duration::from_micros(bits as u64 * 1000000 / self.to_rate())
     }
 
+    /// At this baudrate, return how many bits could be transmitted in the given time.
     pub fn time_to_bits(self, time: crate::time::Duration) -> u64 {
         time.total_micros() * self.to_rate() / 1000000
     }
 }
 
+/// FDL master parameters
+///
+/// These parameters configure the behavior of the FDL master.
+///
+/// # Example
+/// ```
+/// use profirust::fdl;
+///
+/// let param = fdl::Parameters {
+///     address: 2,
+///     baudrate: fdl::Baudrate::B31250,
+///     .. Default::default()
+/// };
+/// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Parameters {
     /// Station address for this master
@@ -66,7 +99,7 @@ impl Default for Parameters {
         Parameters {
             address: 1,
             baudrate: Baudrate::B19200,
-            slot_bits: 100,
+            slot_bits: 100,  // TODO: needs to be adjusted depending on baudrate
             token_rotation_bits: 20000, // TODO: really sane default?  This was at least recommended somewhere...
             gap_wait_rotations: 100,    // TODO: sane default?
             highest_station_address: 125,
@@ -169,6 +202,7 @@ pub struct FdlMaster {
 }
 
 impl FdlMaster {
+    /// Construct a new FDL master with the given parameters.
     pub fn new(param: Parameters) -> Self {
         let mut live_list = bitvec::array::BitArray::ZERO;
         // Mark ourselves as "live".
@@ -191,14 +225,17 @@ impl FdlMaster {
         }
     }
 
+    /// Return a reference to the parameters configured for this FDL master.
     pub fn parameters(&self) -> &Parameters {
         &self.p
     }
 
+    /// Returns `true` when this FDL master believes to be in the token ring.
     pub fn is_in_ring(&self) -> bool {
         self.in_ring
     }
 
+    /// Returns `true` when the given address is believed to be "alive" (responds on the bus).
     pub fn check_address_live(&self, addr: u8) -> bool {
         *self.live_list.get(addr as usize).expect("invalid address")
     }

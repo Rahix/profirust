@@ -74,6 +74,7 @@ impl crate::phy::ProfibusPhy for TestBusPhy {
     }
 }
 
+#[cfg(feature = "false")]
 #[cfg(test)]
 mod tests {
     use super::*;

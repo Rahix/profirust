@@ -156,7 +156,7 @@ impl FunctionCode {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct DataTelegram<'a> {
+pub struct DataTelegramHeader {
     /// Destination Address
     pub da: u8,
     /// Source Address
@@ -167,14 +167,14 @@ pub struct DataTelegram<'a> {
     pub ssap: Option<u8>,
     /// Function Code
     pub fc: FunctionCode,
-    /// Protocol Data Unit - Payload of the telegram
-    pub pdu: &'a [u8],
 }
 
-impl DataTelegram<'_> {
-    pub fn serialize(&self, buffer: &mut [u8]) -> usize {
-        let length_byte =
-            self.pdu.len() + self.dsap.is_some() as usize + self.ssap.is_some() as usize + 3;
+impl DataTelegramHeader {
+    pub fn serialize<F>(&self, buffer: &mut [u8], pdu_len: usize, write_pdu: F) -> usize
+    where
+        F: FnOnce(&mut [u8]),
+    {
+        let length_byte = pdu_len + self.dsap.is_some() as usize + self.ssap.is_some() as usize + 3;
 
         let mut cursor = 0;
 
@@ -214,8 +214,10 @@ impl DataTelegram<'_> {
             cursor += 1;
         }
 
-        buffer[cursor..cursor + self.pdu.len()].copy_from_slice(self.pdu);
-        cursor += self.pdu.len();
+        let pdu_buffer = &mut buffer[cursor..cursor + pdu_len];
+        pdu_buffer.fill(0x00);
+        write_pdu(pdu_buffer);
+        cursor += pdu_len;
 
         buffer[cursor] = buffer[checksum_start..cursor]
             .iter()
@@ -226,8 +228,18 @@ impl DataTelegram<'_> {
 
         cursor
     }
+}
 
-    pub fn deserialize(mut buffer: &[u8]) -> Option<Result<Self, ()>> {
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct DataTelegram<'a> {
+    /// Telegram Header Information
+    pub h: DataTelegramHeader,
+    /// Protocol Data Unit - Payload of the telegram
+    pub pdu: &'a [u8],
+}
+
+impl<'a> DataTelegram<'a> {
+    pub fn deserialize(mut buffer: &'a [u8]) -> Option<Result<Self, ()>> {
         if buffer.len() < 6 {
             return None;
         }
@@ -314,62 +326,31 @@ impl DataTelegram<'_> {
         }
 
         Some(Ok(DataTelegram {
-            da,
-            sa,
-            dsap,
-            ssap,
-            fc,
-            pdu: &[],
+            h: DataTelegramHeader {
+                da,
+                sa,
+                dsap,
+                ssap,
+                fc,
+            },
+            pdu,
         }))
     }
 }
 
 impl DataTelegram<'_> {
-    /// Generate an FDL Status request telegram
-    pub fn new_fdl_status_request(da: u8, sa: u8) -> Self {
-        Self {
-            da,
-            sa,
-            dsap: None,
-            ssap: None,
-            fc: FunctionCode::Request {
-                fcv: false,
-                fcb: false,
-                req: RequestType::FdlStatus,
-            },
-            pdu: &[],
-        }
-    }
-
     /// Returns the source address if this telegram is an FDL status request for us.
     pub fn is_fdl_status_request(&self) -> Option<u8> {
         if matches!(
-            self.fc,
+            self.h.fc,
             FunctionCode::Request {
                 req: RequestType::FdlStatus,
                 ..
             }
         ) {
-            Some(self.sa)
+            Some(self.h.sa)
         } else {
             None
-        }
-    }
-
-    /// Generate an FDL Status response telegram
-    pub fn new_fdl_status_response(
-        da: u8,
-        sa: u8,
-        state: ResponseState,
-        status: ResponseStatus,
-    ) -> Self {
-        Self {
-            da,
-            sa,
-            dsap: None,
-            ssap: None,
-            fc: FunctionCode::Response { state, status },
-            pdu: &[],
         }
     }
 }
@@ -443,16 +424,8 @@ impl From<ShortConfirmation> for Telegram<'_> {
     }
 }
 
-impl Telegram<'_> {
-    pub fn serialize(&self, buffer: &mut [u8]) -> usize {
-        match self {
-            Self::Data(t) => t.serialize(buffer),
-            Self::Token(t) => t.serialize(buffer),
-            Self::ShortConfirmation(t) => t.serialize(buffer),
-        }
-    }
-
-    pub fn deserialize(buffer: &[u8]) -> Option<Result<Self, ()>> {
+impl<'a> Telegram<'a> {
+    pub fn deserialize(buffer: &'a [u8]) -> Option<Result<Self, ()>> {
         if buffer.len() == 0 {
             return None;
         }
@@ -468,6 +441,86 @@ impl Telegram<'_> {
     }
 }
 
+pub struct TelegramTx<'a> {
+    buf: &'a mut [u8],
+}
+
+pub struct TelegramTxResponse {
+    bytes_sent: usize,
+}
+
+impl<'a> TelegramTx<'a> {
+    pub fn new(buf: &'a mut [u8]) -> Self {
+        Self { buf }
+    }
+
+    pub fn send_token_telegram(self, da: u8, sa: u8) -> TelegramTxResponse {
+        let token_telegram = TokenTelegram::new(da, sa);
+        TelegramTxResponse::new(token_telegram.serialize(self.buf))
+    }
+
+    pub fn send_short_confirmation(self) -> TelegramTxResponse {
+        let sc_telegram = ShortConfirmation;
+        TelegramTxResponse::new(sc_telegram.serialize(self.buf))
+    }
+
+    pub fn send_data_telegram<F: FnOnce(&mut [u8])>(
+        self,
+        header: DataTelegramHeader,
+        pdu_len: usize,
+        write_pdu: F,
+    ) -> TelegramTxResponse {
+        TelegramTxResponse::new(header.serialize(self.buf, pdu_len, write_pdu))
+    }
+
+    pub fn send_fdl_status_request(self, da: u8, sa: u8) -> TelegramTxResponse {
+        self.send_data_telegram(
+            DataTelegramHeader {
+                da,
+                sa,
+                dsap: None,
+                ssap: None,
+                fc: FunctionCode::Request {
+                    fcv: false,
+                    fcb: false,
+                    req: RequestType::FdlStatus,
+                },
+            },
+            0,
+            |_| (),
+        )
+    }
+
+    pub fn send_fdl_status_response(
+        self,
+        da: u8,
+        sa: u8,
+        state: ResponseState,
+        status: ResponseStatus,
+    ) -> TelegramTxResponse {
+        self.send_data_telegram(
+            DataTelegramHeader {
+                da,
+                sa,
+                dsap: None,
+                ssap: None,
+                fc: FunctionCode::Response { state, status },
+            },
+            0,
+            |_| (),
+        )
+    }
+}
+
+impl TelegramTxResponse {
+    pub fn new(bytes_sent: usize) -> Self {
+        Self { bytes_sent }
+    }
+    pub fn bytes_sent(self) -> usize {
+        self.bytes_sent
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -476,7 +529,8 @@ mod tests {
     #[test]
     fn generate_fdl_status_telegram() {
         let mut buffer = vec![0x00; 256];
-        let length = DataTelegram::new_fdl_status_request(34, 2).serialize(&mut buffer);
+        let tx = TelegramTx::new(&mut buffer);
+        let length = tx.send_fdl_status_request(34, 2).bytes_sent();
         let msg = &buffer[..length];
         let expected = &[0x10, 0x22, 0x02, 0x49, 0x6D, 0x16];
         assert_eq!(msg, expected);
@@ -487,7 +541,23 @@ mod tests {
         let _ = env_logger::try_init();
         let msg = &[0x10, 0x22, 0x02, 0x49, 0x6D, 0x16];
         let telegram = Telegram::deserialize(msg).unwrap().unwrap();
-        assert_eq!(telegram, DataTelegram::new_fdl_status_request(34, 2).into());
+        assert_eq!(
+            telegram,
+            Telegram::Data(DataTelegram {
+                h: DataTelegramHeader {
+                    da: 34,
+                    sa: 2,
+                    dsap: None,
+                    ssap: None,
+                    fc: FunctionCode::Request {
+                        fcv: false,
+                        fcb: false,
+                        req: RequestType::FdlStatus
+                    }
+                },
+                pdu: &[],
+            })
+        );
     }
 
     #[test]
@@ -495,7 +565,22 @@ mod tests {
         let _ = env_logger::try_init();
         let msg = &[0x10, 0x02, 0x22, 0x00, 0x24, 0x16];
         let telegram = Telegram::deserialize(msg).unwrap().unwrap();
-        dbg!(telegram);
+        assert_eq!(
+            telegram,
+            Telegram::Data(DataTelegram {
+                h: DataTelegramHeader {
+                    da: 2,
+                    sa: 34,
+                    dsap: None,
+                    ssap: None,
+                    fc: FunctionCode::Response {
+                        state: ResponseState::Slave,
+                        status: ResponseStatus::Ok
+                    }
+                },
+                pdu: &[],
+            })
+        )
     }
 
     proptest! {

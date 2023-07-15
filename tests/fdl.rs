@@ -30,8 +30,9 @@ fn two_masters_and_their_tokens() {
         log::trace!("I: {:8}", i);
         let now = profirust::time::Instant::now();
 
+        log::trace!("M#2 ---");
         master1.poll(now, &mut phy1, &mut per1);
-        log::trace!("---");
+        log::trace!("M#7 ---");
         master2.poll(now, &mut phy2, &mut per2);
         std::thread::sleep(std::time::Duration::from_millis(1));
         i += 1;
@@ -48,12 +49,12 @@ fn two_masters_and_their_tokens() {
         assert_eq!(
             master1.check_address_live(i),
             i == 2 || i == 7,
-            "wrong liveness of address {i} reported by master1"
+            "wrong liveness of address {i} reported by master1(#2)"
         );
         assert_eq!(
             master2.check_address_live(i),
             i == 2 || i == 7,
-            "wrong liveness of address {i} reported by master2"
+            "wrong liveness of address {i} reported by master2(#7)"
         );
     }
 }

@@ -6,6 +6,6 @@ mod telegram;
 pub use master::{Baudrate, FdlMaster, Parameters};
 pub use peripheral_set::{PeripheralHandle, PeripheralSet, PeripheralStorage};
 pub use telegram::{
-    DataTelegram, FunctionCode, RequestType, ResponseState, ResponseStatus, ShortConfirmation,
-    Telegram, TokenTelegram,
+    DataTelegramHeader, FunctionCode, RequestType, ResponseState, ResponseStatus,
+    ShortConfirmation, Telegram, TelegramTx, TelegramTxResponse, TokenTelegram,
 };

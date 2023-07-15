@@ -32,15 +32,27 @@ pub trait ProfibusPhy {
 
     /// Schedule transmission of a telegram.
     ///
-    /// Default implementation based on [`ProfibusPhy::transmit_data()`].
+    /// The closure `f` may (or may not) call one of the methods of [`TelegramTx`] to schedule
+    /// transmission of a telegram.  This function returns `true` when a telegram was scheduled and
+    /// `false` otherwise.
     ///
     /// **Important**: This function must not block on the actual transmission!
     ///
     /// ## Panics
     /// This function may panic when a transmission is already ongoing.
-    fn transmit_telegram(&mut self, telegram: crate::fdl::Telegram) {
-        log::trace!("PHY TX {:?}", telegram);
-        self.transmit_data(|buffer| (telegram.serialize(buffer), ()));
+    fn transmit_telegram<F>(&mut self, f: F) -> bool
+    where
+        F: FnOnce(crate::fdl::TelegramTx) -> Option<crate::fdl::TelegramTxResponse>,
+    {
+        self.transmit_data(|buffer| {
+            let ttx = crate::fdl::TelegramTx::new(buffer);
+            let response = f(ttx);
+            if let Some(response) = response {
+                (response.bytes_sent(), true)
+            } else {
+                (0, false)
+            }
+        })
     }
 
     /// Try receiving some data.
@@ -59,21 +71,23 @@ pub trait ProfibusPhy {
 
     /// Try receiving a telegram.
     ///
+    /// When a full and correct telegram was received, the closure `f` is called to process it.
+    ///
     /// **Important**: This function must not block on the actually receiving a telegram and should
     /// return `None` in case no full telegram was received yet!
     ///
     /// ## Panics
     /// This function may panic when a transmission is ongoing.
-    fn receive_telegram(&mut self) -> Option<crate::fdl::Telegram> {
+    fn receive_telegram<F, R>(&mut self, f: F) -> Option<R>
+    where
+        F: FnOnce(crate::fdl::Telegram) -> R,
+    {
         self.receive_data(|buffer| {
             match crate::fdl::Telegram::deserialize(buffer) {
                 // Discard all received data on error.
                 Some(Err(_)) => (buffer.len(), None),
                 // TODO: Only drop telegram length bytes instead of whole buffer.
-                Some(Ok(telegram)) => {
-                    log::trace!("PHY RX {:?}", telegram);
-                    (buffer.len(), Some(telegram))
-                }
+                Some(Ok(telegram)) => (buffer.len(), Some(f(telegram))),
                 // Don't drop any bytes yet if the telegram isn't complete.
                 None => (0, None),
             }

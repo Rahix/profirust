@@ -241,7 +241,7 @@ impl FdlMaster {
     }
 
     /// Iterator over all station addresses which are currently responding on the bus.
-    pub fn iter_live_stations(&self) -> impl Iterator<Item=u8> + '_ {
+    pub fn iter_live_stations(&self) -> impl Iterator<Item = u8> + '_ {
         self.live_list.iter_ones().map(|addr| addr as u8)
     }
 }
@@ -272,27 +272,13 @@ impl FdlMaster {
         }
     }
 
-    fn transmit_telegram<'a, T: Into<crate::fdl::Telegram<'a>>>(
-        &mut self,
-        now: crate::time::Instant,
-        phy: &mut impl ProfibusPhy,
-        telegram: T,
-    ) -> TxMarker {
-        phy.transmit_telegram(telegram.into());
+    fn mark_rx(&mut self, now: crate::time::Instant) {
         self.last_telegram_time = Some(now);
-        TxMarker()
     }
 
-    fn try_receive_telegram<'a>(
-        &mut self,
-        now: crate::time::Instant,
-        phy: &'a mut impl ProfibusPhy,
-    ) -> Option<crate::fdl::Telegram<'a>> {
-        let maybe_received = phy.receive_telegram();
-        if maybe_received.is_some() {
-            self.last_telegram_time = Some(now);
-        }
-        maybe_received
+    fn mark_tx(&mut self, now: crate::time::Instant) -> TxMarker {
+        self.last_telegram_time = Some(now);
+        TxMarker()
     }
 }
 
@@ -310,12 +296,17 @@ impl FdlMaster {
     fn forward_token(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) -> TxMarker {
         self.master_state = MasterState::Idle;
         self.have_token = false;
+
         let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
         if self.next_master == self.p.address {
             // Special case when the token is also fowarded to ourselves.
             self.acquire_token(now, &token_telegram);
         }
-        self.transmit_telegram(now, phy, token_telegram)
+
+        let transmitted = phy
+            .transmit_telegram(|tx| Some(tx.send_token_telegram(self.next_master, self.p.address)));
+        debug_assert!(transmitted);
+        self.mark_tx(now)
     }
 
     #[must_use = "tx token"]
@@ -344,6 +335,28 @@ impl FdlMaster {
     ) -> Option<TxMarker> {
         for (handle, peripheral) in peripherals.iter_mut() {
             debug_assert_eq!(handle.address(), peripheral.address());
+
+            if phy.transmit_telegram(|tx| {
+                // TODO: Master should await reply
+                Some(tx.send_data_telegram(
+                    crate::fdl::DataTelegramHeader {
+                        da: peripheral.address(),
+                        sa: self.p.address,
+                        dsap: Some(60),
+                        ssap: Some(62),
+                        fc: crate::fdl::FunctionCode::Request {
+                            fcv: false,
+                            fcb: false,
+                            req: crate::fdl::RequestType::SrdLow,
+                        },
+                    },
+                    // no data
+                    0,
+                    |_buf| (),
+                ))
+            }) {
+                return Some(self.mark_tx(now));
+            }
         }
 
         None
@@ -363,26 +376,29 @@ impl FdlMaster {
         phy: &mut impl ProfibusPhy,
         addr: u8,
     ) -> bool {
-        if let Some(crate::fdl::Telegram::Data(telegram)) = self.try_receive_telegram(now, phy) {
-            if telegram.sa != addr {
-                log::warn!("Unexpected telegram? {:?}", telegram);
-                return false;
-            }
-
-            if let crate::fdl::FunctionCode::Response { state, status } = telegram.fc {
-                if state == crate::fdl::ResponseState::MasterWithoutToken
-                    || state == crate::fdl::ResponseState::MasterInRing
-                {
-                    self.next_master = telegram.sa;
+        phy.receive_telegram(|telegram| {
+            self.mark_rx(now);
+            if let crate::fdl::Telegram::Data(telegram) = telegram {
+                if telegram.h.sa != addr {
+                    log::warn!("Expected status response from {addr}, got telegram from someone else: {telegram:?}");
+                    false
+                } else if let crate::fdl::FunctionCode::Response { state, status } = telegram.h.fc {
+                    log::trace!("Got status response from {addr}!");
+                    if state == crate::fdl::ResponseState::MasterWithoutToken
+                        || state == crate::fdl::ResponseState::MasterInRing
+                    {
+                        self.next_master = telegram.h.sa;
+                    }
+                    true
+                } else {
+                    log::warn!("Unexpected telegram while waiting for status response from {addr}: {telegram:?}");
+                    false
                 }
-                return true;
+            } else {
+                false
             }
-
-            log::warn!("Unexpected telegram? {:?}", telegram);
-            return false;
-        }
-
-        return false;
+        })
+        .unwrap_or(false)
     }
 
     fn next_gap_poll(&self, addr: u8) -> GapState {
@@ -420,9 +436,10 @@ impl FdlMaster {
             self.gap_state = self.next_gap_poll(addr);
             self.master_state = MasterState::AwaitingGapResponse(addr, now);
 
-            let status_request =
-                crate::fdl::DataTelegram::new_fdl_status_request(addr, self.p.address);
-            return Some(self.transmit_telegram(now, phy, status_request));
+            let transmitted =
+                phy.transmit_telegram(|tx| Some(tx.send_fdl_status_request(addr, self.p.address)));
+            debug_assert!(transmitted);
+            return Some(self.mark_tx(now));
         }
 
         None
@@ -500,55 +517,72 @@ impl FdlMaster {
     ) -> Option<TxMarker> {
         debug_assert!(!self.have_token);
 
-        match self.try_receive_telegram(now, phy) {
-            Some(crate::fdl::Telegram::Token(token_telegram)) => {
-                if token_telegram.da == self.p.address {
-                    // Heyy, we got the token!
-                    self.acquire_token(now, &token_telegram);
-                    return None;
-                } else {
-                    log::trace!(
-                        "Witnessed token passing: {} => {}",
-                        token_telegram.sa,
-                        token_telegram.da,
-                    );
-                    if token_telegram.sa == token_telegram.da {
-                        if self.in_ring {
-                            log::info!(
-                                "Left the token ring due to self-passing by addr {}.",
-                                token_telegram.sa
-                            );
-                        }
-                        self.in_ring = false;
-                    }
-                    return None;
-                }
-            }
-            // Telegram for us!
-            Some(crate::fdl::Telegram::Data(telegram)) if telegram.da == self.p.address => {
-                if let Some(da) = telegram.is_fdl_status_request() {
-                    let state = if self.in_ring {
-                        crate::fdl::ResponseState::MasterInRing
-                    } else {
-                        crate::fdl::ResponseState::MasterWithoutToken
-                    };
+        enum NextAction {
+            RespondWithStatus { da: u8 },
+        }
 
-                    let response = crate::fdl::DataTelegram::new_fdl_status_response(
+        let next_action: Option<NextAction> = phy
+            .receive_telegram(|telegram| {
+                self.mark_rx(now);
+                match telegram {
+                    crate::fdl::Telegram::Token(token_telegram) => {
+                        if token_telegram.da == self.p.address {
+                            // Heyy, we got the token!
+                            self.acquire_token(now, &token_telegram);
+                        } else {
+                            log::trace!(
+                                "Witnessed token passing: {} => {}",
+                                token_telegram.sa,
+                                token_telegram.da,
+                            );
+                            if token_telegram.sa == token_telegram.da {
+                                if self.in_ring {
+                                    log::info!(
+                                        "Left the token ring due to self-passing by addr {}.",
+                                        token_telegram.sa
+                                    );
+                                }
+                                self.in_ring = false;
+                            }
+                        }
+                        None
+                    }
+                    crate::fdl::Telegram::Data(telegram) if telegram.h.da == self.p.address => {
+                        if let Some(da) = telegram.is_fdl_status_request() {
+                            Some(NextAction::RespondWithStatus { da })
+                        } else {
+                            None
+                        }
+                    }
+                    t => {
+                        log::trace!("Unhandled telegram: {t:?}");
+                        None
+                    }
+                }
+            })
+            .unwrap_or(None);
+
+        match next_action {
+            Some(NextAction::RespondWithStatus { da }) => {
+                let state = if self.in_ring {
+                    crate::fdl::ResponseState::MasterInRing
+                } else {
+                    crate::fdl::ResponseState::MasterWithoutToken
+                };
+
+                let transmitted = phy.transmit_telegram(|tx| {
+                    Some(tx.send_fdl_status_response(
                         da,
                         self.p.address,
                         state,
                         crate::fdl::ResponseStatus::Ok,
-                    );
-
-                    return Some(self.transmit_telegram(now, phy, response));
-                }
+                    ))
+                });
+                debug_assert!(transmitted);
+                Some(self.mark_tx(now))
             }
-            // TODO: We must at least respond to FDL Status requests so we may at some point get
-            // into the ring if other masters are present.
-            Some(t) => log::trace!("Unhandled telegram: {:?}", t),
-            None => (),
-        };
-        None
+            None => None,
+        }
     }
 
     pub fn poll<'a, PHY: ProfibusPhy>(

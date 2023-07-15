@@ -21,24 +21,40 @@ pub struct Peripheral<'a> {
 }
 
 impl<'a> Peripheral<'a> {
+    /// Address of this peripheral.
     #[inline(always)]
     pub fn address(&self) -> u8 {
         self.address
     }
 
+    /// Access to the full process image of inputs.
     #[inline(always)]
     pub fn pi_i(&self) -> &[u8] {
         &self.pi_i
     }
 
+    /// Access to the full process image of outputs.
     #[inline(always)]
     pub fn pi_q(&self) -> &[u8] {
         &self.pi_q
     }
 
+    /// Mutable access to the full process image of outputs.
     #[inline(always)]
     pub fn pi_q_mut(&mut self) -> &mut [u8] {
         &mut self.pi_q
+    }
+
+    /// Whether this peripheral is live and responds on the bus.
+    #[inline(always)]
+    pub fn is_live(&self) -> bool {
+        self.state != PeripheralState::Offline
+    }
+
+    /// Whether this peripheral is live and exchanging data with us.
+    #[inline(always)]
+    pub fn is_running(&self) -> bool {
+        self.state == PeripheralState::DataExchange
     }
 }
 

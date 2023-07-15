@@ -99,7 +99,7 @@ impl Default for Parameters {
         Parameters {
             address: 1,
             baudrate: Baudrate::B19200,
-            slot_bits: 100,  // TODO: needs to be adjusted depending on baudrate
+            slot_bits: 100, // TODO: needs to be adjusted depending on baudrate
             token_rotation_bits: 20000, // TODO: really sane default?  This was at least recommended somewhere...
             gap_wait_rotations: 100,    // TODO: sane default?
             highest_station_address: 125,
@@ -538,14 +538,20 @@ impl FdlMaster {
         None
     }
 
-    pub fn poll<PHY: ProfibusPhy>(&mut self, now: crate::time::Instant, phy: &mut PHY) {
-        let _ = self.poll_inner(now, phy);
-    }
-
-    fn poll_inner<PHY: ProfibusPhy>(
+    pub fn poll<'a, PHY: ProfibusPhy>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
+        peripherals: &mut crate::fdl::PeripheralSet<'a>,
+    ) {
+        let _ = self.poll_inner(now, phy, peripherals);
+    }
+
+    fn poll_inner<'a, PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+        peripherals: &mut crate::fdl::PeripheralSet<'a>,
     ) -> Option<TxMarker> {
         return_if_tx!(self.check_for_ongoing_transmision(now, phy));
 

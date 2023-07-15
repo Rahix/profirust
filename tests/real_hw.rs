@@ -7,6 +7,7 @@ use profirust::phy::ProfibusPhy;
 fn fdl_test() {
     env_logger::init();
 
+    let mut peripherals = fdl::PeripheralSet::new(vec![]);
     let mut master = fdl::FdlMaster::new(fdl::Parameters {
         address: 0x02,
         baudrate: fdl::Baudrate::B31250,
@@ -24,7 +25,7 @@ fn fdl_test() {
     let mut i = 0;
     loop {
         log::trace!("I: {:8}", i);
-        master.poll(profirust::time::Instant::now(), &mut phy);
+        master.poll(profirust::time::Instant::now(), &mut phy, &mut peripherals);
         std::thread::sleep(std::time::Duration::from_millis(10));
         i += 1;
     }

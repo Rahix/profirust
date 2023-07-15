@@ -10,12 +10,14 @@ fn two_masters_and_their_tokens() {
 
     log::debug!("Say hello!");
 
+    let mut per1 = fdl::PeripheralSet::new(vec![]);
     let mut master1 = fdl::FdlMaster::new(fdl::Parameters {
         address: 2,
         baudrate: fdl::Baudrate::B19200,
         highest_station_address: 16,
         ..Default::default()
     });
+    let mut per2 = fdl::PeripheralSet::new(vec![]);
     let mut master2 = fdl::FdlMaster::new(fdl::Parameters {
         address: 7,
         baudrate: fdl::Baudrate::B19200,
@@ -28,9 +30,9 @@ fn two_masters_and_their_tokens() {
         log::trace!("I: {:8}", i);
         let now = profirust::time::Instant::now();
 
-        master1.poll(now, &mut phy1);
+        master1.poll(now, &mut phy1, &mut per1);
         log::trace!("---");
-        master2.poll(now, &mut phy2);
+        master2.poll(now, &mut phy2, &mut per2);
         std::thread::sleep(std::time::Duration::from_millis(1));
         i += 1;
 

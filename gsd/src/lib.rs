@@ -80,6 +80,50 @@ impl Default for SupportedSpeeds {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct MaxTsdr {
+    /// Maximum response time (in bits) at 9.6 kbit/s
+    pub b9600: u16,
+    /// Maximum response time (in bits) at 19.2 kbit/s
+    pub b19200: u16,
+    /// Maximum response time (in bits) at 31.25 kbit/s
+    pub b31250: u16,
+    /// Maximum response time (in bits) at 45.45 kbit/s
+    pub b45450: u16,
+    /// Maximum response time (in bits) at 93.75 kbit/s
+    pub b93750: u16,
+    /// Maximum response time (in bits) at 187.5 kbit/s
+    pub b187500: u16,
+    /// Maximum response time (in bits) at 500 kbit/s
+    pub b500000: u16,
+    /// Maximum response time (in bits) at 1.5 Mbit/s
+    pub b1500000: u16,
+    /// Maximum response time (in bits) at 3 Mbit/s
+    pub b3000000: u16,
+    /// Maximum response time (in bits) at 6 Mbit/s
+    pub b6000000: u16,
+    /// Maximum response time (in bits) at 12 Mbit/s
+    pub b12000000: u16,
+}
+
+impl Default for MaxTsdr {
+    fn default() -> Self {
+        Self {
+            b9600: 60,
+            b19200: 60,
+            b31250: 60,
+            b45450: 60,
+            b93750: 60,
+            b187500: 60,
+            b500000: 100,
+            b1500000: 150,
+            b3000000: 250,
+            b6000000: 450,
+            b12000000: 800,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct Module {
     name: String,
@@ -126,6 +170,7 @@ pub struct GenericStationDescription {
     // pub max_output_length: u8,
     // pub max_data_length: u8,
     pub supported_speeds: SupportedSpeeds,
+    pub max_tsdr: MaxTsdr,
     //
     pub available_modules: Vec<Module>,
 }

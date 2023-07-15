@@ -122,7 +122,20 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                             gsd.supported_speeds |= crate::SupportedSpeeds::B12000000;
                         }
                     }
-                    "implementation_type" => gsd.implementation_type = parse_string_literal(value_pair),
+                    "maxtsdr_9.6" => gsd.max_tsdr.b9600 = parse_number(value_pair) as u16,
+                    "maxtsdr_19.2" => gsd.max_tsdr.b19200 = parse_number(value_pair) as u16,
+                    "maxtsdr_31.25" => gsd.max_tsdr.b31250 = parse_number(value_pair) as u16,
+                    "maxtsdr_45.45" => gsd.max_tsdr.b45450 = parse_number(value_pair) as u16,
+                    "maxtsdr_93.75" => gsd.max_tsdr.b93750 = parse_number(value_pair) as u16,
+                    "maxtsdr_187.5" => gsd.max_tsdr.b187500 = parse_number(value_pair) as u16,
+                    "maxtsdr_500" => gsd.max_tsdr.b500000 = parse_number(value_pair) as u16,
+                    "maxtsdr_1.5M" => gsd.max_tsdr.b1500000 = parse_number(value_pair) as u16,
+                    "maxtsdr_3M" => gsd.max_tsdr.b3000000 = parse_number(value_pair) as u16,
+                    "maxtsdr_6M" => gsd.max_tsdr.b6000000 = parse_number(value_pair) as u16,
+                    "maxtsdr_12M" => gsd.max_tsdr.b12000000 = parse_number(value_pair) as u16,
+                    "implementation_type" => {
+                        gsd.implementation_type = parse_string_literal(value_pair)
+                    }
                     //
                     "modular_station" => gsd.modular_station = parse_number(value_pair) != 0,
                     _ => (),

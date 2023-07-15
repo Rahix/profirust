@@ -239,6 +239,11 @@ impl FdlMaster {
     pub fn check_address_live(&self, addr: u8) -> bool {
         *self.live_list.get(addr as usize).expect("invalid address")
     }
+
+    /// Iterator over all station addresses which are currently responding on the bus.
+    pub fn iter_live_stations(&self) -> impl Iterator<Item=u8> + '_ {
+        self.live_list.iter_ones().map(|addr| addr as u8)
+    }
 }
 
 #[must_use = "Transmission marker must lead to exit of poll function!"]

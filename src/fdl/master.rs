@@ -498,6 +498,8 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
     ) -> Option<TxMarker> {
+        debug_assert!(!self.have_token);
+
         match self.try_receive_telegram(now, phy) {
             Some(crate::fdl::Telegram::Token(token_telegram)) => {
                 if token_telegram.da == self.p.address {

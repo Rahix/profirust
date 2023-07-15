@@ -48,6 +48,7 @@ pub trait ProfibusPhy {
             let ttx = crate::fdl::TelegramTx::new(buffer);
             let response = f(ttx);
             if let Some(response) = response {
+                log::trace!("PHY TX {:?}", crate::fdl::Telegram::deserialize(buffer).unwrap().unwrap());
                 (response.bytes_sent(), true)
             } else {
                 (0, false)
@@ -87,7 +88,10 @@ pub trait ProfibusPhy {
                 // Discard all received data on error.
                 Some(Err(_)) => (buffer.len(), None),
                 // TODO: Only drop telegram length bytes instead of whole buffer.
-                Some(Ok(telegram)) => (buffer.len(), Some(f(telegram))),
+                Some(Ok(telegram)) => {
+                    log::trace!("PHY RX {:?}", telegram);
+                    (buffer.len(), Some(f(telegram)))
+                },
                 // Don't drop any bytes yet if the telegram isn't complete.
                 None => (0, None),
             }

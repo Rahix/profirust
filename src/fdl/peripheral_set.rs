@@ -12,6 +12,13 @@ pub struct PeripheralHandle {
     address: u8,
 }
 
+impl PeripheralHandle {
+    #[inline(always)]
+    pub fn address(self) -> u8 {
+        self.address
+    }
+}
+
 impl fmt::Display for PeripheralHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Station {}", self.address)

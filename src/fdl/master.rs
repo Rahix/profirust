@@ -334,8 +334,13 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
+        peripherals: &mut crate::fdl::PeripheralSet<'_>,
         high_prio_only: bool,
     ) -> Option<TxMarker> {
+        for (handle, peripheral) in peripherals.iter_mut() {
+            debug_assert_eq!(handle.address(), peripheral.address());
+        }
+
         None
     }
 
@@ -423,6 +428,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
+        peripherals: &mut crate::fdl::PeripheralSet<'_>,
     ) -> Option<TxMarker> {
         debug_assert!(self.have_token);
 
@@ -463,7 +469,7 @@ impl FdlMaster {
                 // If we're over the rotation time and just acquired the token, we are allowed to
                 // perform one more high priority message cycle.
                 if self.last_token_time == Some(now) {
-                    return_if_tx!(self.try_start_message_cycle(now, phy, true));
+                    return_if_tx!(self.try_start_message_cycle(now, phy, peripherals, true));
                 }
 
                 // In any other case, we pass on the token to the next master.
@@ -472,7 +478,7 @@ impl FdlMaster {
         }
 
         // We have time, try doing useful things.
-        return_if_tx!(self.try_start_message_cycle(now, phy, false));
+        return_if_tx!(self.try_start_message_cycle(now, phy, peripherals, false));
 
         // If we end up here, there's nothing useful left to do so now handle the gap polling cycle.
         return_if_tx!(self.handle_gap(now, phy));
@@ -557,12 +563,12 @@ impl FdlMaster {
 
         if self.have_token {
             log::trace!("{} has token!", self.p.address);
-            return_if_tx!(self.handle_with_token(now, phy));
+            return_if_tx!(self.handle_with_token(now, phy, peripherals));
         } else {
             return_if_tx!(self.handle_without_token(now, phy));
             // We may have just received the token so do one more pass "with token".
             if self.have_token {
-                return_if_tx!(self.handle_with_token(now, phy));
+                return_if_tx!(self.handle_with_token(now, phy, peripherals));
             }
         }
 

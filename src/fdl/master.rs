@@ -356,9 +356,20 @@ impl FdlMaster {
     ) -> bool {
         phy.receive_telegram(|telegram| {
             self.mark_rx(now);
-            if let crate::fdl::Telegram::Token(t) = telegram {
-                log::warn!("Received token telegram {t:?} while waiting for peripheral response");
-                return false;
+            match &telegram {
+                crate::fdl::Telegram::Token(t) => {
+                    log::warn!(
+                        "Received token telegram {t:?} while waiting for peripheral response"
+                    );
+                    return false;
+                }
+                crate::fdl::Telegram::Data(t) => {
+                    if t.h.da != self.p.address {
+                        log::warn!("Received telegram with unexpected destination: {t:?}");
+                        return false;
+                    }
+                }
+                _ => (),
             }
             for (handle, peripheral) in peripherals.iter_mut() {
                 if peripheral.address() == addr {
@@ -367,7 +378,8 @@ impl FdlMaster {
                 }
             }
             unreachable!("Peripheral {addr} not in set but expected to answer");
-        }).unwrap_or(false)
+        })
+        .unwrap_or(false)
     }
 
     fn check_for_status_response(

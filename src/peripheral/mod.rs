@@ -1,6 +1,8 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
 enum PeripheralState {
+    #[default]
+    Offline,
     Reset,
     WaitForParam,
     WaitForConfig,
@@ -41,11 +43,25 @@ impl<'a> Peripheral<'a> {
 }
 
 impl<'a> Peripheral<'a> {
-    fn communicate(
+    fn try_communicate(
         &mut self,
         now: crate::time::Instant,
         master: &crate::fdl::FdlMaster,
     ) -> Option<()> {
-        todo!()
+        if !master.check_address_live(self.address) {
+            self.state = PeripheralState::Offline;
+            return None;
+        } else if self.state == PeripheralState::Offline {
+            // Live but we're still "offline" => go to "reset" state
+            self.state = PeripheralState::Reset;
+        }
+
+        match self.state {
+            PeripheralState::Reset => todo!(),
+            PeripheralState::WaitForParam => todo!(),
+            PeripheralState::WaitForConfig => todo!(),
+            PeripheralState::DataExchange => todo!(),
+            PeripheralState::Offline => unreachable!(),
+        }
     }
 }

@@ -137,21 +137,54 @@ impl<'a> Peripheral<'a> {
         match self.state {
             PeripheralState::Reset => {
                 // Request diagnostics
+                Some(self.send_diagnostics_request(master, tx))
+            }
+            PeripheralState::WaitForParam => {
+                // Send parameters
                 Some(tx.send_data_telegram(
                     crate::fdl::DataTelegramHeader {
                         da: self.address,
                         sa: master.parameters().address,
-                        dsap: Some(60),
+                        dsap: Some(61),
                         ssap: Some(62),
                         fc: self.fcb.make_request_fc(crate::fdl::RequestType::SrdLow),
                     },
-                    0,
-                    |_buf| (),
+                    7,
+                    |buf| {
+                        buf[0] = 0x00;
+                        // WD disabled
+                        buf[1] = 0x00;
+                        buf[2] = 0x00;
+                        // Minimum Tsdr
+                        buf[3] = 11;
+                        // Ident
+                        buf[4] = 0xb7;
+                        buf[5] = 0x51;
+                        // Group
+                        buf[6] = 0x00;
+                    },
                 ))
             }
-            PeripheralState::WaitForParam => todo!(),
-            PeripheralState::WaitForConfig => todo!(),
-            PeripheralState::DataExchange => todo!(),
+            PeripheralState::WaitForConfig => {
+                Some(tx.send_data_telegram(
+                    crate::fdl::DataTelegramHeader {
+                        da: self.address,
+                        sa: master.parameters().address,
+                        dsap: Some(62),
+                        ssap: Some(62),
+                        fc: self.fcb.make_request_fc(crate::fdl::RequestType::SrdLow),
+                    },
+                    2,
+                    |buf| {
+                        buf[0] = 0x13; // 3 byte inputs
+                        buf[1] = 0x23; // 3 byte outputs
+                    },
+                ))
+            }
+            PeripheralState::DataExchange => {
+                // Request diagnostics again
+                Some(self.send_diagnostics_request(master, tx))
+            }
             PeripheralState::Offline => unreachable!(),
         }
     }
@@ -221,12 +254,50 @@ impl<'a> Peripheral<'a> {
                     );
 
                     self.fcb.cycle();
+
+                    // TODO: When not to do this?
                     self.state = PeripheralState::WaitForParam;
+                } else {
+                    todo!()
                 }
             }
-            PeripheralState::WaitForParam => todo!(),
-            PeripheralState::WaitForConfig => todo!(),
+            PeripheralState::WaitForParam => {
+                if let crate::fdl::Telegram::ShortConfirmation(_) = telegram {
+                    log::debug!("{} accepted parameters!", self.address);
+                    self.fcb.cycle();
+                    self.state = PeripheralState::WaitForConfig;
+                } else {
+                    todo!()
+                }
+            }
+            PeripheralState::WaitForConfig => {
+                if let crate::fdl::Telegram::ShortConfirmation(_) = telegram {
+                    log::debug!("{} accepted configuration!", self.address);
+                    self.fcb.cycle();
+                    self.state = PeripheralState::DataExchange;
+                } else {
+                    todo!()
+                }
+            }
             PeripheralState::DataExchange => todo!(),
         }
+    }
+
+    pub fn send_diagnostics_request(
+        &mut self,
+        master: &crate::fdl::FdlMaster,
+        tx: crate::fdl::TelegramTx,
+    ) -> crate::fdl::TelegramTxResponse {
+        tx.send_data_telegram(
+            crate::fdl::DataTelegramHeader {
+                da: self.address,
+                sa: master.parameters().address,
+                dsap: Some(60),
+                ssap: Some(62),
+                fc: self.fcb.make_request_fc(crate::fdl::RequestType::SrdLow),
+            },
+            0,
+            |_buf| (),
+        )
     }
 }

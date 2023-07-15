@@ -290,6 +290,7 @@ impl FdlMaster {
         self.last_token_time = Some(now);
         self.gap_state.increment_wait();
         self.in_ring = true;
+        log::trace!("{} acquired the token!", self.p.address);
     }
 
     #[must_use = "tx token"]
@@ -482,10 +483,12 @@ impl FdlMaster {
             }
             MasterState::AwaitingGapResponse(addr, sent_time) => {
                 if self.check_for_status_response(now, phy, addr) {
+                    log::trace!("Address {addr} responded!");
                     // After the gap response, we pass on the token.
                     self.live_list.set(addr as usize, true);
                     return Some(self.forward_token(now, phy));
                 } else if (now - sent_time) >= self.p.slot_time() {
+                    log::trace!("Address {addr} didn't respond in {}!", self.p.slot_time());
                     // Mark this address as not alive and pass on the token.
                     self.live_list.set(addr as usize, false);
                     return Some(self.forward_token(now, phy));
@@ -615,7 +618,7 @@ impl FdlMaster {
         return_if_tx!(self.check_for_ongoing_transmision(now, phy));
 
         if self.have_token {
-            log::trace!("{} has token!", self.p.address);
+            // log::trace!("{} has token!", self.p.address);
             return_if_tx!(self.handle_with_token(now, phy, peripherals));
         } else {
             return_if_tx!(self.handle_without_token(now, phy));

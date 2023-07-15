@@ -8,9 +8,13 @@ fn fdl_test() {
     env_logger::init();
 
     let mut peripherals = fdl::PeripheralSet::new(vec![]);
+    let mut _wago_station = peripherals.add(profirust::peripheral::Peripheral::new(36));
+
     let mut master = fdl::FdlMaster::new(fdl::Parameters {
         address: 0x02,
-        baudrate: fdl::Baudrate::B31250,
+        baudrate: fdl::Baudrate::B19200,
+        slot_bits: 1920,
+        token_rotation_bits: 1000000,
         ..Default::default()
     });
 
@@ -22,12 +26,9 @@ fn fdl_test() {
 
     let mut phy = phy::LinuxRs485Phy::new("/dev/ttyUSB0");
 
-    let mut i = 0;
     loop {
-        log::trace!("I: {:8}", i);
         master.poll(profirust::time::Instant::now(), &mut phy, &mut peripherals);
         std::thread::sleep(std::time::Duration::from_millis(10));
-        i += 1;
     }
 }
 

@@ -178,6 +178,10 @@ impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
                     );
                 }
                 let (length, res) = f(&mut buffer[..]);
+                if length == 0 {
+                    // Don't transmit anything.
+                    return res;
+                }
                 let cursor = Self::write(self.fd, &buffer[..length]).unwrap();
                 debug_assert!(cursor <= length);
                 let buffer = std::mem::replace(buffer, [].into());

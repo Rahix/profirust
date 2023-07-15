@@ -62,13 +62,15 @@ bitflags::bitflags! {
     pub struct SupportedSpeeds: u16 {
         const B9600 = 1 << 1;
         const B19200 = 1 << 2;
-        const B93750 = 1 << 3;
-        const B187500 = 1 << 4;
-        const B500000 = 1 << 5;
-        const B1500000 = 1 << 6;
-        const B3000000 = 1 << 7;
-        const B6000000 = 1 << 8;
-        const B12000000 = 1 << 9;
+        const B31250 = 1 << 3;
+        const B45450 = 1 << 4;
+        const B93750 = 1 << 5;
+        const B187500 = 1 << 6;
+        const B500000 = 1 << 7;
+        const B1500000 = 1 << 8;
+        const B3000000 = 1 << 9;
+        const B6000000 = 1 << 10;
+        const B12000000 = 1 << 11;
     }
 }
 

@@ -77,6 +77,16 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                             gsd.supported_speeds |= crate::SupportedSpeeds::B19200;
                         }
                     }
+                    "31.25_supp" => {
+                        if parse_number(value_pair) != 0 {
+                            gsd.supported_speeds |= crate::SupportedSpeeds::B31250;
+                        }
+                    }
+                    "45.45_supp" => {
+                        if parse_number(value_pair) != 0 {
+                            gsd.supported_speeds |= crate::SupportedSpeeds::B45450;
+                        }
+                    }
                     "93.75_supp" => {
                         if parse_number(value_pair) != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B93750;

@@ -59,11 +59,13 @@ impl<'a> Peripheral<'a> {
 }
 
 impl<'a> Peripheral<'a> {
-    fn try_communicate(
+    pub fn try_start_message_cycle(
         &mut self,
         now: crate::time::Instant,
         master: &crate::fdl::FdlMaster,
-    ) -> Option<()> {
+        tx: crate::fdl::TelegramTx,
+        high_prio_only: bool,
+    ) -> Option<crate::fdl::TelegramTxResponse> {
         if !master.check_address_live(self.address) {
             self.state = PeripheralState::Offline;
             return None;
@@ -73,11 +75,37 @@ impl<'a> Peripheral<'a> {
         }
 
         match self.state {
-            PeripheralState::Reset => todo!(),
+            PeripheralState::Reset => {
+                // Request diagnostics
+                Some(tx.send_data_telegram(
+                    crate::fdl::DataTelegramHeader {
+                        da: self.address,
+                        sa: master.parameters().address,
+                        dsap: Some(60),
+                        ssap: Some(62),
+                        fc: crate::fdl::FunctionCode::Request {
+                            fcv: false,
+                            fcb: false,
+                            req: crate::fdl::RequestType::SrdLow,
+                        },
+                    },
+                    0,
+                    |_buf| (),
+                ))
+            }
             PeripheralState::WaitForParam => todo!(),
             PeripheralState::WaitForConfig => todo!(),
             PeripheralState::DataExchange => todo!(),
             PeripheralState::Offline => unreachable!(),
         }
+    }
+
+    pub fn handle_response(
+        &mut self,
+        now: crate::time::Instant,
+        master: &crate::fdl::FdlMaster,
+        telegram: crate::fdl::Telegram,
+    ) {
+        log::debug!("I got a {telegram:?}");
     }
 }

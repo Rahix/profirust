@@ -337,24 +337,9 @@ impl FdlMaster {
             debug_assert_eq!(handle.address(), peripheral.address());
 
             if phy.transmit_telegram(|tx| {
-                // TODO: Master should await reply
-                Some(tx.send_data_telegram(
-                    crate::fdl::DataTelegramHeader {
-                        da: peripheral.address(),
-                        sa: self.p.address,
-                        dsap: Some(60),
-                        ssap: Some(62),
-                        fc: crate::fdl::FunctionCode::Request {
-                            fcv: false,
-                            fcb: false,
-                            req: crate::fdl::RequestType::SrdLow,
-                        },
-                    },
-                    // no data
-                    0,
-                    |_buf| (),
-                ))
+                peripheral.try_start_message_cycle(now, self, tx, high_prio_only)
             }) {
+                self.master_state = MasterState::AwaitingResponse(peripheral.address(), now);
                 return Some(self.mark_tx(now));
             }
         }
@@ -366,8 +351,23 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
+        peripherals: &mut crate::fdl::PeripheralSet<'_>,
+        addr: u8,
     ) -> bool {
-        todo!()
+        phy.receive_telegram(|telegram| {
+            self.mark_rx(now);
+            if let crate::fdl::Telegram::Token(t) = telegram {
+                log::warn!("Received token telegram {t:?} while waiting for peripheral response");
+                return false;
+            }
+            for (handle, peripheral) in peripherals.iter_mut() {
+                if peripheral.address() == addr {
+                    peripheral.handle_response(now, self, telegram);
+                    return true;
+                }
+            }
+            unreachable!("Peripheral {addr} not in set but expected to answer");
+        }).unwrap_or(false)
     }
 
     fn check_for_status_response(
@@ -458,7 +458,7 @@ impl FdlMaster {
         match self.master_state {
             MasterState::Idle => (),
             MasterState::AwaitingResponse(addr, sent_time) => {
-                if self.check_for_response(now, phy) {
+                if self.check_for_response(now, phy, peripherals, addr) {
                     self.master_state = MasterState::Idle;
                 } else if (now - sent_time) >= self.p.slot_time() {
                     todo!("handle message cycle response timeout");

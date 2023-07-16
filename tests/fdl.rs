@@ -13,14 +13,14 @@ fn two_masters_and_their_tokens() {
     let mut per1 = fdl::PeripheralSet::new(vec![]);
     let mut master1 = fdl::FdlMaster::new(fdl::Parameters {
         address: 2,
-        baudrate: fdl::Baudrate::B19200,
+        baudrate: profirust::Baudrate::B19200,
         highest_station_address: 16,
         ..Default::default()
     });
     let mut per2 = fdl::PeripheralSet::new(vec![]);
     let mut master2 = fdl::FdlMaster::new(fdl::Parameters {
         address: 7,
-        baudrate: fdl::Baudrate::B19200,
+        baudrate: profirust::Baudrate::B19200,
         highest_station_address: 16,
         ..Default::default()
     });

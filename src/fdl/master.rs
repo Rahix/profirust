@@ -1,67 +1,6 @@
 #![deny(unused_must_use)]
 use crate::phy::ProfibusPhy;
 
-/// Baudrate for fieldbus communication.
-///
-/// - PROFIBUS DP networks can run at any of the available baudrates given that all stations
-///   support the selected speed.
-/// - PROFIBUS PA networks must use `B31250` (31.25 kbit/s).
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-#[repr(u8)]
-pub enum Baudrate {
-    /// 9.6 kbit/s
-    B9600,
-    /// 19.2 kbit/s
-    B19200,
-    /// 31.25 kbit/s
-    B31250,
-    /// 45.45 kbit/s
-    B45450,
-    /// 93.75 kbit/s
-    B93750,
-    /// 187.5 kbit/s
-    B187500,
-    /// 500 kbit/s
-    B500000,
-    /// 1.5 Mbit/s
-    B1500000,
-    /// 3 Mbit/s
-    B3000000,
-    /// 6 Mbit/s
-    B6000000,
-    /// 12 Mbit/s
-    B12000000,
-}
-
-impl Baudrate {
-    /// Convert baudrate into its numeric value in bit/s.
-    pub fn to_rate(self) -> u64 {
-        match self {
-            Baudrate::B9600 => 9600,
-            Baudrate::B19200 => 19200,
-            Baudrate::B31250 => 31250,
-            Baudrate::B45450 => 45450,
-            Baudrate::B93750 => 93750,
-            Baudrate::B187500 => 187500,
-            Baudrate::B500000 => 500000,
-            Baudrate::B1500000 => 1500000,
-            Baudrate::B3000000 => 3000000,
-            Baudrate::B6000000 => 6000000,
-            Baudrate::B12000000 => 12000000,
-        }
-    }
-
-    /// At this baudrate, return how long a given number of bits take to transmit.
-    pub fn bits_to_time(self, bits: u32) -> crate::time::Duration {
-        crate::time::Duration::from_micros(bits as u64 * 1000000 / self.to_rate())
-    }
-
-    /// At this baudrate, return how many bits could be transmitted in the given time.
-    pub fn time_to_bits(self, time: crate::time::Duration) -> u64 {
-        time.total_micros() * self.to_rate() / 1000000
-    }
-}
-
 /// FDL master parameters
 ///
 /// These parameters configure the behavior of the FDL master.
@@ -72,7 +11,7 @@ impl Baudrate {
 ///
 /// let param = fdl::Parameters {
 ///     address: 2,
-///     baudrate: fdl::Baudrate::B31250,
+///     baudrate: profirust::Baudrate::B31250,
 ///     .. Default::default()
 /// };
 /// ```
@@ -81,7 +20,7 @@ pub struct Parameters {
     /// Station address for this master
     pub address: u8,
     /// Baudrate
-    pub baudrate: Baudrate,
+    pub baudrate: crate::Baudrate,
     /// T<sub>SL</sub>: Slot time in bits
     pub slot_bits: u16,
     /// Time until the token should have rotated through all masters once.
@@ -98,7 +37,7 @@ impl Default for Parameters {
     fn default() -> Self {
         Parameters {
             address: 1,
-            baudrate: Baudrate::B19200,
+            baudrate: crate::Baudrate::B19200,
             slot_bits: 100, // TODO: needs to be adjusted depending on baudrate
             token_rotation_bits: 20000, // TODO: really sane default?  This was at least recommended somewhere...
             gap_wait_rotations: 100,    // TODO: sane default?
@@ -640,17 +579,17 @@ mod tests {
     #[test]
     fn baudrate_time_conversions() {
         let all_bauds = &[
-            Baudrate::B9600,
-            Baudrate::B19200,
-            Baudrate::B31250,
-            Baudrate::B45450,
-            Baudrate::B93750,
-            Baudrate::B187500,
-            Baudrate::B500000,
-            Baudrate::B1500000,
-            Baudrate::B3000000,
-            Baudrate::B6000000,
-            Baudrate::B12000000,
+            crate::Baudrate::B9600,
+            crate::Baudrate::B19200,
+            crate::Baudrate::B31250,
+            crate::Baudrate::B45450,
+            crate::Baudrate::B93750,
+            crate::Baudrate::B187500,
+            crate::Baudrate::B500000,
+            crate::Baudrate::B1500000,
+            crate::Baudrate::B3000000,
+            crate::Baudrate::B6000000,
+            crate::Baudrate::B12000000,
         ];
         let test_values = &[0, 1, 10, 100, 2000, 65536, u32::MAX];
 
@@ -661,17 +600,17 @@ mod tests {
                 let bits2 = baud.time_to_bits(time);
 
                 let max_difference = match baud {
-                    Baudrate::B9600 => 1,
-                    Baudrate::B19200 => 1,
-                    Baudrate::B31250 => 1,
-                    Baudrate::B45450 => 1,
-                    Baudrate::B93750 => 1,
-                    Baudrate::B187500 => 1,
-                    Baudrate::B500000 => 1,
-                    Baudrate::B1500000 => 1,
-                    Baudrate::B3000000 => 2,
-                    Baudrate::B6000000 => 4,
-                    Baudrate::B12000000 => 10,
+                    crate::Baudrate::B9600 => 1,
+                    crate::Baudrate::B19200 => 1,
+                    crate::Baudrate::B31250 => 1,
+                    crate::Baudrate::B45450 => 1,
+                    crate::Baudrate::B93750 => 1,
+                    crate::Baudrate::B187500 => 1,
+                    crate::Baudrate::B500000 => 1,
+                    crate::Baudrate::B1500000 => 1,
+                    crate::Baudrate::B3000000 => 2,
+                    crate::Baudrate::B6000000 => 4,
+                    crate::Baudrate::B12000000 => 10,
                 };
                 assert!(
                     bits as u64 - bits2 <= max_difference,

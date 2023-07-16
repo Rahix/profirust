@@ -13,8 +13,9 @@ fn fdl_test() {
     let mut master = fdl::FdlMaster::new(fdl::Parameters {
         address: 0x02,
         baudrate: fdl::Baudrate::B19200,
+        // We use a rather large Tsl time because the USB-RS485 converter is super slow at times.
         slot_bits: 1920,
-        token_rotation_bits: 1000000,
+        token_rotation_bits: 20000,
         ..Default::default()
     });
 

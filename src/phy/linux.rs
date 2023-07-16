@@ -48,19 +48,84 @@ pub struct LinuxRs485Phy<'a> {
 
 impl LinuxRs485Phy<'_> {
     #[inline]
-    pub fn new<P: AsRef<Path>>(serial_port: P) -> Self {
-        Self::new_inner(&serial_port.as_ref())
+    pub fn new<P: AsRef<Path>>(serial_port: P, baudrate: crate::Baudrate) -> Self {
+        Self::new_inner(&serial_port.as_ref(), baudrate)
     }
 
-    fn new_inner(serial_port: &Path) -> Self {
+    fn new_inner(serial_port: &Path, baudrate: crate::Baudrate) -> Self {
         // open serial port non-blocking
         let path = std::ffi::CString::new(serial_port.as_os_str().as_bytes()).unwrap();
-        let fd = unsafe { libc::open(path.as_ptr() as *const i8, libc::O_RDWR | libc::O_NONBLOCK) };
-
+        let fd = unsafe {
+            libc::open(
+                path.as_ptr() as *const i8,
+                libc::O_RDWR | libc::O_NONBLOCK | libc::O_NOCTTY,
+            )
+        };
         if fd < 0 {
             let error = io::Error::last_os_error();
             Result::<(), _>::Err(error).unwrap();
         }
+
+        let mut tty: libc::termios2 = unsafe { core::mem::zeroed() };
+        if unsafe { libc::ioctl(fd, libc::TCGETS2, &mut tty) } < 0 {
+            let error = io::Error::last_os_error();
+            Result::<(), _>::Err(error).unwrap();
+        }
+
+        tty.c_iflag &= !(libc::IGNBRK
+            | libc::BRKINT
+            | libc::PARMRK
+            | libc::ISTRIP
+            | libc::INLCR
+            | libc::IGNCR
+            | libc::ICRNL
+            | libc::IXON);
+        tty.c_oflag &= !(libc::OPOST | libc::ONLCR);
+        tty.c_lflag &= !(libc::ISIG
+            | libc::ICANON
+            | libc::IEXTEN
+            | libc::ECHO
+            | libc::ECHOE
+            | libc::ECHOK
+            | libc::ECHONL);
+
+        tty.c_cflag &= !(libc::CSIZE
+            | libc::PARODD
+            | libc::CSTOPB
+            | libc::CRTSCTS
+            | (libc::CBAUD | libc::CBAUDEX)
+            | ((libc::CBAUD | libc::CBAUDEX) << libc::IBSHIFT));
+        tty.c_cflag |= libc::CS8 | libc::PARENB | libc::BOTHER | (libc::BOTHER << libc::IBSHIFT);
+
+        // Ensure non-blocking access
+        tty.c_cc[libc::VMIN] = 0;
+        tty.c_cc[libc::VTIME] = 0;
+
+        // Set speed
+        let baud = baudrate.to_rate().try_into().unwrap();
+        tty.c_ispeed = baud;
+        tty.c_ospeed = baud;
+        log::debug!("Speed: {}", tty.c_ispeed);
+
+        if unsafe { libc::ioctl(fd, libc::TCSETS2, &tty) } < 0 {
+            let error = io::Error::last_os_error();
+            Result::<(), _>::Err(error).unwrap();
+        }
+
+        // Read back to ensure baudrates are correct.
+        if unsafe { libc::ioctl(fd, libc::TCGETS2, &mut tty) } < 0 {
+            let error = io::Error::last_os_error();
+            Result::<(), _>::Err(error).unwrap();
+        }
+
+        assert_eq!(
+            tty.c_ispeed, baud,
+            "c_ispeed not matching expected baudrate"
+        );
+        assert_eq!(
+            tty.c_ospeed, baud,
+            "c_ospeed not matching expected baudrate"
+        );
 
         let res = rs485::SerialRs485::new()
             .set_enabled(true)
@@ -68,7 +133,6 @@ impl LinuxRs485Phy<'_> {
             .set_rts_after_send(false)
             .set_rx_during_tx(false)
             .set_on_fd(fd);
-
         if let Err(e) = res {
             log::warn!("Could not configure RS485 mode: {}", e);
         }

@@ -25,7 +25,7 @@ fn fdl_test() {
         master.parameters().token_lost_timeout().millis()
     );
 
-    let mut phy = phy::LinuxRs485Phy::new("/dev/ttyUSB0");
+    let mut phy = phy::LinuxRs485Phy::new("/dev/ttyUSB0", master.parameters().baudrate);
 
     loop {
         master.poll(profirust::time::Instant::now(), &mut phy, &mut peripherals);
@@ -38,7 +38,7 @@ fn fdl_test() {
 fn phy_test() {
     env_logger::init();
 
-    let mut phy = phy::LinuxRs485Phy::new("/dev/ttyUSB0");
+    let mut phy = phy::LinuxRs485Phy::new("/dev/ttyUSB0", profirust::Baudrate::B19200);
 
     phy.transmit_data(|buffer| {
         buffer[..6].copy_from_slice(&[0x10, 0x22, 0x02, 0x49, 0x6D, 0x16]);

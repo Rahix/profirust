@@ -1,52 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
-enum FrameCountBit {
-    #[default]
-    NotValid,
-    High,
-    Low,
-}
-
-impl FrameCountBit {
-    pub fn reset(&mut self) {
-        *self = FrameCountBit::NotValid;
-    }
-
-    pub fn cycle(&mut self) {
-        *self = match self {
-            FrameCountBit::NotValid => FrameCountBit::Low,
-            FrameCountBit::High => FrameCountBit::Low,
-            FrameCountBit::Low => FrameCountBit::High,
-        }
-    }
-
-    pub fn fcb(self) -> bool {
-        match self {
-            FrameCountBit::NotValid => true,
-            FrameCountBit::High => true,
-            FrameCountBit::Low => false,
-        }
-    }
-
-    pub fn fcv(self) -> bool {
-        match self {
-            FrameCountBit::NotValid => false,
-            FrameCountBit::High => true,
-            FrameCountBit::Low => true,
-        }
-    }
-
-    pub fn make_request_fc(self, req: crate::fdl::RequestType) -> crate::fdl::FunctionCode {
-        crate::fdl::FunctionCode::Request {
-            fcb: self.fcb(),
-            fcv: self.fcv(),
-            req,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[repr(u8)]
 enum PeripheralState {
     #[default]
     Offline,
@@ -66,7 +19,7 @@ pub struct Peripheral<'a> {
     ///
     /// The "Frame Count Bit" is used to detect lost messages and prevent duplication on either
     /// side.
-    fcb: FrameCountBit,
+    fcb: crate::fdl::FrameCountBit,
     /// Process Image of Inputs
     pi_i: &'a mut [u8],
     /// Process Image of Outputs
@@ -150,7 +103,7 @@ impl<'a> Peripheral<'a> {
                         sa: master.parameters().address,
                         dsap: Some(61),
                         ssap: Some(62),
-                        fc: self.fcb.make_request_fc(crate::fdl::RequestType::SrdLow),
+                        fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                     },
                     7,
                     |buf| {
@@ -175,7 +128,7 @@ impl<'a> Peripheral<'a> {
                         sa: master.parameters().address,
                         dsap: Some(62),
                         ssap: Some(62),
-                        fc: self.fcb.make_request_fc(crate::fdl::RequestType::SrdLow),
+                        fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                     },
                     2,
                     |buf| {
@@ -198,7 +151,7 @@ impl<'a> Peripheral<'a> {
                             sa: master.parameters().address,
                             dsap: crate::consts::SAP_SLAVE_DATA_EXCHANGE,
                             ssap: crate::consts::SAP_MASTER_DATA_EXCHANGE,
-                            fc: self.fcb.make_request_fc(crate::fdl::RequestType::SrdLow),
+                            fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                         },
                         3,
                         |buf| {
@@ -267,7 +220,7 @@ impl<'a> Peripheral<'a> {
                 sa: master.parameters().address,
                 dsap: crate::consts::SAP_SLAVE_DIAGNOSIS,
                 ssap: crate::consts::SAP_MASTER_MS0,
-                fc: self.fcb.make_request_fc(crate::fdl::RequestType::SrdLow),
+                fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
             },
             0,
             |_buf| (),

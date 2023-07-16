@@ -115,13 +115,69 @@ impl ResponseStatus {
     }
 }
 
+/// Frame Count Bit
+///
+/// The FCB (Frame Count Bit) is used to detect lost messages and prevent duplication on either
+/// side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
+#[repr(u8)]
+pub enum FrameCountBit {
+    #[default]
+    First,
+    High,
+    Low,
+    Inactive,
+}
+
+impl FrameCountBit {
+    pub fn reset(&mut self) {
+        *self = FrameCountBit::First;
+    }
+
+    pub fn cycle(&mut self) {
+        *self = match self {
+            FrameCountBit::First => FrameCountBit::Low,
+            FrameCountBit::High => FrameCountBit::Low,
+            FrameCountBit::Low => FrameCountBit::High,
+            FrameCountBit::Inactive => panic!("FCB must not be inactive to be cycled!"),
+        }
+    }
+
+    pub fn fcb(self) -> bool {
+        match self {
+            FrameCountBit::First => true,
+            FrameCountBit::High => true,
+            FrameCountBit::Low => false,
+            FrameCountBit::Inactive => false,
+        }
+    }
+
+    pub fn fcv(self) -> bool {
+        match self {
+            FrameCountBit::First => false,
+            FrameCountBit::High => true,
+            FrameCountBit::Low => true,
+            FrameCountBit::Inactive => false,
+        }
+    }
+
+    pub fn from_fcv_fcb(fcv: bool, fcb: bool) -> FrameCountBit {
+        match (fcv, fcb) {
+            (false, false) => FrameCountBit::Inactive,
+            (false, true) => FrameCountBit::First,
+            (true, true) => FrameCountBit::High,
+            (true, false) => FrameCountBit::Low,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 pub enum FunctionCode {
     /// This marks a request telegram
     Request {
-        fcv: bool,
-        fcb: bool,
+        fcb: FrameCountBit,
         req: RequestType,
     },
     /// This marks a response telegram
@@ -134,8 +190,8 @@ pub enum FunctionCode {
 impl FunctionCode {
     pub fn to_byte(self) -> u8 {
         match self {
-            FunctionCode::Request { fcv, fcb, req } => {
-                (1 << 6) | req as u8 | ((fcv as u8) << 4) | ((fcb as u8) << 5)
+            FunctionCode::Request { fcb, req } => {
+                (1 << 6) | req as u8 | ((fcb.fcv() as u8) << 4) | ((fcb.fcb() as u8) << 5)
             }
             FunctionCode::Response { state, status } => ((state as u8) << 4) | status as u8,
         }
@@ -146,11 +202,21 @@ impl FunctionCode {
             let fcv = b & (1 << 4) != 0;
             let fcb = b & (1 << 5) != 0;
             let req = RequestType::from_u8(b & 0x8F).ok_or(())?;
-            Ok(Self::Request { fcv, fcb, req })
+            Ok(Self::Request {
+                fcb: FrameCountBit::from_fcv_fcb(fcv, fcb),
+                req,
+            })
         } else {
             let state = ResponseState::from_u8((b & 0x30) >> 4).ok_or(())?;
             let status = ResponseStatus::from_u8(b & 0x0F).ok_or(())?;
             Ok(Self::Response { state, status })
+        }
+    }
+
+    pub fn new_srd_low(fcb: FrameCountBit) -> Self {
+        Self::Request {
+            fcb,
+            req: RequestType::SrdLow,
         }
     }
 }
@@ -481,8 +547,7 @@ impl<'a> TelegramTx<'a> {
                 dsap: None,
                 ssap: None,
                 fc: FunctionCode::Request {
-                    fcv: false,
-                    fcb: false,
+                    fcb: FrameCountBit::Inactive,
                     req: RequestType::FdlStatus,
                 },
             },
@@ -550,8 +615,7 @@ mod tests {
                     dsap: None,
                     ssap: None,
                     fc: FunctionCode::Request {
-                        fcv: false,
-                        fcb: false,
+                        fcb: FrameCountBit::Inactive,
                         req: RequestType::FdlStatus
                     }
                 },

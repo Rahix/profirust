@@ -17,6 +17,11 @@ fn parse_number(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> u32 {
     }
 }
 
+fn parse_number_list<T: TryFrom<u32>>(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> Vec<T> {
+    assert_eq!(pair.as_rule(), gsd_parser::Rule::number_list);
+    pair.into_inner().into_iter().map(|p| parse_number(p).try_into().ok().unwrap()).collect()
+}
+
 fn parse_string_literal(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> String {
     assert!(pair.as_rule() == gsd_parser::Rule::string_literal);
     // drop the quotation marks
@@ -106,14 +111,14 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
 
                 gsd.user_prm_data_definitions.insert(
                     id,
-                    crate::UserPrmDataDefinition {
+                    Arc::new(crate::UserPrmDataDefinition {
                         name,
                         data_type,
                         text_ref,
                         default_value,
                         min_value,
                         max_value,
-                    },
+                    }),
                 );
             }
             gsd_parser::Rule::setting => {
@@ -206,6 +211,17 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     "max_input_len" => gsd.max_input_length = parse_number(value_pair) as u8,
                     "max_output_len" => gsd.max_output_length = parse_number(value_pair) as u8,
                     "max_data_len" => gsd.max_data_length = parse_number(value_pair) as u8,
+                    "ext_user_prm_data_ref" => {
+                        let offset = parse_number(value_pair);
+                        let data_id = parse_number(pairs.next().unwrap());
+                        let data_ref = gsd.user_prm_data_definitions.get(&data_id).unwrap().clone();
+                        gsd.user_prm_data.data_ref.push((offset as usize, data_ref));
+                    }
+                    "ext_user_prm_data_const" => {
+                        let offset = parse_number(value_pair);
+                        let values: Vec<u8> = parse_number_list(pairs.next().unwrap());
+                        gsd.user_prm_data.data_const.push((offset as usize, values));
+                    }
                     _ => (),
                 }
             }

@@ -149,6 +149,12 @@ pub struct UserPrmDataDefinition {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct UserPrmData {
+    pub data_const: Vec<(usize, Vec<u8>)>,
+    pub data_ref: Vec<(usize, Arc<UserPrmDataDefinition>)>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct Module {
     name: String,
     config: Vec<u8>,
@@ -197,7 +203,8 @@ pub struct GenericStationDescription {
     pub max_tsdr: MaxTsdr,
     //
     pub available_modules: Vec<Module>,
-    pub user_prm_data_definitions: BTreeMap<u32, UserPrmDataDefinition>,
+    pub user_prm_data: UserPrmData,
+    pub user_prm_data_definitions: BTreeMap<u32, Arc<UserPrmDataDefinition>>,
 }
 
 pub fn parse_from_file<P: AsRef<Path>>(file: P) -> GenericStationDescription {

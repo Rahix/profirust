@@ -138,13 +138,66 @@ pub enum UserPrmDataType {
     BitArea(u8, u8),
 }
 
+impl UserPrmDataType {
+    pub fn size(self) -> usize {
+        match self {
+            UserPrmDataType::Unsigned8 => 1,
+            UserPrmDataType::Unsigned16 => 2,
+            UserPrmDataType::Unsigned32 => 4,
+            UserPrmDataType::Signed8 => 1,
+            UserPrmDataType::Signed16 => 2,
+            UserPrmDataType::Signed32 => 4,
+            UserPrmDataType::Bit(_) => 1,
+            UserPrmDataType::BitArea(_, _) => 1,
+        }
+    }
+
+    pub fn write_value_to_slice(self, value: i64, s: &mut [u8]) {
+        match self {
+            UserPrmDataType::Unsigned8 => {
+                assert!(0 <= value && value <= 255);
+                s[..1].copy_from_slice(&(value as u8).to_be_bytes());
+            }
+            UserPrmDataType::Unsigned16 => {
+                assert!(0 <= value && value <= 65535);
+                s[..2].copy_from_slice(&(value as u16).to_be_bytes());
+            }
+            UserPrmDataType::Unsigned32 => {
+                assert!(0 <= value && value <= 4294967295);
+                s[..4].copy_from_slice(&(value as u32).to_be_bytes());
+            }
+            UserPrmDataType::Signed8 => {
+                assert!(-127 <= value && value <= 127);
+                s[..1].copy_from_slice(&(value as i8).to_be_bytes());
+            }
+            UserPrmDataType::Signed16 => {
+                assert!(-32767 <= value && value <= 32767);
+                s[..2].copy_from_slice(&(value as i16).to_be_bytes());
+            }
+            UserPrmDataType::Signed32 => {
+                assert!(2147483647 <= value && value <= 2147483647);
+                s[..4].copy_from_slice(&(value as i32).to_be_bytes());
+            }
+            UserPrmDataType::Bit(b) => {
+                assert!(value == 0 || value == 1);
+                s[0] |= (value as u8) << b;
+            }
+            UserPrmDataType::BitArea(first, last) => {
+                let bit_size = last - first + 1;
+                assert!(value >= 0 && value < 2i64.pow(bit_size as u32));
+                s[0] = (value as u8) << first;
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct UserPrmDataDefinition {
     pub name: String,
     pub data_type: UserPrmDataType,
-    pub default_value: u32,
-    pub min_value: u32,
-    pub max_value: u32,
+    pub default_value: i64,
+    pub min_value: i64,
+    pub max_value: i64,
     pub text_ref: Option<Arc<BTreeMap<String, u32>>>,
 }
 
@@ -204,6 +257,56 @@ pub struct GenericStationDescription {
     //
     pub available_modules: Vec<Module>,
     pub user_prm_data: UserPrmData,
+}
+
+pub struct PrmBuilder<'a> {
+    gsd: &'a GenericStationDescription,
+    prm: Vec<u8>,
+}
+
+impl<'a> PrmBuilder<'a> {
+    pub fn new(gsd: &'a GenericStationDescription) -> Self {
+        let mut this = Self {
+            gsd,
+            prm: Vec::new(),
+        };
+        this.write_const_prm_data();
+        this.write_default_prm_data();
+        this
+    }
+
+    fn update_prm_data_len(&mut self, offset: usize, size: usize) {
+        if self.prm.len() < (offset + size) {
+            for _ in 0..((offset + size) - self.prm.len()) {
+                self.prm.push(0x00);
+            }
+        }
+    }
+
+    fn write_const_prm_data(&mut self) {
+        for (offset, data_const) in self.gsd.user_prm_data.data_const.iter() {
+            self.update_prm_data_len(*offset, data_const.len());
+            self.prm[*offset..(offset + data_const.len())].copy_from_slice(data_const);
+        }
+    }
+
+    fn write_default_prm_data(&mut self) {
+        for (offset, data_ref) in self.gsd.user_prm_data.data_ref.iter() {
+            let size = data_ref.data_type.size();
+            self.update_prm_data_len(*offset, size);
+            data_ref
+                .data_type
+                .write_value_to_slice(data_ref.default_value, &mut self.prm[(*offset as usize)..]);
+        }
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.prm
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.prm
+    }
 }
 
 pub fn parse_from_file<P: AsRef<Path>>(file: P) -> GenericStationDescription {

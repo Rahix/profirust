@@ -210,10 +210,10 @@ pub struct UserPrmData {
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct Module {
-    name: String,
-    config: Vec<u8>,
-    reference: Option<u32>,
-    module_prm_data: UserPrmData,
+    pub name: String,
+    pub config: Vec<u8>,
+    pub reference: Option<u32>,
+    pub module_prm_data: UserPrmData,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]

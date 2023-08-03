@@ -19,7 +19,10 @@ fn parse_number(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> u32 {
 
 fn parse_number_list<T: TryFrom<u32>>(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> Vec<T> {
     assert_eq!(pair.as_rule(), gsd_parser::Rule::number_list);
-    pair.into_inner().into_iter().map(|p| parse_number(p).try_into().ok().unwrap()).collect()
+    pair.into_inner()
+        .into_iter()
+        .map(|p| parse_number(p).try_into().ok().unwrap())
+        .collect()
 }
 
 fn parse_string_literal(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> String {

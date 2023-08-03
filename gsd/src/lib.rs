@@ -203,6 +203,7 @@ pub struct UserPrmDataDefinition {
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct UserPrmData {
+    pub length: u8,
     pub data_const: Vec<(usize, Vec<u8>)>,
     pub data_ref: Vec<(usize, Arc<UserPrmDataDefinition>)>,
 }
@@ -211,8 +212,8 @@ pub struct UserPrmData {
 pub struct Module {
     name: String,
     config: Vec<u8>,
-    input_length: u8,
-    output_length: u8,
+    reference: Option<u32>,
+    module_prm_data: UserPrmData,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]

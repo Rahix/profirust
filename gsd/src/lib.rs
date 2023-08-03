@@ -198,7 +198,7 @@ pub struct UserPrmDataDefinition {
     pub default_value: i64,
     pub min_value: i64,
     pub max_value: i64,
-    pub text_ref: Option<Arc<BTreeMap<String, u32>>>,
+    pub text_ref: Option<Arc<BTreeMap<String, i64>>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
@@ -298,6 +298,38 @@ impl<'a> PrmBuilder<'a> {
                 .data_type
                 .write_value_to_slice(data_ref.default_value, &mut self.prm[(*offset as usize)..]);
         }
+    }
+
+    pub fn set_prm(&mut self, prm: &str, value: i64) -> &mut Self {
+        let (offset, data_ref) = self
+            .gsd
+            .user_prm_data
+            .data_ref
+            .iter()
+            .find(|(_, r)| r.name == prm)
+            .unwrap();
+        assert!(data_ref.min_value <= value && value <= data_ref.max_value);
+        data_ref
+            .data_type
+            .write_value_to_slice(value, &mut self.prm[(*offset as usize)..]);
+        self
+    }
+
+    pub fn set_prm_from_text(&mut self, prm: &str, value: &str) -> &mut Self {
+        let (offset, data_ref) = self
+            .gsd
+            .user_prm_data
+            .data_ref
+            .iter()
+            .find(|(_, r)| r.name == prm)
+            .unwrap();
+        let text_ref = data_ref.text_ref.as_ref().unwrap();
+        let value = *text_ref.get(value).unwrap();
+        assert!(data_ref.min_value <= value && value <= data_ref.max_value);
+        data_ref
+            .data_type
+            .write_value_to_slice(value, &mut self.prm[(*offset as usize)..]);
+        self
     }
 
     pub fn as_bytes(&self) -> &[u8] {

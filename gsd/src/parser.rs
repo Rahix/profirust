@@ -55,7 +55,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     let number = parse_number(iter.next().unwrap());
                     let value = parse_string_literal(iter.next().unwrap());
                     assert!(iter.next().is_none());
-                    values.insert(value, number);
+                    values.insert(value, number as i64);
                 }
                 prm_texts.insert(id, Arc::new(values));
             }

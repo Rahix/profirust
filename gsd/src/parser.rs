@@ -149,5 +149,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
         }
     }
 
+    gsd.prm_texts = prm_texts;
+
     gsd
 }

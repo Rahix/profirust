@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::collections::BTreeMap;
 
 pub mod parser;
 
@@ -173,6 +174,7 @@ pub struct GenericStationDescription {
     pub max_tsdr: MaxTsdr,
     //
     pub available_modules: Vec<Module>,
+    pub prm_texts: BTreeMap<u32, BTreeMap<String, u32>>,
 }
 
 pub fn parse_from_file<P: AsRef<Path>>(file: P) -> GenericStationDescription {

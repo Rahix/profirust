@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 mod gsd_parser {
     #[derive(pest_derive::Parser)]
@@ -50,7 +51,67 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     assert!(iter.next().is_none());
                     values.insert(value, number);
                 }
-                prm_texts.insert(id, values);
+                prm_texts.insert(id, Arc::new(values));
+            }
+            gsd_parser::Rule::ext_user_prm_data => {
+                let mut content = statement.into_inner();
+                let id = parse_number(content.next().unwrap());
+                let name = parse_string_literal(content.next().unwrap());
+
+                let data_type_pair = content.next().unwrap();
+                assert_eq!(
+                    data_type_pair.as_rule(),
+                    gsd_parser::Rule::prm_data_type_name
+                );
+                let data_type_rule = data_type_pair.into_inner().next().unwrap();
+                let data_type = match data_type_rule.as_rule() {
+                    gsd_parser::Rule::identifier => {
+                        match data_type_rule.as_str().to_lowercase().as_str() {
+                            "unsigned8" => crate::UserPrmDataType::Unsigned8,
+                            "unsigned16" => crate::UserPrmDataType::Unsigned16,
+                            "unsigned32" => crate::UserPrmDataType::Unsigned32,
+                            "signed8" => crate::UserPrmDataType::Signed8,
+                            "signed16" => crate::UserPrmDataType::Signed16,
+                            "signed32" => crate::UserPrmDataType::Signed32,
+                            dt => panic!("unknown data type {dt:?}"),
+                        }
+                    }
+                    gsd_parser::Rule::bit => {
+                        let bit = parse_number(data_type_rule.into_inner().next().unwrap());
+                        crate::UserPrmDataType::Bit(bit as u8)
+                    }
+                    gsd_parser::Rule::bit_area => {
+                        let mut content = data_type_rule.into_inner();
+                        let first_bit = parse_number(content.next().unwrap());
+                        let last_bit = parse_number(content.next().unwrap());
+                        crate::UserPrmDataType::BitArea(first_bit as u8, last_bit as u8)
+                    }
+                    _ => unreachable!(),
+                };
+
+                content.next();
+                content.next();
+                content.next();
+
+                let mut text_ref = None;
+                for data_setting in content {
+                    match data_setting.as_rule() {
+                        gsd_parser::Rule::prm_text_ref => {
+                            let text_id = parse_number(data_setting.into_inner().next().unwrap());
+                            text_ref = Some(prm_texts.get(&text_id).unwrap().clone());
+                        }
+                        rule => todo!("rule {rule:?}"),
+                    }
+                }
+
+                gsd.user_prm_data_definitions.insert(
+                    id,
+                    crate::UserPrmDataDefinition {
+                        name,
+                        data_type,
+                        text_ref,
+                    },
+                );
             }
             gsd_parser::Rule::setting => {
                 let mut pairs = statement.into_inner();
@@ -148,8 +209,6 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
             _ => (),
         }
     }
-
-    gsd.prm_texts = prm_texts;
 
     gsd
 }

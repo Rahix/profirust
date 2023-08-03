@@ -1,5 +1,6 @@
-use std::path::Path;
 use std::collections::BTreeMap;
+use std::path::Path;
+use std::sync::Arc;
 
 pub mod parser;
 
@@ -125,6 +126,25 @@ impl Default for MaxTsdr {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum UserPrmDataType {
+    Unsigned8,
+    Unsigned16,
+    Unsigned32,
+    Signed8,
+    Signed16,
+    Signed32,
+    Bit(u8),
+    BitArea(u8, u8),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct UserPrmDataDefinition {
+    pub name: String,
+    pub data_type: UserPrmDataType,
+    pub text_ref: Option<Arc<BTreeMap<String, u32>>>,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct Module {
     name: String,
@@ -174,7 +194,7 @@ pub struct GenericStationDescription {
     pub max_tsdr: MaxTsdr,
     //
     pub available_modules: Vec<Module>,
-    pub prm_texts: BTreeMap<u32, BTreeMap<String, u32>>,
+    pub user_prm_data_definitions: BTreeMap<u32, UserPrmDataDefinition>,
 }
 
 pub fn parse_from_file<P: AsRef<Path>>(file: P) -> GenericStationDescription {

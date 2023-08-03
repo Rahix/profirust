@@ -27,9 +27,14 @@ prm_text_value = { "Text" ~ "(" ~ number ~ ")" ~ "=" ~ string_literal ~ NEWLINE 
 
 ext_user_prm_data = {
     "ExtUserPrmData" ~ "=" ~ number ~ string_literal ~ NEWLINE ~
-    (!"EndExtUserPrmData" ~ ANY)* ~
+    prm_data_type_name ~ number ~ number ~ "-" ~ number ~ NEWLINE ~
+    prm_text_ref? ~
     "EndExtUserPrmData"
 }
+bit_area = { "BitArea" ~ "(" ~ number ~ "-" ~ number ~ ")" }
+bit = { "Bit" ~ "(" ~ number ~ ")" }
+prm_data_type_name = { bit | bit_area | identifier }
+prm_text_ref = { "Prm_Text_Ref" ~ "=" ~ number ~ NEWLINE }
 
 module = {
     "Module" ~ "=" ~ string_literal ~ number_list ~ NEWLINE ~

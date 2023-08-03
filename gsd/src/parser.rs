@@ -41,6 +41,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
 
     let mut gsd = crate::GenericStationDescription::default();
     let mut prm_texts = BTreeMap::new();
+    let mut user_prm_data_definitions = BTreeMap::new();
 
     for statement in gsd_pairs.into_inner() {
         match statement.as_rule() {
@@ -109,7 +110,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     }
                 }
 
-                gsd.user_prm_data_definitions.insert(
+                user_prm_data_definitions.insert(
                     id,
                     Arc::new(crate::UserPrmDataDefinition {
                         name,
@@ -214,7 +215,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     "ext_user_prm_data_ref" => {
                         let offset = parse_number(value_pair);
                         let data_id = parse_number(pairs.next().unwrap());
-                        let data_ref = gsd.user_prm_data_definitions.get(&data_id).unwrap().clone();
+                        let data_ref = user_prm_data_definitions.get(&data_id).unwrap().clone();
                         gsd.user_prm_data.data_ref.push((offset as usize, data_ref));
                     }
                     "ext_user_prm_data_const" => {

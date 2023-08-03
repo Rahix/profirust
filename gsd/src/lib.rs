@@ -204,7 +204,6 @@ pub struct GenericStationDescription {
     //
     pub available_modules: Vec<Module>,
     pub user_prm_data: UserPrmData,
-    pub user_prm_data_definitions: BTreeMap<u32, Arc<UserPrmDataDefinition>>,
 }
 
 pub fn parse_from_file<P: AsRef<Path>>(file: P) -> GenericStationDescription {

@@ -138,6 +138,10 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     }
                     //
                     "modular_station" => gsd.modular_station = parse_number(value_pair) != 0,
+                    "max_module" => gsd.max_modules = parse_number(value_pair) as u8,
+                    "max_input_len" => gsd.max_input_length = parse_number(value_pair) as u8,
+                    "max_output_len" => gsd.max_output_length = parse_number(value_pair) as u8,
+                    "max_data_len" => gsd.max_data_length = parse_number(value_pair) as u8,
                     _ => (),
                 }
             }

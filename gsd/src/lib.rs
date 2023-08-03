@@ -142,6 +142,9 @@ pub enum UserPrmDataType {
 pub struct UserPrmDataDefinition {
     pub name: String,
     pub data_type: UserPrmDataType,
+    pub default_value: u32,
+    pub min_value: u32,
+    pub max_value: u32,
     pub text_ref: Option<Arc<BTreeMap<String, u32>>>,
 }
 

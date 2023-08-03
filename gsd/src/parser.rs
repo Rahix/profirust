@@ -89,9 +89,9 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     _ => unreachable!(),
                 };
 
-                content.next();
-                content.next();
-                content.next();
+                let default_value = parse_number(content.next().unwrap());
+                let min_value = parse_number(content.next().unwrap());
+                let max_value = parse_number(content.next().unwrap());
 
                 let mut text_ref = None;
                 for data_setting in content {
@@ -110,6 +110,9 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                         name,
                         data_type,
                         text_ref,
+                        default_value,
+                        min_value,
+                        max_value,
                     },
                 );
             }

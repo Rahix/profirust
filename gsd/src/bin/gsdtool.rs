@@ -75,10 +75,25 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                 .with_prompt(&prm_ref.name)
                 .items(&texts_list)
                 .default(default)
+                .max_length(16)
                 .interact()
                 .unwrap();
         } else {
-            todo!();
+            dialoguer::Input::new()
+                .with_prompt(format!(
+                    "{} ({} - {})",
+                    prm_ref.name, prm_ref.min_value, prm_ref.max_value
+                ))
+                .default(prm_ref.default_value.to_string())
+                .validate_with(|inp: &String| -> Result<(), &str> {
+                    str::parse::<i64>(inp)
+                        .ok()
+                        .filter(|v| prm_ref.min_value <= *v && *v <= prm_ref.max_value)
+                        .map(|_| ())
+                        .ok_or("not a valid value")
+                })
+                .interact()
+                .unwrap();
         }
     }
     println!();
@@ -102,6 +117,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                 gsd.max_modules
             ))
             .items(&module_names)
+            .max_length(16)
             .interact_opt()
             .unwrap();
 
@@ -125,6 +141,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                         .with_prompt(&prm_ref.name)
                         .items(&texts_list)
                         .default(default)
+                        .max_length(16)
                         .interact()
                         .unwrap();
                 } else {

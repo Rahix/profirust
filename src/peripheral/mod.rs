@@ -242,7 +242,11 @@ impl<'a> Peripheral<'a> {
                     self.handle_diagnostics_response(master, &telegram);
                 } else {
                     if let crate::fdl::Telegram::Data(t) = telegram {
-                        self.pi_i.copy_from_slice(&t.pdu);
+                        if t.pdu.len() == self.pi_i.len() {
+                            self.pi_i.copy_from_slice(&t.pdu);
+                        } else {
+                            log::warn!("Got response with unexpected pdu length!");
+                        }
                     }
                     self.fcb.cycle();
                 }

@@ -191,6 +191,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     println!();
 
     println!("{}", style("Final Data:").bold());
+    println!("Ident Number: 0x{:04x}", gsd.ident_number);
     print!("User Parameters: [");
     for b in user_prm_data.into_iter() {
         print!("0x{b:02x}, ");

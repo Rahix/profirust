@@ -40,7 +40,7 @@ fn main() {
     match args.command {
         Some(GsdToolCommand::Dump(args)) => {
             let gsd = gsd_parser::parse_from_file(args.gsd_path);
-            dbg!(gsd);
+            println!("{:#?}", gsd);
         }
         Some(GsdToolCommand::ConfigWizard(args)) => {
             run_config_wizard(&args);

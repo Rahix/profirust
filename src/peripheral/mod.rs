@@ -5,8 +5,8 @@ pub struct PeripheralOptions<'a> {
     pub sync_mode: bool,
     pub freeze_mode: bool,
     pub groups: u8,
+    pub watchdog: Option<(u8, u8)>,
 
-    // TODO: Watchdog
     pub user_parameters: Option<&'a [u8]>,
     pub config: Option<&'a [u8]>,
 }
@@ -139,9 +139,11 @@ impl<'a> Peripheral<'a> {
                             if self.options.freeze_mode {
                                 buf[0] |= 0x10; // Freeze_Req
                             }
-                            // TODO: Watchdog
-                            buf[1] = 0x00;
-                            buf[2] = 0x00;
+                            if let Some((f1, f2)) = self.options.watchdog {
+                                buf[0] |= 0x08; // WD_On
+                                buf[1] = f1;
+                                buf[2] = f2;
+                            }
                             // Minimum T_sdr
                             buf[3] = 11;
                             // Ident

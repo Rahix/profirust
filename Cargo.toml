@@ -3,6 +3,12 @@ name = "profirust"
 version = "0.1.0"
 edition = "2021"
 
+description = "PROFIBUS-DP communication stack in pure Rust"
+categories = ["no-std", "embedded", "science::robotics" ]
+keywords = ["profibus", "profibus-dp", "fieldbus", "siemens"]
+authors = ["Rahix <rahix@rahix.de>"]
+license = "MIT OR Apache-2.0"
+
 [features]
 phy-linux = ["rs485", "libc", "std"]
 phy-testbus = ["bus", "std"]

@@ -125,8 +125,8 @@ impl<'a> Peripheral<'a> {
                         crate::fdl::DataTelegramHeader {
                             da: self.address,
                             sa: master.parameters().address,
-                            dsap: Some(61),
-                            ssap: Some(62),
+                            dsap: crate::consts::SAP_SLAVE_SET_PRM,
+                            ssap: crate::consts::SAP_MASTER_MS0,
                             fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                         },
                         7 + user_parameters.len(),
@@ -164,8 +164,8 @@ impl<'a> Peripheral<'a> {
                         crate::fdl::DataTelegramHeader {
                             da: self.address,
                             sa: master.parameters().address,
-                            dsap: Some(62),
-                            ssap: Some(62),
+                            dsap: crate::consts::SAP_SLAVE_CHK_CFG,
+                            ssap: crate::consts::SAP_MASTER_MS0,
                             fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                         },
                         config.len(),

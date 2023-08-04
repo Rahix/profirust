@@ -1,4 +1,5 @@
 use profirust::fdl;
+use profirust::peripheral;
 use profirust::phy;
 
 // Encoder Parameters
@@ -14,8 +15,26 @@ fn main() {
     println!("FRABA 58XX Encoder Example");
 
     let mut peripherals = fdl::PeripheralSet::new(vec![]);
-    let mut encoder_handle =
-        peripherals.add(profirust::peripheral::Peripheral::new(ENCODER_ADDRESS));
+
+    let encoder_options = peripheral::PeripheralOptions {
+        ident_number: 0x4711,
+
+        user_parameters: Some(&[
+            0x00, 0x0a, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+        ]),
+        config: Some(&[0xf1]), // 2 word input&output
+
+        ..Default::default()
+    };
+    let mut buffer_inputs = [0x00; 4];
+    let mut buffer_outputs = [0x00; 4];
+    let encoder_handle = peripherals.add(peripheral::Peripheral::new(
+        ENCODER_ADDRESS,
+        encoder_options,
+        &mut buffer_inputs,
+        &mut buffer_outputs,
+    ));
 
     let mut master = fdl::FdlMaster::new(fdl::Parameters {
         // Address of this master, i.e. ourselves
@@ -81,7 +100,7 @@ fn main() {
             }
 
             State::Running => {
-                // todo
+                println!("{:?}", encoder.pi_i());
             }
         }
 

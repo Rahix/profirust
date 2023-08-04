@@ -1,3 +1,16 @@
+#[derive(Debug, PartialEq, Eq, Default)]
+pub struct PeripheralOptions<'a> {
+    pub ident_number: u16,
+
+    pub sync_mode: bool,
+    pub freeze_mode: bool,
+    pub groups: u8,
+
+    // TODO: Watchdog
+    pub user_parameters: Option<&'a [u8]>,
+    pub config: Option<&'a [u8]>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
 enum PeripheralState {
@@ -27,12 +40,22 @@ pub struct Peripheral<'a> {
     /// Last diagnostics request
     last_diag: Option<crate::time::Instant>,
     sent_diag: bool,
+
+    options: PeripheralOptions<'a>,
 }
 
 impl<'a> Peripheral<'a> {
-    pub fn new(address: u8) -> Self {
+    pub fn new(
+        address: u8,
+        options: PeripheralOptions<'a>,
+        pi_i: &'a mut [u8],
+        pi_q: &'a mut [u8],
+    ) -> Self {
         Self {
             address,
+            options,
+            pi_i,
+            pi_q,
             ..Default::default()
         }
     }
@@ -90,57 +113,72 @@ impl<'a> Peripheral<'a> {
             self.state = PeripheralState::Reset;
         }
 
-        let user_prm = [0x00, 0x0a, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, ];
-        let module_config = [
-            0xf1, // 2 word input output
-        ];
-
         match self.state {
             PeripheralState::Reset => {
                 // Request diagnostics
                 Some(self.send_diagnostics_request(master, tx))
             }
             PeripheralState::WaitForParam => {
-                // Send parameters
-                Some(tx.send_data_telegram(
-                    crate::fdl::DataTelegramHeader {
-                        da: self.address,
-                        sa: master.parameters().address,
-                        dsap: Some(61),
-                        ssap: Some(62),
-                        fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
-                    },
-                    7 + user_prm.len(),
-                    |buf| {
-                        buf[0] = 0x80;
-                        // WD disabled
-                        buf[1] = 0x00;
-                        buf[2] = 0x00;
-                        // Minimum Tsdr
-                        buf[3] = 11;
-                        // Ident
-                        buf[4] = 0x47;
-                        buf[5] = 0x11;
-                        // Group
-                        buf[6] = 0x00;
-                        // User Prm Data
-                        buf[7..].copy_from_slice(&user_prm);
-                    },
-                ))
+                if let Some(user_parameters) = self.options.user_parameters {
+                    // Send parameters
+                    Some(tx.send_data_telegram(
+                        crate::fdl::DataTelegramHeader {
+                            da: self.address,
+                            sa: master.parameters().address,
+                            dsap: Some(61),
+                            ssap: Some(62),
+                            fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
+                        },
+                        7 + user_parameters.len(),
+                        |buf| {
+                            // Construct Station Status Byte
+                            buf[0] |= 0x80; // Lock_Req
+                            if self.options.sync_mode {
+                                buf[0] |= 0x20; // Sync_Req
+                            }
+                            if self.options.freeze_mode {
+                                buf[0] |= 0x10; // Freeze_Req
+                            }
+                            // TODO: Watchdog
+                            buf[1] = 0x00;
+                            buf[2] = 0x00;
+                            // Minimum T_sdr
+                            buf[3] = 11;
+                            // Ident
+                            buf[4..6].copy_from_slice(&self.options.ident_number.to_be_bytes());
+                            // Groups
+                            buf[6] = self.options.groups;
+                            // User Prm Data
+                            buf[7..].copy_from_slice(&user_parameters);
+                        },
+                    ))
+                } else {
+                    // When self.options.user_parameters is None, we need to wait before we can
+                    // start with configuration.
+                    None
+                }
             }
-            PeripheralState::WaitForConfig => Some(tx.send_data_telegram(
-                crate::fdl::DataTelegramHeader {
-                    da: self.address,
-                    sa: master.parameters().address,
-                    dsap: Some(62),
-                    ssap: Some(62),
-                    fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
-                },
-                module_config.len(),
-                |buf| {
-                    buf.copy_from_slice(&module_config);
-                },
-            )),
+            PeripheralState::WaitForConfig => {
+                if let Some(config) = self.options.config {
+                    Some(tx.send_data_telegram(
+                        crate::fdl::DataTelegramHeader {
+                            da: self.address,
+                            sa: master.parameters().address,
+                            dsap: Some(62),
+                            ssap: Some(62),
+                            fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
+                        },
+                        config.len(),
+                        |buf| {
+                            buf.copy_from_slice(&config);
+                        },
+                    ))
+                } else {
+                    // When self.options.config is None, we need to wait before we can start with
+                    // configuration.
+                    None
+                }
+            }
             PeripheralState::DataExchange => {
                 // Request diagnostics again
                 let last_diag = self.last_diag.get_or_insert(now);
@@ -157,12 +195,8 @@ impl<'a> Peripheral<'a> {
                             ssap: crate::consts::SAP_MASTER_DATA_EXCHANGE,
                             fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                         },
-                        4,
-                        |buf| {
-                            // buf[0] = 0x55;
-                            // buf[1] = 0x55;
-                            // buf[2] = 0x55;
-                        },
+                        self.pi_q.len(),
+                        |buf| buf.copy_from_slice(&self.pi_q),
                     ))
                 }
             }
@@ -208,7 +242,7 @@ impl<'a> Peripheral<'a> {
                     self.handle_diagnostics_response(master, &telegram);
                 } else {
                     if let crate::fdl::Telegram::Data(t) = telegram {
-                        log::debug!("DATA: {:?}", t.pdu);
+                        self.pi_i.copy_from_slice(&t.pdu);
                     }
                     self.fcb.cycle();
                 }

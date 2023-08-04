@@ -105,7 +105,7 @@ impl<'a> Peripheral<'a> {
                         ssap: Some(62),
                         fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                     },
-                    7,
+                    9,
                     |buf| {
                         buf[0] = 0x80;
                         // WD disabled
@@ -114,10 +114,13 @@ impl<'a> Peripheral<'a> {
                         // Minimum Tsdr
                         buf[3] = 11;
                         // Ident
-                        buf[4] = 0xb7;
-                        buf[5] = 0x51;
+                        buf[4] = 0x47;
+                        buf[5] = 0x11;
                         // Group
                         buf[6] = 0x00;
+                        // User Prm Data
+                        buf[7] = 0x00;
+                        buf[8] = 0x00;
                     },
                 ))
             }
@@ -130,10 +133,9 @@ impl<'a> Peripheral<'a> {
                         ssap: Some(62),
                         fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                     },
-                    2,
+                    1,
                     |buf| {
-                        buf[0] = 0x12; // 3 byte inputs
-                        buf[1] = 0x22; // 3 byte outputs
+                        buf[0] = 0xd0; // 1 word input
                     },
                 ))
             }
@@ -153,11 +155,11 @@ impl<'a> Peripheral<'a> {
                             ssap: crate::consts::SAP_MASTER_DATA_EXCHANGE,
                             fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                         },
-                        3,
+                        0,
                         |buf| {
-                            buf[0] = 0x55;
-                            buf[1] = 0x55;
-                            buf[2] = 0x55;
+                            // buf[0] = 0x55;
+                            // buf[1] = 0x55;
+                            // buf[2] = 0x55;
                         },
                     ))
                 }
@@ -203,7 +205,10 @@ impl<'a> Peripheral<'a> {
                     self.sent_diag = false;
                     self.handle_diagnostics_response(master, &telegram);
                 } else {
-                    log::debug!("{telegram:?}");
+                    if let crate::fdl::Telegram::Data(t) = telegram {
+                        log::debug!("DATA: {:?}", t.pdu);
+                    }
+                    self.fcb.cycle();
                 }
             }
         }

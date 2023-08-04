@@ -90,6 +90,11 @@ impl<'a> Peripheral<'a> {
             self.state = PeripheralState::Reset;
         }
 
+        let user_prm = [0x00, 0x0a, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, ];
+        let module_config = [
+            0xf1, // 2 word input output
+        ];
+
         match self.state {
             PeripheralState::Reset => {
                 // Request diagnostics
@@ -105,7 +110,7 @@ impl<'a> Peripheral<'a> {
                         ssap: Some(62),
                         fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                     },
-                    9,
+                    7 + user_prm.len(),
                     |buf| {
                         buf[0] = 0x80;
                         // WD disabled
@@ -119,26 +124,23 @@ impl<'a> Peripheral<'a> {
                         // Group
                         buf[6] = 0x00;
                         // User Prm Data
-                        buf[7] = 0x00;
-                        buf[8] = 0x00;
+                        buf[7..].copy_from_slice(&user_prm);
                     },
                 ))
             }
-            PeripheralState::WaitForConfig => {
-                Some(tx.send_data_telegram(
-                    crate::fdl::DataTelegramHeader {
-                        da: self.address,
-                        sa: master.parameters().address,
-                        dsap: Some(62),
-                        ssap: Some(62),
-                        fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
-                    },
-                    1,
-                    |buf| {
-                        buf[0] = 0xd0; // 1 word input
-                    },
-                ))
-            }
+            PeripheralState::WaitForConfig => Some(tx.send_data_telegram(
+                crate::fdl::DataTelegramHeader {
+                    da: self.address,
+                    sa: master.parameters().address,
+                    dsap: Some(62),
+                    ssap: Some(62),
+                    fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
+                },
+                module_config.len(),
+                |buf| {
+                    buf.copy_from_slice(&module_config);
+                },
+            )),
             PeripheralState::DataExchange => {
                 // Request diagnostics again
                 let last_diag = self.last_diag.get_or_insert(now);
@@ -155,7 +157,7 @@ impl<'a> Peripheral<'a> {
                             ssap: crate::consts::SAP_MASTER_DATA_EXCHANGE,
                             fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                         },
-                        0,
+                        4,
                         |buf| {
                             // buf[0] = 0x55;
                             // buf[1] = 0x55;

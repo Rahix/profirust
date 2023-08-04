@@ -100,7 +100,8 @@ fn main() {
             }
 
             State::Running => {
-                println!("{:?}", encoder.pi_i());
+                let value = u32::from_be_bytes(encoder.pi_i().try_into().unwrap());
+                println!("Encoder Counts: {:?}", value);
             }
         }
 

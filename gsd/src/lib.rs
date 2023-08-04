@@ -261,14 +261,14 @@ pub struct GenericStationDescription {
 }
 
 pub struct PrmBuilder<'a> {
-    gsd: &'a GenericStationDescription,
+    desc: &'a UserPrmData,
     prm: Vec<u8>,
 }
 
 impl<'a> PrmBuilder<'a> {
-    pub fn new(gsd: &'a GenericStationDescription) -> Self {
+    pub fn new(desc: &'a UserPrmData) -> Self {
         let mut this = Self {
-            gsd,
+            desc,
             prm: Vec::new(),
         };
         this.write_const_prm_data();
@@ -285,14 +285,14 @@ impl<'a> PrmBuilder<'a> {
     }
 
     fn write_const_prm_data(&mut self) {
-        for (offset, data_const) in self.gsd.user_prm_data.data_const.iter() {
+        for (offset, data_const) in self.desc.data_const.iter() {
             self.update_prm_data_len(*offset, data_const.len());
             self.prm[*offset..(offset + data_const.len())].copy_from_slice(data_const);
         }
     }
 
     fn write_default_prm_data(&mut self) {
-        for (offset, data_ref) in self.gsd.user_prm_data.data_ref.iter() {
+        for (offset, data_ref) in self.desc.data_ref.iter() {
             let size = data_ref.data_type.size();
             self.update_prm_data_len(*offset, size);
             data_ref
@@ -303,8 +303,7 @@ impl<'a> PrmBuilder<'a> {
 
     pub fn set_prm(&mut self, prm: &str, value: i64) -> &mut Self {
         let (offset, data_ref) = self
-            .gsd
-            .user_prm_data
+            .desc
             .data_ref
             .iter()
             .find(|(_, r)| r.name == prm)
@@ -318,8 +317,7 @@ impl<'a> PrmBuilder<'a> {
 
     pub fn set_prm_from_text(&mut self, prm: &str, value: &str) -> &mut Self {
         let (offset, data_ref) = self
-            .gsd
-            .user_prm_data
+            .desc
             .data_ref
             .iter()
             .find(|(_, r)| r.name == prm)

@@ -61,7 +61,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     println!();
 
     println!("{}", style("Global parameters:").bold());
-    let mut prm = gsd_parser::PrmBuilder::new(&gsd);
+    let mut prm = gsd_parser::PrmBuilder::new(&gsd.user_prm_data);
     for (_, prm_ref) in gsd.user_prm_data.data_ref.iter() {
         if let Some(texts) = prm_ref.text_ref.as_ref() {
             let texts_list: Vec<_> = texts.keys().collect();
@@ -71,15 +71,18 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                 .find(|(_, v)| **v == prm_ref.default_value)
                 .unwrap()
                 .0;
-            dialoguer::Select::new()
+            let selection = dialoguer::Select::new()
                 .with_prompt(&prm_ref.name)
                 .items(&texts_list)
                 .default(default)
                 .max_length(16)
                 .interact()
                 .unwrap();
+
+            let sel_text = &texts_list[selection];
+            prm.set_prm_from_text(&prm_ref.name, sel_text);
         } else {
-            dialoguer::Input::new()
+            let value = dialoguer::Input::new()
                 .with_prompt(format!(
                     "{} ({} - {})",
                     prm_ref.name, prm_ref.min_value, prm_ref.max_value
@@ -94,9 +97,17 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                 })
                 .interact()
                 .unwrap();
+
+            let value: i64 = str::parse(&value).unwrap();
+            prm.set_prm(&prm_ref.name, value);
         }
     }
     println!();
+
+    let mut user_prm_data = Vec::new();
+    user_prm_data.append(&mut prm.into_bytes());
+
+    let mut module_config = Vec::new();
 
     println!(
         "{}",
@@ -128,6 +139,9 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                 .find(|m| m.name == module_names[s])
                 .unwrap();
 
+            module_config.append(&mut module.config.to_vec());
+
+            let mut prm = gsd_parser::PrmBuilder::new(&module.module_prm_data);
             for (_, prm_ref) in module.module_prm_data.data_ref.iter() {
                 if let Some(texts) = prm_ref.text_ref.as_ref() {
                     let texts_list: Vec<_> = texts.keys().collect();
@@ -137,15 +151,18 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                         .find(|(_, v)| **v == prm_ref.default_value)
                         .unwrap()
                         .0;
-                    dialoguer::Select::new()
+                    let selection = dialoguer::Select::new()
                         .with_prompt(&prm_ref.name)
                         .items(&texts_list)
                         .default(default)
                         .max_length(16)
                         .interact()
                         .unwrap();
+
+                    let sel_text = &texts_list[selection];
+                    prm.set_prm_from_text(&prm_ref.name, sel_text);
                 } else {
-                    dialoguer::Input::new()
+                    let value = dialoguer::Input::new()
                         .with_prompt(format!(
                             "{} ({} - {})",
                             prm_ref.name, prm_ref.min_value, prm_ref.max_value
@@ -160,14 +177,28 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                         })
                         .interact()
                         .unwrap();
+
+                    let value: i64 = str::parse(&value).unwrap();
+                    prm.set_prm(&prm_ref.name, value);
                 }
             }
 
-            println!("Module Config: {:?}", module.config);
+            user_prm_data.append(&mut prm.into_bytes());
         } else {
             break;
         }
     }
-
     println!();
+
+    println!("{}", style("Final Data:").bold());
+    print!("User Parameters: [");
+    for b in user_prm_data.into_iter() {
+        print!("0x{b:02x}, ");
+    }
+    println!("]");
+    print!("Configuration: [");
+    for b in module_config.into_iter() {
+        print!("0x{b:02x}, ");
+    }
+    println!("]");
 }

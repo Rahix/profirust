@@ -30,7 +30,7 @@ fn regression_tests_prm() {
     {
         let name = gsd_file.file_stem().unwrap().to_string_lossy().to_string();
         let gsd = gsd_parser::parse_from_file(gsd_file);
-        let mut prm = gsd_parser::PrmBuilder::new(&gsd);
+        let mut prm = gsd_parser::PrmBuilder::new(&gsd.user_prm_data);
 
         // Try setting all the available parameters to some reasonable values.
         for (_, prm_ref) in gsd.user_prm_data.data_ref.iter() {

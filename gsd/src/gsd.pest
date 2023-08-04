@@ -19,11 +19,11 @@ identifier = @{ identifier_part+ }
 
 
 prm_text = {
-    "PrmText" ~ "=" ~ number ~ NEWLINE ~
-    prm_text_value+ ~
+    "PrmText" ~ "=" ~ number ~ NEWLINE+ ~
+    (prm_text_value ~ NEWLINE+)+ ~
     "EndPrmText"
 }
-prm_text_value = { "Text" ~ "(" ~ number ~ ")" ~ "=" ~ string_literal ~ NEWLINE }
+prm_text_value = { "Text" ~ "(" ~ number ~ ")" ~ "=" ~ string_literal }
 
 ext_user_prm_data = {
     "ExtUserPrmData" ~ "=" ~ number ~ string_literal ~ NEWLINE ~
@@ -37,18 +37,30 @@ prm_data_type_name = { bit | bit_area | identifier }
 prm_text_ref = { "Prm_Text_Ref" ~ "=" ~ number ~ NEWLINE }
 
 module = {
-    "Module" ~ "=" ~ string_literal ~ number_list ~ NEWLINE ~
+    "Module" ~ "=" ~ string_literal ~ number_list ~ NEWLINE+ ~
     (setting ~ NEWLINE+)* ~
     module_reference? ~
     (setting ~ NEWLINE+)* ~
+    (data_area ~ NEWLINE+)? ~
     "EndModule"
 }
 module_reference = {number ~ NEWLINE+}
+data_area = {
+    "Data_Area_Beg" ~ NEWLINE+ ~
+    (setting ~ NEWLINE+)* ~
+    "Data_Area_End"
+}
 
 slot_definition = {
     "SlotDefinition" ~ NEWLINE ~
     (!"EndSlotDefinition" ~ ANY)* ~
     "EndSlotDefinition"
+}
+
+unit_diag_type = {
+    "UnitDiagType" ~ "=" ~ number ~ NEWLINE+ ~
+    (!"EndUnitDiagType" ~ ANY)* ~
+    "EndUnitDiagType"
 }
 
 setting_value = _{
@@ -59,6 +71,6 @@ setting_value = _{
 }
 setting = { identifier ~ ( "(" ~ number ~ ")" )? ~ "=" ~ setting_value }
 
-statement = _{ prm_text | ext_user_prm_data | module | slot_definition | setting }
+statement = _{ prm_text | ext_user_prm_data | module | slot_definition | unit_diag_type | setting }
 
 gsd = { SOI ~ NEWLINE* ~ start ~ NEWLINE* ~ statement ~ (NEWLINE+ ~ statement)* ~ NEWLINE* ~ EOI }

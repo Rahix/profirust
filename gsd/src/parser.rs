@@ -167,7 +167,8 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                                 _ => (),
                             }
                         }
-                        _ => unreachable!(),
+                        gsd_parser::Rule::data_area => (),
+                        r => unreachable!("found rule {r:?}"),
                     }
                 }
 

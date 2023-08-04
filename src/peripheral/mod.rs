@@ -5,10 +5,38 @@ pub struct PeripheralOptions<'a> {
     pub sync_mode: bool,
     pub freeze_mode: bool,
     pub groups: u8,
-    pub watchdog: Option<(u8, u8)>,
+    pub watchdog: Option<crate::time::Duration>,
 
     pub user_parameters: Option<&'a [u8]>,
     pub config: Option<&'a [u8]>,
+}
+
+impl<'a> PeripheralOptions<'a> {
+    /// Calculate the watchdog factors for the configured watchdog timeout.
+    ///
+    /// Returns `None` when no watchdog was configured or the timeout is zero.  Returns
+    /// `Some(Err(()))` when the given watchdog timeout is outside the supported range.
+    ///
+    /// The watchdog timeout will be rounded up to the nearest possible value.
+    fn watchdog_factors(&self) -> Option<Result<(u8, u8), ()>> {
+        // TODO: Support the different watchdog time bases
+        self.watchdog
+            .filter(|dur| *dur != crate::time::Duration::ZERO)
+            .map(|dur| {
+                let timeout_10ms: u32 = (dur.total_millis() / 10).try_into().or(Err(()))?;
+
+                for f1 in 1..256 {
+                    let f2 = (timeout_10ms + f1 - 1) / f1;
+
+                    if f2 < 256 {
+                        return Ok((f1 as u8, f2 as u8));
+                    }
+                }
+
+                // Timeout is still too big
+                Err(())
+            })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -139,7 +167,9 @@ impl<'a> Peripheral<'a> {
                             if self.options.freeze_mode {
                                 buf[0] |= 0x10; // Freeze_Req
                             }
-                            if let Some((f1, f2)) = self.options.watchdog {
+                            if let Some((f1, f2)) =
+                                self.options.watchdog_factors().transpose().unwrap()
+                            {
                                 buf[0] |= 0x08; // WD_On
                                 buf[1] = f1;
                                 buf[2] = f2;

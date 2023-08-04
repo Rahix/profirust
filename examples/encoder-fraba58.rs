@@ -51,18 +51,38 @@ fn main() {
                 println!("Entered the token ring!");
                 state = State::WaitingForDevice;
             }
+            State::WaitingForRing => (),
+            _ if !master.is_in_ring() => {
+                println!("Master dropped out of the token ring!");
+                state = State::WaitingForRing;
+            }
+
             State::WaitingForDevice if encoder.is_live() => {
                 println!("Device at address {} is responding!", encoder.address());
                 state = State::WaitingForDeviceInit;
             }
+            State::WaitingForDevice => (),
+            _ if !encoder.is_live() => {
+                println!(
+                    "Device at address {} no longer responding!  Waiting for it again...",
+                    encoder.address()
+                );
+                state = State::WaitingForDevice;
+            }
+
             State::WaitingForDeviceInit if encoder.is_running() => {
                 println!("Device configured successfully!");
                 state = State::Running;
             }
-            State::Running => {
-                todo!();
+            State::WaitingForDeviceInit => (),
+            _ if !encoder.is_running() => {
+                println!("Cyclic data exchange stopped for some reason!");
+                state = State::WaitingForDeviceInit;
             }
-            _ => (),
+
+            State::Running => {
+                // todo
+            }
         }
 
         std::thread::sleep(std::time::Duration::from_millis(10));

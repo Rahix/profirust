@@ -109,7 +109,7 @@ impl GapState {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum MasterState {
+enum CommunicationState {
     /// Master has nothing to do.
     Idle,
 
@@ -153,7 +153,7 @@ pub struct FdlMaster {
     live_list: bitvec::BitArr!(for 256),
 
     /// State of the master.
-    master_state: MasterState,
+    communication_state: CommunicationState,
 
     /// Operating State of the master.
     operating_state: OperatingState,
@@ -176,7 +176,7 @@ impl FdlMaster {
             previous_token_time: None,
             gap_state: GapState::NextPoll(param.address.wrapping_add(1)),
             live_list,
-            master_state: MasterState::Idle,
+            communication_state: CommunicationState::Idle,
             in_ring: false,
             operating_state: OperatingState::Offline,
 
@@ -226,7 +226,7 @@ impl FdlMaster {
             self.previous_token_time = None;
             self.gap_state = GapState::NextPoll(self.p.address.wrapping_add(1));
             self.live_list = bitvec::array::BitArray::ZERO;
-            self.master_state = MasterState::Idle;
+            self.communication_state = CommunicationState::Idle;
             self.in_ring = false;
         }
     }
@@ -301,7 +301,7 @@ impl FdlMaster {
 
     #[must_use = "tx token"]
     fn forward_token(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) -> TxMarker {
-        self.master_state = MasterState::Idle;
+        self.communication_state = CommunicationState::Idle;
         self.have_token = false;
 
         let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
@@ -346,7 +346,8 @@ impl FdlMaster {
             if phy.transmit_telegram(|tx| {
                 peripheral.try_start_message_cycle(now, self, tx, high_prio_only)
             }) {
-                self.master_state = MasterState::AwaitingResponse(peripheral.address(), now);
+                self.communication_state =
+                    CommunicationState::AwaitingResponse(peripheral.address(), now);
                 return Some(self.mark_tx(now));
             }
         }
@@ -441,7 +442,7 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
     ) -> Option<TxMarker> {
-        debug_assert!(matches!(self.master_state, MasterState::Idle));
+        debug_assert!(matches!(self.communication_state, CommunicationState::Idle));
 
         if let GapState::Waiting(r) = self.gap_state {
             if r >= self.p.gap_wait_rotations {
@@ -453,7 +454,7 @@ impl FdlMaster {
 
         if let GapState::NextPoll(addr) = self.gap_state {
             self.gap_state = self.next_gap_poll(addr);
-            self.master_state = MasterState::AwaitingGapResponse(addr, now);
+            self.communication_state = CommunicationState::AwaitingGapResponse(addr, now);
 
             let transmitted =
                 phy.transmit_telegram(|tx| Some(tx.send_fdl_status_request(addr, self.p.address)));
@@ -474,11 +475,11 @@ impl FdlMaster {
         debug_assert!(self.have_token);
 
         // First check for ongoing message cycles and handle them.
-        match self.master_state {
-            MasterState::Idle => (),
-            MasterState::AwaitingResponse(addr, sent_time) => {
+        match self.communication_state {
+            CommunicationState::Idle => (),
+            CommunicationState::AwaitingResponse(addr, sent_time) => {
                 if self.check_for_response(now, phy, peripherals, addr) {
-                    self.master_state = MasterState::Idle;
+                    self.communication_state = CommunicationState::Idle;
                 } else if (now - sent_time) >= self.p.slot_time() {
                     todo!("handle message cycle response timeout");
                 } else {
@@ -487,7 +488,7 @@ impl FdlMaster {
                     return None;
                 }
             }
-            MasterState::AwaitingGapResponse(addr, sent_time) => {
+            CommunicationState::AwaitingGapResponse(addr, sent_time) => {
                 if self.check_for_status_response(now, phy, addr) {
                     log::trace!("Address {addr} responded!");
                     // After the gap response, we pass on the token.

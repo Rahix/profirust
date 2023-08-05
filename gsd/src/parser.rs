@@ -195,6 +195,8 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     "hardware_release" => gsd.hardware_release = parse_string_literal(value_pair),
                     "software_release" => gsd.software_release = parse_string_literal(value_pair),
                     //
+                    "fail_safe" => gsd.fail_safe = parse_number(value_pair) != 0,
+                    //
                     "9.6_supp" => {
                         if parse_number(value_pair) != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B9600;

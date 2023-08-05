@@ -240,7 +240,7 @@ pub struct GenericStationDescription {
     // pub sync_mode_supported: bool,
     // pub auto_baud_supported: bool,
     // pub set_slave_addr_supported: bool,
-    // pub fail_safe: bool,
+    pub fail_safe: bool,
     // pub max_diag_data_length: u8,
     // pub max_user_prm_data_length: u8,
     // pub module_offset: u8,

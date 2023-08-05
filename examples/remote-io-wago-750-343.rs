@@ -70,6 +70,8 @@ fn main() {
     let mut state = State::WaitingForRing;
 
     let start = profirust::time::Instant::now();
+
+    master.go_operate();
     loop {
         let now = profirust::time::Instant::now();
         master.poll(now, &mut phy, &mut peripherals);

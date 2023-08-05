@@ -72,6 +72,22 @@ impl Parameters {
     }
 }
 
+/// Operating state of the FDL master
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
+pub enum OperatingState {
+    /// The FDL master is not participating in bus communication in any way.
+    Offline,
+    /// The FDL master is part of the token ring but not performing any cyclic data exchange.
+    Stop,
+    /// All peripherals/slaves are initialized and blocked.  Cyclic data exchange is performed, but
+    /// not outputs are written.
+    Clear,
+    /// Regular operation.  All peripherals/slaves are initialized and blocked.  Cyclic data
+    /// exchange is performed with full I/O.
+    Operate,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum GapState {
     /// Waiting for some time until the next gap polling cycle is performed.
@@ -138,6 +154,9 @@ pub struct FdlMaster {
 
     /// State of the master.
     master_state: MasterState,
+
+    /// Operating State of the master.
+    operating_state: OperatingState,
 }
 
 impl FdlMaster {
@@ -159,17 +178,20 @@ impl FdlMaster {
             live_list,
             master_state: MasterState::Idle,
             in_ring: false,
+            operating_state: OperatingState::Offline,
 
             p: param,
         }
     }
 
     /// Return a reference to the parameters configured for this FDL master.
+    #[inline(always)]
     pub fn parameters(&self) -> &Parameters {
         &self.p
     }
 
     /// Returns `true` when this FDL master believes to be in the token ring.
+    #[inline(always)]
     pub fn is_in_ring(&self) -> bool {
         self.in_ring
     }
@@ -182,6 +204,37 @@ impl FdlMaster {
     /// Iterator over all station addresses which are currently responding on the bus.
     pub fn iter_live_stations(&self) -> impl Iterator<Item = u8> + '_ {
         self.live_list.iter_ones().map(|addr| addr as u8)
+    }
+
+    #[inline(always)]
+    pub fn operating_state(&self) -> OperatingState {
+        self.operating_state
+    }
+
+    #[inline]
+    pub fn enter_state(&mut self, state: OperatingState) {
+        log::info!("Master entering state \"{:?}\"", state);
+        self.operating_state = state;
+    }
+
+    #[inline]
+    pub fn go_offline(&mut self) {
+        self.enter_state(OperatingState::Offline)
+    }
+
+    #[inline]
+    pub fn go_stop(&mut self) {
+        self.enter_state(OperatingState::Stop)
+    }
+
+    #[inline]
+    pub fn go_clear(&mut self) {
+        self.enter_state(OperatingState::Clear)
+    }
+
+    #[inline]
+    pub fn go_operate(&mut self) {
+        self.enter_state(OperatingState::Operate)
     }
 }
 
@@ -554,6 +607,11 @@ impl FdlMaster {
         phy: &mut PHY,
         peripherals: &mut crate::fdl::PeripheralSet<'a>,
     ) -> Option<TxMarker> {
+        if self.operating_state == OperatingState::Offline {
+            // When we are offline, don't do anything at all.
+            return None;
+        }
+
         return_if_tx!(self.check_for_ongoing_transmision(now, phy));
 
         if self.have_token {

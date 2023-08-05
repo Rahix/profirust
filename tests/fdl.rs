@@ -25,6 +25,9 @@ fn two_masters_and_their_tokens() {
         ..Default::default()
     });
 
+    master1.go_operate();
+    master2.go_operate();
+
     let mut i = 0;
     loop {
         log::trace!("I: {:8}", i);

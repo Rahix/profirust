@@ -28,6 +28,8 @@ fn main() {
     let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, master.parameters().baudrate);
 
     let mut i = 0u64;
+
+    master.go_operate();
     loop {
         master.poll(profirust::time::Instant::now(), &mut phy, &mut peripherals);
 

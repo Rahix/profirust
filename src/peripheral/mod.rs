@@ -171,6 +171,9 @@ impl<'a> Peripheral<'a> {
         tx: crate::fdl::TelegramTx,
         high_prio_only: bool,
     ) -> Option<crate::fdl::TelegramTxResponse> {
+        // We never expect to be called in `Stop` or even worse `Offline` operating states.
+        debug_assert!(master.operating_state().is_operate() || master.operating_state().is_clear());
+
         if !master.check_address_live(self.address) {
             self.state = PeripheralState::Offline;
             return None;

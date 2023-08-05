@@ -270,7 +270,13 @@ impl<'a> Peripheral<'a> {
                             fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
                         },
                         self.pi_q.len(),
-                        |buf| buf.copy_from_slice(&self.pi_q),
+                        |buf| {
+                            // Only write output process image in `Operate` state.  In `Clear`
+                            // state, we leave the output process image all zeros.
+                            if master.operating_state().is_operate() {
+                                buf.copy_from_slice(&self.pi_q);
+                            }
+                        },
                     ))
                 }
             }

@@ -1,5 +1,5 @@
 use profirust::fdl;
-use profirust::peripheral;
+use profirust::dp;
 use profirust::phy;
 
 // I/O Station Parameters
@@ -16,7 +16,7 @@ fn main() {
 
     let mut peripherals = fdl::PeripheralSet::new(vec![]);
 
-    let remoteio_options = peripheral::PeripheralOptions {
+    let remoteio_options = dp::PeripheralOptions {
         ident_number: 0xb757,
 
         watchdog: Some(profirust::time::Duration::from_secs(2)),
@@ -39,7 +39,7 @@ fn main() {
 
     let mut buffer_inputs = [0x00; 10];
     let mut buffer_outputs = [0x00; 7];
-    let io_handle = peripherals.add(peripheral::Peripheral::new(
+    let io_handle = peripherals.add(dp::Peripheral::new(
         IO_STATION_ADDRESS,
         remoteio_options,
         &mut buffer_inputs,

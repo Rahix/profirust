@@ -1,5 +1,5 @@
 use profirust::fdl;
-use profirust::peripheral;
+use profirust::dp;
 use profirust::phy;
 
 // Encoder Parameters
@@ -16,7 +16,7 @@ fn main() {
 
     let mut peripherals = fdl::PeripheralSet::new(vec![]);
 
-    let encoder_options = peripheral::PeripheralOptions {
+    let encoder_options = dp::PeripheralOptions {
         ident_number: 0x4711,
 
         user_parameters: Some(&[
@@ -29,7 +29,7 @@ fn main() {
     };
     let mut buffer_inputs = [0x00; 4];
     let mut buffer_outputs = [0x00; 4];
-    let encoder_handle = peripherals.add(peripheral::Peripheral::new(
+    let encoder_handle = peripherals.add(dp::Peripheral::new(
         ENCODER_ADDRESS,
         encoder_options,
         &mut buffer_inputs,

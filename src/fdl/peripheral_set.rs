@@ -1,4 +1,4 @@
-use crate::peripheral::Peripheral;
+use crate::dp::Peripheral;
 use core::fmt;
 
 #[derive(Default)]

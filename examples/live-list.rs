@@ -29,7 +29,7 @@ fn main() {
 
     let mut i = 0u64;
 
-    master.go_operate();
+    master.enter_operate();
     loop {
         master.poll(profirust::time::Instant::now(), &mut phy, &mut peripherals);
 

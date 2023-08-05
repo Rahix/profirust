@@ -25,8 +25,8 @@ fn two_masters_and_their_tokens() {
         ..Default::default()
     });
 
-    master1.go_operate();
-    master2.go_operate();
+    master1.enter_operate();
+    master2.enter_operate();
 
     let mut i = 0;
     loop {

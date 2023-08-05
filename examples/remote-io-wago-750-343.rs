@@ -71,7 +71,7 @@ fn main() {
 
     let start = profirust::time::Instant::now();
 
-    master.go_operate();
+    master.enter_operate();
     loop {
         let now = profirust::time::Instant::now();
         master.poll(now, &mut phy, &mut peripherals);

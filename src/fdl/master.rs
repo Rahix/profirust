@@ -224,22 +224,22 @@ impl FdlMaster {
     }
 
     #[inline]
-    pub fn go_offline(&mut self) {
+    pub fn enter_offline(&mut self) {
         self.enter_state(OperatingState::Offline)
     }
 
     #[inline]
-    pub fn go_stop(&mut self) {
+    pub fn enter_stop(&mut self) {
         self.enter_state(OperatingState::Stop)
     }
 
     #[inline]
-    pub fn go_clear(&mut self) {
+    pub fn enter_clear(&mut self) {
         self.enter_state(OperatingState::Clear)
     }
 
     #[inline]
-    pub fn go_operate(&mut self) {
+    pub fn enter_operate(&mut self) {
         self.enter_state(OperatingState::Operate)
     }
 }

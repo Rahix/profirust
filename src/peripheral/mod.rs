@@ -77,6 +77,7 @@ enum PeripheralState {
     Reset,
     WaitForParam,
     WaitForConfig,
+    ValidateConfig,
     DataExchange,
 }
 
@@ -153,6 +154,12 @@ impl<'a> Peripheral<'a> {
     #[inline(always)]
     pub fn is_running(&self) -> bool {
         self.state == PeripheralState::DataExchange
+    }
+
+    /// Get the last diagnostics information received from this peripheral.
+    #[inline]
+    pub fn last_diagnostics(&self) -> Option<&PeripheralDiagnostics> {
+        self.diag.as_ref()
     }
 }
 
@@ -242,6 +249,10 @@ impl<'a> Peripheral<'a> {
                     None
                 }
             }
+            PeripheralState::ValidateConfig => {
+                // Request diagnostics once more
+                Some(self.send_diagnostics_request(master, tx))
+            }
             PeripheralState::DataExchange => {
                 // Request diagnostics again
                 let last_diag = self.last_diag.get_or_insert(now);
@@ -277,13 +288,16 @@ impl<'a> Peripheral<'a> {
             PeripheralState::Offline => unreachable!(),
             PeripheralState::Reset => {
                 // Diagnostics response
-                if self.handle_diagnostics_response(master, &telegram) {
+                if self
+                    .handle_diagnostics_response(master, &telegram)
+                    .is_some()
+                {
                     self.state = PeripheralState::WaitForParam;
                 }
             }
             PeripheralState::WaitForParam => {
                 if let crate::fdl::Telegram::ShortConfirmation(_) = telegram {
-                    log::debug!("{} accepted parameters!", self.address);
+                    log::debug!("Sent parameters to {}.", self.address);
                     self.fcb.cycle();
                     self.state = PeripheralState::WaitForConfig;
                 } else {
@@ -292,12 +306,40 @@ impl<'a> Peripheral<'a> {
             }
             PeripheralState::WaitForConfig => {
                 if let crate::fdl::Telegram::ShortConfirmation(_) = telegram {
-                    log::debug!("{} accepted configuration!", self.address);
+                    log::debug!("Sent configuration to {}.", self.address);
                     self.fcb.cycle();
-                    self.state = PeripheralState::DataExchange;
+                    self.state = PeripheralState::ValidateConfig;
                 } else {
                     todo!()
                 }
+            }
+            PeripheralState::ValidateConfig => {
+                let address = self.address;
+                self.state = if let Some(diag) = self.handle_diagnostics_response(master, &telegram)
+                {
+                    if diag.flags.contains(DiagnosticFlags::PARAMETER_FAULT) {
+                        log::warn!("Peripheral {} reports a parameter fault!", address);
+                        // TODO: Going to `Reset` here will just end in a loop.
+                        PeripheralState::Reset
+                    } else if diag.flags.contains(DiagnosticFlags::CONFIGURATION_FAULT) {
+                        log::warn!("Peripheral {} reports a configuration fault!", address);
+                        // TODO: Going to `Reset` here will just end in a loop.
+                        PeripheralState::Reset
+                    } else if diag.flags.contains(DiagnosticFlags::PARAMETER_REQUIRED) {
+                        log::warn!(
+                            "Peripheral {} wants parameters after completing setup?! Retrying...",
+                            address
+                        );
+                        PeripheralState::WaitForParam
+                    } else if !diag.flags.contains(DiagnosticFlags::STATION_NOT_READY) {
+                        log::debug!("Peripheral {} becomes ready for data exchange.", address);
+                        PeripheralState::DataExchange
+                    } else {
+                        PeripheralState::ValidateConfig
+                    }
+                } else {
+                    PeripheralState::ValidateConfig
+                };
             }
             PeripheralState::DataExchange => {
                 if self.sent_diag {
@@ -339,19 +381,19 @@ impl<'a> Peripheral<'a> {
         &mut self,
         master: &crate::fdl::FdlMaster,
         telegram: &crate::fdl::Telegram,
-    ) -> bool {
+    ) -> Option<&PeripheralDiagnostics> {
         if let crate::fdl::Telegram::Data(t) = telegram {
             if t.h.dsap != crate::consts::SAP_MASTER_MS0 {
                 log::warn!("Diagnostics response to wrong SAP: {t:?}");
-                return false;
+                return None;
             }
             if t.h.ssap != crate::consts::SAP_SLAVE_DIAGNOSIS {
                 log::warn!("Diagnostics response from wrong SAP: {t:?}");
-                return false;
+                return None;
             }
             if t.pdu.len() < 6 {
                 log::warn!("Diagnostics response too short: {t:?}");
-                return false;
+                return None;
             }
 
             let mut diag = PeripheralDiagnostics {
@@ -370,9 +412,10 @@ impl<'a> Peripheral<'a> {
 
             log::info!("Peripheral Diagnostics (#{}):\n{:#?}\n", self.address, diag);
 
-            self.diag = Some(diag);
             self.fcb.cycle();
-            true
+
+            self.diag = Some(diag);
+            self.diag.as_ref()
         } else {
             todo!()
         }

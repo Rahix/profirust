@@ -39,6 +39,36 @@ impl<'a> PeripheralOptions<'a> {
     }
 }
 
+bitflags::bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub struct DiagnosticFlags: u16 {
+        // const STATION_NON_EXISTENT = 0b00000001;
+        const STATION_NOT_READY =       0b00000010;
+        const CONFIGURATION_FAULT =     0b00000100;
+        const EXT_DIAG =                0b00001000;
+        const NOT_SUPPORTED =           0b00010000;
+        // const INVALID_RESPONSE =     0b00100000;
+        const PARAMETER_FAULT =         0b01000000;
+        // const MASTER_LOCK =          0b10000000;
+
+        const PARAMETER_REQUIRED =      0b00000001_00000000;
+        const STATUS_DIAGNOSTICS =      0b00000010_00000000;
+        const PERMANENT_BIT =           0b00000100_00000000;
+        const WATCHDOG_ON =             0b00001000_00000000;
+        const FREEZE_MODE =             0b00010000_00000000;
+        const SYNC_MODE =               0b00100000_00000000;
+        // const RESERVED =             0b01000000_00000000;
+        // const DEACTIVATED =          0b10000000_00000000;
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PeripheralDiagnostics {
+    pub flags: DiagnosticFlags,
+    pub ident_number: u16,
+    pub master_address: u8,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
 enum PeripheralState {
@@ -68,6 +98,7 @@ pub struct Peripheral<'a> {
     /// Last diagnostics request
     last_diag: Option<crate::time::Instant>,
     sent_diag: bool,
+    diag: Option<PeripheralDiagnostics>,
 
     options: PeripheralOptions<'a>,
 }
@@ -323,46 +354,23 @@ impl<'a> Peripheral<'a> {
                 return false;
             }
 
-            let p_addr = self.address;
-            let real_master = master.parameters().address;
+            let mut diag = PeripheralDiagnostics {
+                flags: DiagnosticFlags::from_bits_retain(u16::from_le_bytes(
+                    t.pdu[0..2].try_into().unwrap(),
+                )),
+                master_address: t.pdu[3],
+                ident_number: u16::from_be_bytes(t.pdu[4..6].try_into().unwrap()),
+            };
 
-            let station_not_ready = (t.pdu[0] & (1 << 1)) != 0;
-            let config_fault = (t.pdu[0] & (1 << 2)) != 0;
-            let ext_diag = (t.pdu[0] & (1 << 3)) != 0;
-            let function_not_supported = (t.pdu[0] & (1 << 4)) != 0;
-            let param_fault = (t.pdu[0] & (1 << 6)) != 0;
-
-            let param_req = (t.pdu[1] & (1 << 0)) != 0;
-            let stat_diag = (t.pdu[1] & (1 << 1)) != 0;
-            let perm_on = (t.pdu[1] & (1 << 2)) != 0;
-            if !perm_on {
-                log::warn!("Inconsistent diagnostics!");
+            if !diag.flags.contains(DiagnosticFlags::PERMANENT_BIT) {
+                log::warn!("Inconsistent diagnostics for peripheral #{}!", self.address);
             }
-            let watchdog_on = (t.pdu[1] & (1 << 3)) != 0;
-            let freeze_mode = (t.pdu[1] & (1 << 4)) != 0;
-            let sync_mode = (t.pdu[1] & (1 << 5)) != 0;
+            // we don't need the permanent bit anymore now
+            diag.flags.remove(DiagnosticFlags::PERMANENT_BIT);
 
-            let master_address = t.pdu[3];
-            let ident_high = t.pdu[4];
-            let ident_low = t.pdu[5];
+            log::info!("Peripheral Diagnostics (#{}):\n{:#?}\n", self.address, diag);
 
-            log::info!(
-                r#"Peripheral Diagnostics (#{p_addr}):
- - Station Not Ready:       {station_not_ready}
- - Config Fault:            {config_fault}
- - Extended Diagnostics:    {ext_diag}
- - Function Not Supp.:      {function_not_supported}
- - Parameter Fault:         {param_fault}
- - Parameters Required:     {param_req}
- - Station Diagnostics:     {stat_diag}
- - Watchdog On:             {watchdog_on}
- - FREEZE Mode:             {freeze_mode}
- - SYNC Mode:               {sync_mode}
- - Master Address:          {master_address} (we are {real_master})
- - Ident:                   {ident_high:02x} {ident_low:02x}
- "#
-            );
-
+            self.diag = Some(diag);
             self.fcb.cycle();
             true
         } else {

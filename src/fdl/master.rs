@@ -215,6 +215,20 @@ impl FdlMaster {
     pub fn enter_state(&mut self, state: OperatingState) {
         log::info!("Master entering state \"{:?}\"", state);
         self.operating_state = state;
+
+        if state == OperatingState::Offline {
+            // If we are going offline, reset all internal state.
+            // TODO: Is there a nice way to unify this code with the duplicate in `new()`?
+            self.next_master = self.p.address;
+            self.last_telegram_time = None;
+            self.have_token = false;
+            self.last_token_time = None;
+            self.previous_token_time = None;
+            self.gap_state = GapState::NextPoll(self.p.address.wrapping_add(1));
+            self.live_list = bitvec::array::BitArray::ZERO;
+            self.master_state = MasterState::Idle;
+            self.in_ring = false;
+        }
     }
 
     #[inline]

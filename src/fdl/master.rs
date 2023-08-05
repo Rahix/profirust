@@ -88,6 +88,28 @@ pub enum OperatingState {
     Operate,
 }
 
+impl OperatingState {
+    #[inline(always)]
+    pub fn is_offline(self) -> bool {
+        self == OperatingState::Offline
+    }
+
+    #[inline(always)]
+    pub fn is_stop(self) -> bool {
+        self == OperatingState::Stop
+    }
+
+    #[inline(always)]
+    pub fn is_clear(self) -> bool {
+        self == OperatingState::Clear
+    }
+
+    #[inline(always)]
+    pub fn is_operate(self) -> bool {
+        self == OperatingState::Operate
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum GapState {
     /// Waiting for some time until the next gap polling cycle is performed.
@@ -223,21 +245,33 @@ impl FdlMaster {
         }
     }
 
+    /// Enter the [`Offline`][`OperatingState::Offline`] operating state.
+    ///
+    /// This is equivalent to calling `.enter_state(OperatingState::Offline)`.
     #[inline]
     pub fn enter_offline(&mut self) {
         self.enter_state(OperatingState::Offline)
     }
 
+    /// Enter the [`Stop`][`OperatingState::Stop`] operating state.
+    ///
+    /// This is equivalent to calling `.enter_state(OperatingState::Stop)`.
     #[inline]
     pub fn enter_stop(&mut self) {
         self.enter_state(OperatingState::Stop)
     }
 
+    /// Enter the [`Clear`][`OperatingState::Clear`] operating state.
+    ///
+    /// This is equivalent to calling `.enter_state(OperatingState::Clear)`.
     #[inline]
     pub fn enter_clear(&mut self) {
         self.enter_state(OperatingState::Clear)
     }
 
+    /// Enter the [`Operate`][`OperatingState::Operate`] operating state.
+    ///
+    /// This is equivalent to calling `.enter_state(OperatingState::Operate)`.
     #[inline]
     pub fn enter_operate(&mut self) {
         self.enter_state(OperatingState::Operate)

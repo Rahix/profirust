@@ -6,5 +6,5 @@ edition = "2021"
 [dependencies]
 console = { version = "0.15.7", default-features = false }
 dialoguer = { version = "0.10.4", default-features = false, features = ["editor", "fuzzy-select"] }
-gsd-parser = { version = "0.1.0", path = "../gsd" }
+gsd-parser = { version = "0.1.0", path = "../gsd-parser/" }
 gumdrop = "0.8.1"

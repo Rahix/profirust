@@ -28,7 +28,7 @@ rs485 = { version = "0.1.0", optional = true }
 
 [workspace]
 members = [
-    "gsd/",
+    "gsd-parser/",
     "gsdtool/",
 ]
 

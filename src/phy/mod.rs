@@ -3,11 +3,6 @@ mod linux;
 #[cfg(feature = "phy-linux")]
 pub use linux::LinuxRs485Phy;
 
-#[cfg(feature = "phy-testbus")]
-mod testbus;
-#[cfg(feature = "phy-testbus")]
-pub use testbus::TestBusPhy;
-
 #[cfg(feature = "phy-simulator")]
 pub mod simulator;
 #[cfg(feature = "phy-simulator")]

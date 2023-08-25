@@ -8,6 +8,11 @@ mod testbus;
 #[cfg(feature = "phy-testbus")]
 pub use testbus::TestBusPhy;
 
+#[cfg(feature = "phy-simulator")]
+pub mod simulator;
+#[cfg(feature = "phy-simulator")]
+pub use simulator::SimulatorPhy;
+
 pub type BufferHandle<'a> = managed::ManagedSlice<'a, u8>;
 
 pub trait ProfibusPhy {

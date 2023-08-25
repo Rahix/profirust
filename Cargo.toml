@@ -12,10 +12,11 @@ license = "MIT OR Apache-2.0"
 [features]
 phy-linux = ["rs485", "libc", "std"]
 phy-testbus = ["bus", "std"]
+phy-simulator = ["std"]
 std = ["managed/std"]
 alloc = ["managed/alloc"]
 
-default = ["std", "phy-linux", "phy-testbus"]
+default = ["std", "phy-linux", "phy-testbus", "phy-simulator"]
 
 [dependencies]
 bitflags = "2.3.3"

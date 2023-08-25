@@ -5,44 +5,42 @@ use profirust::phy;
 fn two_masters_and_their_tokens() {
     let _ = env_logger::try_init();
 
-    let mut phy1 = phy::TestBusPhy::new();
-    let mut phy2 = phy1.clone();
+    let baud = profirust::Baudrate::B19200;
 
-    log::debug!("Say hello!");
+    let mut phy1 = phy::SimulatorPhy::new(baud, "phy1");
+    let mut phy2 = phy1.duplicate("phy2");
 
     let mut per1 = fdl::PeripheralSet::new(vec![]);
     let mut master1 = fdl::FdlMaster::new(fdl::Parameters {
         address: 2,
-        baudrate: profirust::Baudrate::B19200,
+        baudrate: baud,
         highest_station_address: 16,
+        slot_bits: 300,
         ..Default::default()
     });
     let mut per2 = fdl::PeripheralSet::new(vec![]);
     let mut master2 = fdl::FdlMaster::new(fdl::Parameters {
         address: 7,
-        baudrate: profirust::Baudrate::B19200,
+        baudrate: baud,
         highest_station_address: 16,
+        slot_bits: 300,
         ..Default::default()
     });
 
     master1.enter_operate();
     master2.enter_operate();
 
-    let mut i = 0;
-    loop {
-        log::trace!("I: {:8}", i);
-        let now = profirust::time::Instant::now();
+    let start = profirust::time::Instant::now();
+    let mut now = start;
+    while (now - start) < profirust::time::Duration::from_millis(800) {
+        phy1.set_bus_time(now);
 
         log::trace!("M#2 ---");
         master1.poll(now, &mut phy1, &mut per1);
         log::trace!("M#7 ---");
         master2.poll(now, &mut phy2, &mut per2);
-        std::thread::sleep(std::time::Duration::from_millis(1));
-        i += 1;
 
-        if i == 400 {
-            break;
-        }
+        now += profirust::time::Duration::from_millis(1);
     }
 
     assert!(master1.is_in_ring());

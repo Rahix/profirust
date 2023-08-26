@@ -72,6 +72,17 @@ impl SimulatorBus {
             );
         }
 
+        if let Some(Ok(decoded)) = crate::fdl::Telegram::deserialize(&data) {
+            log::trace!("{:8} {}: {:?}", self.bus_time.total_micros(), name, decoded);
+        } else {
+            let data_fmt = data
+                .iter()
+                .map(|b| format!("0x{:02x}", b))
+                .collect::<Vec<_>>()
+                .join(" ");
+            log::trace!("{:8} {}: {}", self.bus_time.total_micros(), name, data_fmt);
+        }
+
         let telegram = CapturedTelegram {
             sender: name,
             timestamp: self.bus_time,

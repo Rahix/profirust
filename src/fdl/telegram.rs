@@ -465,11 +465,21 @@ impl ShortConfirmation {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum Telegram<'a> {
     Data(DataTelegram<'a>),
     Token(TokenTelegram),
     ShortConfirmation(ShortConfirmation),
+}
+
+impl core::fmt::Debug for Telegram<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Telegram::Data(d) => core::fmt::Debug::fmt(d, f),
+            Telegram::Token(t) => core::fmt::Debug::fmt(t, f),
+            Telegram::ShortConfirmation(s) => core::fmt::Debug::fmt(s, f),
+        }
+    }
 }
 
 impl<'a> From<DataTelegram<'a>> for Telegram<'a> {

@@ -1,9 +1,37 @@
 use profirust::fdl;
 use profirust::phy;
+use std::sync::atomic;
 
 #[test]
 fn two_masters_and_their_tokens() {
-    let _ = env_logger::try_init();
+    let timestamp = std::sync::Arc::new(atomic::AtomicI64::new(0));
+    let active_master = std::sync::Arc::new(atomic::AtomicU8::new(0));
+    env_logger::builder()
+        .is_test(true)
+        .format({
+            let timestamp = timestamp.clone();
+            let active_master = active_master.clone();
+            move |buf, record| {
+                use std::io::Write;
+                let level_str = match record.level() {
+                    log::Level::Error => "\x1b[31mERROR\x1b[0m",
+                    log::Level::Warn => "\x1b[33mWARN \x1b[0m",
+                    log::Level::Info => "\x1b[34mINFO \x1b[0m",
+                    log::Level::Debug => "\x1b[35mDEBUG\x1b[0m",
+                    log::Level::Trace => "\x1b[36mTRACE\x1b[0m",
+                };
+                writeln!(
+                    buf,
+                    "[{:16} {} {:32} M#{}] {}",
+                    timestamp.load(atomic::Ordering::Relaxed),
+                    level_str,
+                    record.module_path().unwrap_or(""),
+                    active_master.load(atomic::Ordering::Relaxed),
+                    record.args(),
+                )
+            }
+        })
+        .init();
 
     let baud = profirust::Baudrate::B19200;
 
@@ -27,20 +55,25 @@ fn two_masters_and_their_tokens() {
         ..Default::default()
     });
 
+    active_master.store(2, atomic::Ordering::Relaxed);
     master1.enter_operate();
+
+    active_master.store(7, atomic::Ordering::Relaxed);
     master2.enter_operate();
 
-    let start = profirust::time::Instant::now();
+    let start = profirust::time::Instant::ZERO;
     let mut now = start;
     while (now - start) < profirust::time::Duration::from_millis(800) {
+        timestamp.store(now.total_micros() as i64, atomic::Ordering::Relaxed);
         phy1.set_bus_time(now);
 
-        log::trace!("M#2 ---");
+        active_master.store(2, atomic::Ordering::Relaxed);
         master1.poll(now, &mut phy1, &mut per1);
-        log::trace!("M#7 ---");
+
+        active_master.store(7, atomic::Ordering::Relaxed);
         master2.poll(now, &mut phy2, &mut per2);
 
-        now += profirust::time::Duration::from_millis(1);
+        now += profirust::time::Duration::from_micros(100);
     }
 
     assert!(master1.is_in_ring());

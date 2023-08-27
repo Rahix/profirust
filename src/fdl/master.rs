@@ -242,6 +242,8 @@ impl FdlMaster {
             // If we are going offline, reset all internal state by recreating the FDL master.
             let parameters = core::mem::take(&mut self.p);
             *self = Self::new(parameters);
+        } else if state != OperatingState::Operate {
+            todo!("OperatingState {:?} is not yet supported properly!", state);
         }
     }
 

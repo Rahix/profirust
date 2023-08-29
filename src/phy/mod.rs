@@ -33,14 +33,14 @@ pub trait ProfibusPhy {
     /// Schedule transmission of a telegram.
     ///
     /// The closure `f` may (or may not) call one of the methods of [`TelegramTx`] to schedule
-    /// transmission of a telegram.  This function returns `true` when a telegram was scheduled and
-    /// `false` otherwise.
+    /// transmission of a telegram.  This function returns `Some(n)` (`n` = number of bytes for
+    /// transmission) when a telegram was scheduled and `None` otherwise.
     ///
     /// **Important**: This function must not block on the actual transmission!
     ///
     /// ## Panics
     /// This function may panic when a transmission is already ongoing.
-    fn transmit_telegram<F>(&mut self, f: F) -> bool
+    fn transmit_telegram<F>(&mut self, f: F) -> Option<usize>
     where
         F: FnOnce(crate::fdl::TelegramTx) -> Option<crate::fdl::TelegramTxResponse>,
     {
@@ -52,9 +52,10 @@ pub trait ProfibusPhy {
                     "PHY TX {:?}",
                     crate::fdl::Telegram::deserialize(buffer).unwrap().unwrap()
                 );
-                (response.bytes_sent(), true)
+                let bytes_sent = response.bytes_sent();
+                (bytes_sent, Some(bytes_sent))
             } else {
-                (0, false)
+                (0, None)
             }
         })
     }

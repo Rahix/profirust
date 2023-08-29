@@ -152,10 +152,19 @@ pub struct FdlMaster {
     /// known.
     next_master: u8,
 
-    /// Timestamp of the last telegram on the bus.
+    /// Timestamp of the last time we found the bus to be active (= someone transmitting).
     ///
-    /// Used for detecting timeouts.
-    last_telegram_time: Option<crate::time::Instant>,
+    /// Used for detecting various timeouts:
+    ///
+    /// - Token Lost
+    /// - Peripheral not Responding
+    last_bus_activity: Option<crate::time::Instant>,
+
+    /// Amount of bytes pending in the receive buffer.
+    ///
+    /// This known value is compared to the latest one reported by the PHY to find out whether new
+    /// data was received since the last poll.
+    pending_bytes: u8,
 
     /// Whether we currently hold the token.
     have_token: bool,
@@ -192,7 +201,8 @@ impl FdlMaster {
 
         Self {
             next_master: param.address,
-            last_telegram_time: None,
+            last_bus_activity: None,
+            pending_bytes: 0,
             have_token: false,
             last_token_time: None,
             previous_token_time: None,
@@ -293,26 +303,46 @@ macro_rules! return_if_tx {
 }
 
 impl FdlMaster {
+    /// Mark the bus as active at the current point in time.
+    ///
+    /// Sets the current time as last_bus_activity unless we have already deduced that bus activity
+    /// will continue until some point in the future.
+    fn mark_bus_activity(&mut self, now: crate::time::Instant) {
+        let last = self.last_bus_activity.get_or_insert(now);
+        *last = (*last).max(now);
+    }
+
+    /// Check whether a transmission is currently ongoing.
+    ///
+    /// There are two scenarios where an ongoing transmission is detected:
+    ///
+    /// 1. If the PHY reports that it is still transmitting.
+    /// 2. If we believe that we must still be sending data from timing calculations.
     fn check_for_ongoing_transmision(
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
     ) -> Option<TxMarker> {
-        if phy.is_transmitting() {
-            self.last_telegram_time = Some(now);
+        if self.last_bus_activity.map(|l| now <= l).unwrap_or(false) || phy.is_transmitting() {
+            self.mark_bus_activity(now);
             Some(TxMarker())
         } else {
             None
         }
     }
 
-    fn mark_rx(&mut self, now: crate::time::Instant) {
-        self.last_telegram_time = Some(now);
+    /// Marks transmission starting `now` and continuing for `bytes` length.
+    fn mark_tx(&mut self, now: crate::time::Instant, bytes: usize) -> TxMarker {
+        self.last_bus_activity = Some(now + self.p.baudrate.bits_to_time(11 * bytes as u32));
+        TxMarker()
     }
 
-    fn mark_tx(&mut self, now: crate::time::Instant) -> TxMarker {
-        self.last_telegram_time = Some(now);
-        TxMarker()
+    fn check_for_bus_activity(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) {
+        let pending_bytes = phy.get_pending_received_bytes().try_into().unwrap();
+        if pending_bytes > self.pending_bytes {
+            self.mark_bus_activity(now);
+            self.pending_bytes = pending_bytes;
+        }
     }
 }
 
@@ -338,10 +368,10 @@ impl FdlMaster {
             self.acquire_token(now, &token_telegram);
         }
 
-        let transmitted = phy
-            .transmit_telegram(|tx| Some(tx.send_token_telegram(self.next_master, self.p.address)));
-        debug_assert!(transmitted);
-        self.mark_tx(now)
+        let tx_bytes = phy
+            .transmit_telegram(|tx| Some(tx.send_token_telegram(self.next_master, self.p.address)))
+            .unwrap();
+        self.mark_tx(now, tx_bytes)
     }
 
     #[must_use = "tx token"]
@@ -350,8 +380,10 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
     ) -> Option<TxMarker> {
-        let last_telegram_time = *self.last_telegram_time.get_or_insert(now);
-        if (now - last_telegram_time) >= self.p.token_lost_timeout() {
+        // If we do not know of any previous bus activity, conservatively assume that the last
+        // activity was just now and start counting from here...
+        let last_bus_activity = *self.last_bus_activity.get_or_insert(now);
+        if (now - last_bus_activity) >= self.p.token_lost_timeout() {
             log::warn!("Token lost! Generating a new one.");
             self.next_master = self.p.address;
             Some(self.forward_token(now, phy))
@@ -371,12 +403,12 @@ impl FdlMaster {
         for (handle, peripheral) in peripherals.iter_mut() {
             debug_assert_eq!(handle.address(), peripheral.address());
 
-            if phy.transmit_telegram(|tx| {
+            if let Some(tx_bytes) = phy.transmit_telegram(|tx| {
                 peripheral.try_start_message_cycle(now, self, tx, high_prio_only)
             }) {
                 self.communication_state =
                     CommunicationState::AwaitingResponse(peripheral.address(), now);
-                return Some(self.mark_tx(now));
+                return Some(self.mark_tx(now, tx_bytes));
             }
         }
 
@@ -391,7 +423,6 @@ impl FdlMaster {
         addr: u8,
     ) -> bool {
         phy.receive_telegram(|telegram| {
-            self.mark_rx(now);
             match &telegram {
                 crate::fdl::Telegram::Token(t) => {
                     log::warn!(
@@ -425,7 +456,6 @@ impl FdlMaster {
         addr: u8,
     ) -> bool {
         phy.receive_telegram(|telegram| {
-            self.mark_rx(now);
             if let crate::fdl::Telegram::Data(telegram) = telegram {
                 if telegram.h.sa != addr {
                     log::warn!("Expected status response from {addr}, got telegram from someone else: {telegram:?}");
@@ -484,10 +514,10 @@ impl FdlMaster {
             self.gap_state = self.next_gap_poll(addr);
             self.communication_state = CommunicationState::AwaitingGapResponse(addr, now);
 
-            let transmitted =
-                phy.transmit_telegram(|tx| Some(tx.send_fdl_status_request(addr, self.p.address)));
-            debug_assert!(transmitted);
-            return Some(self.mark_tx(now));
+            let tx_bytes = phy
+                .transmit_telegram(|tx| Some(tx.send_fdl_status_request(addr, self.p.address)))
+                .unwrap();
+            return Some(self.mark_tx(now, tx_bytes));
         }
 
         None
@@ -573,7 +603,6 @@ impl FdlMaster {
 
         let next_action: Option<NextAction> = phy
             .receive_telegram(|telegram| {
-                self.mark_rx(now);
                 match telegram {
                     crate::fdl::Telegram::Token(token_telegram) => {
                         if token_telegram.da == self.p.address {
@@ -620,16 +649,17 @@ impl FdlMaster {
                     crate::fdl::ResponseState::MasterWithoutToken
                 };
 
-                let transmitted = phy.transmit_telegram(|tx| {
-                    Some(tx.send_fdl_status_response(
-                        da,
-                        self.p.address,
-                        state,
-                        crate::fdl::ResponseStatus::Ok,
-                    ))
-                });
-                debug_assert!(transmitted);
-                Some(self.mark_tx(now))
+                let tx_bytes = phy
+                    .transmit_telegram(|tx| {
+                        Some(tx.send_fdl_status_response(
+                            da,
+                            self.p.address,
+                            state,
+                            crate::fdl::ResponseStatus::Ok,
+                        ))
+                    })
+                    .unwrap();
+                Some(self.mark_tx(now, tx_bytes))
             }
             None => None,
         }
@@ -642,6 +672,9 @@ impl FdlMaster {
         peripherals: &mut crate::fdl::PeripheralSet<'a>,
     ) {
         let _ = self.poll_inner(now, phy, peripherals);
+        if !phy.is_transmitting() {
+            self.pending_bytes = phy.get_pending_received_bytes().try_into().unwrap();
+        }
     }
 
     fn poll_inner<'a, PHY: ProfibusPhy>(
@@ -656,6 +689,8 @@ impl FdlMaster {
         }
 
         return_if_tx!(self.check_for_ongoing_transmision(now, phy));
+
+        self.check_for_bus_activity(now, phy);
 
         if self.have_token {
             // log::trace!("{} has token!", self.p.address);

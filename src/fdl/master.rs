@@ -331,6 +331,19 @@ impl FdlMaster {
         }
     }
 
+    /// Wait for 33 bit times since last bus activity.
+    ///
+    /// This synchronization pause is required before every transmission.
+    fn wait_synchronization_pause(&mut self, now: crate::time::Instant) -> Option<TxMarker> {
+        // TODO: Is it right to write the last_bus_activity here?  Probably does not matter as
+        // handle_lost_token() will most likely get called way earlier.
+        if now <= (*self.last_bus_activity.get_or_insert(now) + self.p.baudrate.bits_to_time(33)) {
+            Some(TxMarker())
+        } else {
+            None
+        }
+    }
+
     /// Marks transmission starting `now` and continuing for `bytes` length.
     fn mark_tx(&mut self, now: crate::time::Instant, bytes: usize) -> TxMarker {
         self.last_bus_activity = Some(now + self.p.baudrate.bits_to_time(11 * bytes as u32));
@@ -565,11 +578,16 @@ impl FdlMaster {
             }
         }
 
+        // Before we can send anything, we must wait 33 bit times (synchronization pause).
+        return_if_tx!(self.wait_synchronization_pause(now));
+
         // Check if there is still time to start a message cycle.
         if let Some(rotation_time) = self.previous_token_time.map(|p| now - p) {
             if rotation_time >= self.p.token_rotation_time() {
                 // If we're over the rotation time and just acquired the token, we are allowed to
                 // perform one more high priority message cycle.
+                //
+                // TODO: This is broken due to the synchronization pause.
                 if self.last_token_time == Some(now) {
                     return_if_tx!(self.try_start_message_cycle(now, phy, peripherals, true));
                 }

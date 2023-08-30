@@ -34,7 +34,6 @@ impl SimulatorBus {
         let last_telegram = self.telegrams.last().unwrap();
 
         let last_telegram_tx_duration = self.bus_time - last_telegram.timestamp;
-        // TODO: Verify byte == 11 bit times
         let last_telegram_tx_bytes =
             (self.baudrate.time_to_bits(last_telegram_tx_duration) / 11) as usize;
 
@@ -53,7 +52,6 @@ impl SimulatorBus {
         let last_telegram = self.telegrams.last().unwrap();
 
         let last_telegram_tx_duration = self.bus_time - last_telegram.timestamp;
-        // TODO: Verify byte == 11 bit times
         let last_telegram_tx_bytes =
             (self.baudrate.time_to_bits(last_telegram_tx_duration) / 11) as usize;
 
@@ -70,6 +68,20 @@ impl SimulatorBus {
                 "\"{}\" attempted transmission while \"{}\" is still sending!",
                 name, active_sender
             );
+        }
+
+        // Ensure that at least 11 bit times were left between two consecutive transmissions.
+        if let Some(last_telegram_and_pause) = self
+            .telegrams
+            .last()
+            .map(|t| t.timestamp + self.baudrate.bits_to_time(t.length as u32 * 11 + 11))
+        {
+            if self.bus_time < last_telegram_and_pause {
+                log::error!(
+                    "\"{}\" did not leave minimum Tsdr time before its transmission.",
+                    name
+                );
+            }
         }
 
         if let Some(Ok(decoded)) = crate::fdl::Telegram::deserialize(&data) {

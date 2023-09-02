@@ -1,3 +1,4 @@
+use profirust::dp;
 use profirust::fdl;
 use profirust::phy;
 
@@ -10,7 +11,7 @@ fn main() {
 
     println!("PROFIBUS Live List:");
 
-    let mut peripherals = fdl::PeripheralSet::new(vec![]);
+    let mut peripherals = dp::PeripheralSet::new(vec![]);
 
     let mut master = fdl::FdlMaster::new(fdl::Parameters {
         // Address of this master, i.e. ourselves

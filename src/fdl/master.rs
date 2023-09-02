@@ -400,7 +400,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        peripherals: &mut crate::fdl::PeripheralSet<'_>,
+        peripherals: &mut crate::dp::PeripheralSet<'_>,
         high_prio_only: bool,
     ) -> Option<TxMarker> {
         debug_assert!(self.communication_state.have_token());
@@ -425,7 +425,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        peripherals: &mut crate::fdl::PeripheralSet<'_>,
+        peripherals: &mut crate::dp::PeripheralSet<'_>,
         addr: u8,
     ) -> bool {
         phy.receive_telegram(|telegram| {
@@ -592,7 +592,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        peripherals: &mut crate::fdl::PeripheralSet<'_>,
+        peripherals: &mut crate::dp::PeripheralSet<'_>,
     ) -> Option<TxMarker> {
         // First check for ongoing message cycles and handle them.
         match *self.communication_state.assert_with_token() {
@@ -759,7 +759,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        peripherals: &mut crate::fdl::PeripheralSet<'a>,
+        peripherals: &mut crate::dp::PeripheralSet<'a>,
     ) {
         let _ = self.poll_inner(now, phy, peripherals);
         if !phy.is_transmitting() {
@@ -771,7 +771,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        peripherals: &mut crate::fdl::PeripheralSet<'a>,
+        peripherals: &mut crate::dp::PeripheralSet<'a>,
     ) -> Option<TxMarker> {
         if self.operating_state == OperatingState::Offline {
             // When we are offline, don't do anything at all.

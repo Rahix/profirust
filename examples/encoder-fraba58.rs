@@ -14,7 +14,7 @@ fn main() {
 
     println!("FRABA 58XX Encoder Example");
 
-    let mut peripherals = fdl::PeripheralSet::new(vec![]);
+    let mut peripherals = dp::PeripheralSet::new(vec![]);
 
     let encoder_options = dp::PeripheralOptions {
         ident_number: 0x4711,

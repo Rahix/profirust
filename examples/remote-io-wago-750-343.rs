@@ -14,7 +14,7 @@ fn main() {
 
     println!("WAGO 750-343 Remote I/O Station Example");
 
-    let mut peripherals = fdl::PeripheralSet::new(vec![]);
+    let mut peripherals = dp::PeripheralSet::new(vec![]);
 
     let remoteio_options = dp::PeripheralOptions {
         ident_number: 0xb757,

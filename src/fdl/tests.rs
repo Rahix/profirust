@@ -8,7 +8,7 @@ fn test_token_timeout(#[values(0, 1, 7, 14)] addr: u8) {
     let mut phy0 = crate::phy::SimulatorPhy::new(baud, "phy#0");
     let mut phy7 = phy0.duplicate("phy#7");
 
-    let mut per7 = crate::fdl::PeripheralSet::new(vec![]);
+    let mut per7 = crate::dp::PeripheralSet::new(vec![]);
     let mut master7 = crate::fdl::FdlMaster::new(crate::fdl::Parameters {
         address: addr,
         baudrate: baud,
@@ -88,7 +88,7 @@ fn two_masters_and_their_tokens() {
     let mut phy1 = crate::phy::SimulatorPhy::new(baud, "phy#2");
     let mut phy2 = phy1.duplicate("phy#7");
 
-    let mut per1 = crate::fdl::PeripheralSet::new(vec![]);
+    let mut per1 = crate::dp::PeripheralSet::new(vec![]);
     let mut master1 = crate::fdl::FdlMaster::new(crate::fdl::Parameters {
         address: 2,
         baudrate: baud,
@@ -96,7 +96,7 @@ fn two_masters_and_their_tokens() {
         slot_bits: 300,
         ..Default::default()
     });
-    let mut per2 = crate::fdl::PeripheralSet::new(vec![]);
+    let mut per2 = crate::dp::PeripheralSet::new(vec![]);
     let mut master2 = crate::fdl::FdlMaster::new(crate::fdl::Parameters {
         address: 7,
         baudrate: baud,

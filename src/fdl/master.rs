@@ -645,7 +645,7 @@ impl FdlMaster {
                             None
                         }
                         t => {
-                            log::trace!("Unhandled telegram: {t:?}");
+                            // Unhandled telegram, probably not for us.
                             None
                         }
                     }

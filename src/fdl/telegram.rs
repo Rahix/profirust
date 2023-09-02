@@ -658,12 +658,60 @@ mod tests {
         )
     }
 
+    fn data_telegram_serdes(
+        da: u8,
+        sa: u8,
+        dsap: Option<u8>,
+        ssap: Option<u8>,
+        fc: FunctionCode,
+        pdu: &[u8],
+    ) {
+        let mut buffer = [0u8; 256];
+
+        let header = DataTelegramHeader {
+            da,
+            sa,
+            dsap,
+            ssap,
+            fc,
+        };
+        dbg!(&header, &pdu);
+
+        let length = header.serialize(&mut buffer, pdu.len(), |buf| buf.copy_from_slice(pdu));
+
+        let res = DataTelegram::deserialize(&buffer[..length])
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(res.h, header);
+        assert_eq!(res.pdu, pdu);
+
+        // Now attempt parsing the telegram partially to ensure this also always works.
+        for i in 0..length {
+            println!("Trying partial parse at {i}/{length}...");
+            let res = DataTelegram::deserialize(&buffer[..i]);
+            assert_eq!(res, None);
+        }
+    }
+
     proptest! {
         #[test]
-        fn function_code_serdes(fc in any::<FunctionCode>()) {
+        fn function_code_proptest(fc in any::<FunctionCode>()) {
             let fc_byte = fc.to_byte();
             let fc_again = FunctionCode::from_byte(fc_byte);
             assert_eq!(Ok(fc), fc_again);
+        }
+
+        #[test]
+        fn data_telegram_proptest(
+            da in 0..126u8,
+            sa in 0..126u8,
+            dsap in prop::option::of(0u8..=255),
+            ssap in prop::option::of(0u8..=255),
+            fc in any::<FunctionCode>(),
+            pdu in prop::collection::vec(0..=255u8, 0..245),
+        ) {
+            data_telegram_serdes(da, sa, dsap, ssap, fc, &pdu);
         }
     }
 }

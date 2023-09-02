@@ -68,3 +68,50 @@ impl Baudrate {
         time.total_micros() * self.to_rate() / 1000000
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn baudrate_time_conversions() {
+        let all_bauds = &[
+            crate::Baudrate::B9600,
+            crate::Baudrate::B19200,
+            crate::Baudrate::B31250,
+            crate::Baudrate::B45450,
+            crate::Baudrate::B93750,
+            crate::Baudrate::B187500,
+            crate::Baudrate::B500000,
+            crate::Baudrate::B1500000,
+            crate::Baudrate::B3000000,
+            crate::Baudrate::B6000000,
+            crate::Baudrate::B12000000,
+        ];
+        let test_values = &[0, 1, 10, 100, 2000, 65536, u32::MAX];
+
+        for baud in all_bauds.iter().copied() {
+            for bits in test_values.iter().copied() {
+                let time = baud.bits_to_time(bits);
+                let micros = time.total_micros();
+                let bits2 = baud.time_to_bits(time);
+
+                let max_difference = match baud {
+                    crate::Baudrate::B9600 => 1,
+                    crate::Baudrate::B19200 => 1,
+                    crate::Baudrate::B31250 => 1,
+                    crate::Baudrate::B45450 => 1,
+                    crate::Baudrate::B93750 => 1,
+                    crate::Baudrate::B187500 => 1,
+                    crate::Baudrate::B500000 => 1,
+                    crate::Baudrate::B1500000 => 1,
+                    crate::Baudrate::B3000000 => 2,
+                    crate::Baudrate::B6000000 => 4,
+                    crate::Baudrate::B12000000 => 10,
+                };
+                assert!(
+                    bits as u64 - bits2 <= max_difference,
+                    "{bits} (={micros}us) was converted to {bits2} (at {baud:?})"
+                );
+            }
+        }
+    }
+}

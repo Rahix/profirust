@@ -107,7 +107,7 @@ impl SimulatorBus {
                         name
                     );
                 } else {
-                    log::error!(
+                    panic!(
                         "\"{}\" did not leave minimum Tsdr time before its transmission.",
                         name
                     );

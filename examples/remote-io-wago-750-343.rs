@@ -118,10 +118,10 @@ fn main() {
 
                 // Set outputs according to our best intentions
                 let elapsed = (now - start).total_millis();
-                let i = (elapsed / 100) % (remoteio.pi_q().len() as u64 * 4);
+                let i = usize::try_from(elapsed / 100).unwrap() % (remoteio.pi_q().len() * 4);
                 let pi_q = remoteio.pi_q_mut();
                 pi_q.fill(0x00);
-                pi_q[(i / 4) as usize] |= 1 << (i % 4);
+                pi_q[i / 4] |= 1 << (i % 4);
             }
         }
 

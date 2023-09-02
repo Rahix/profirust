@@ -130,16 +130,60 @@ impl GapState {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 enum CommunicationState {
-    /// Master has nothing to do.
+    WithToken(StateWithToken),
+    WithoutToken(StateWithoutToken),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+enum StateWithToken {
+    /// Master is ready to start a message cycle of any kind (unless it is waiting for the
+    /// synchronization pause to pass).
+    Idle { first: bool },
+    /// Waiting for the response to a message cycle.
+    AwaitingResponse {
+        addr: u8,
+        sent_time: crate::time::Instant,
+    },
+    /// Waiting for the FDL status response of a potential peripheral.
+    AwaitingFdlStatusResponse {
+        addr: u8,
+        sent_time: crate::time::Instant,
+    },
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+enum StateWithoutToken {
+    /// Master is idle.
     Idle,
+    /// Waiting to respond to an FDL status request.
+    PendingFdlStatusResponse {
+        destination: u8,
+        recv_time: crate::time::Instant,
+    },
+}
 
-    /// Awaiting a response telegram from a station with the given address.
-    AwaitingResponse(u8, crate::time::Instant),
+impl CommunicationState {
+    pub fn have_token(&self) -> bool {
+        matches!(self, CommunicationState::WithToken(_))
+    }
 
-    /// Awaiting response to an FDL status telegram from the gap polling machinery.
-    AwaitingGapResponse(u8, crate::time::Instant),
+    pub fn assert_with_token(&mut self) -> &mut StateWithToken {
+        if let CommunicationState::WithToken(s) = self {
+            s
+        } else {
+            panic!("Expected to be holding the token at this time!");
+        }
+    }
+
+    pub fn assert_without_token(&mut self) -> &mut StateWithoutToken {
+        if let CommunicationState::WithoutToken(s) = self {
+            s
+        } else {
+            panic!("Expected to NOT be holding the token at this time!");
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -165,9 +209,6 @@ pub struct FdlMaster {
     /// This known value is compared to the latest one reported by the PHY to find out whether new
     /// data was received since the last poll.
     pending_bytes: u8,
-
-    /// Whether we currently hold the token.
-    have_token: bool,
 
     /// Whether we believe to be a part of the token ring.
     in_ring: bool,
@@ -203,12 +244,11 @@ impl FdlMaster {
             next_master: param.address,
             last_bus_activity: None,
             pending_bytes: 0,
-            have_token: false,
             last_token_time: None,
             previous_token_time: None,
             gap_state: GapState::NextPoll(param.address.wrapping_add(1)),
             live_list,
-            communication_state: CommunicationState::Idle,
+            communication_state: CommunicationState::WithoutToken(StateWithoutToken::Idle),
             in_ring: false,
             operating_state: OperatingState::Offline,
 
@@ -335,6 +375,7 @@ impl FdlMaster {
     ///
     /// This synchronization pause is required before every transmission.
     fn wait_synchronization_pause(&mut self, now: crate::time::Instant) -> Option<TxMarker> {
+        debug_assert!(self.communication_state.have_token());
         // TODO: Is it right to write the last_bus_activity here?  Probably does not matter as
         // handle_lost_token() will most likely get called way earlier.
         if now <= (*self.last_bus_activity.get_or_insert(now) + self.p.baudrate.bits_to_time(33)) {
@@ -362,7 +403,8 @@ impl FdlMaster {
 impl FdlMaster {
     fn acquire_token(&mut self, now: crate::time::Instant, token: &crate::fdl::TokenTelegram) {
         debug_assert!(token.da == self.p.address);
-        self.have_token = true;
+        self.communication_state =
+            CommunicationState::WithToken(StateWithToken::Idle { first: true });
         self.previous_token_time = self.last_token_time;
         self.last_token_time = Some(now);
         self.gap_state.increment_wait();
@@ -372,8 +414,7 @@ impl FdlMaster {
 
     #[must_use = "tx token"]
     fn forward_token(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) -> TxMarker {
-        self.communication_state = CommunicationState::Idle;
-        self.have_token = false;
+        self.communication_state = CommunicationState::WithoutToken(StateWithoutToken::Idle);
 
         let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
         if self.next_master == self.p.address {
@@ -413,14 +454,17 @@ impl FdlMaster {
         peripherals: &mut crate::fdl::PeripheralSet<'_>,
         high_prio_only: bool,
     ) -> Option<TxMarker> {
+        debug_assert!(self.communication_state.have_token());
         for (handle, peripheral) in peripherals.iter_mut() {
             debug_assert_eq!(handle.address(), peripheral.address());
 
             if let Some(tx_bytes) = phy.transmit_telegram(|tx| {
                 peripheral.try_start_message_cycle(now, self, tx, high_prio_only)
             }) {
-                self.communication_state =
-                    CommunicationState::AwaitingResponse(peripheral.address(), now);
+                *self.communication_state.assert_with_token() = StateWithToken::AwaitingResponse {
+                    addr: peripheral.address(),
+                    sent_time: now,
+                };
                 return Some(self.mark_tx(now, tx_bytes));
             }
         }
@@ -513,7 +557,7 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
     ) -> Option<TxMarker> {
-        debug_assert!(matches!(self.communication_state, CommunicationState::Idle));
+        assert!(self.communication_state.have_token());
 
         if let GapState::Waiting(r) = self.gap_state {
             if r >= self.p.gap_wait_rotations {
@@ -525,7 +569,12 @@ impl FdlMaster {
 
         if let GapState::NextPoll(addr) = self.gap_state {
             self.gap_state = self.next_gap_poll(addr);
-            self.communication_state = CommunicationState::AwaitingGapResponse(addr, now);
+
+            *self.communication_state.assert_with_token() =
+                StateWithToken::AwaitingFdlStatusResponse {
+                    addr,
+                    sent_time: now,
+                };
 
             let tx_bytes = phy
                 .transmit_telegram(|tx| Some(tx.send_fdl_status_request(addr, self.p.address)))
@@ -543,14 +592,12 @@ impl FdlMaster {
         phy: &mut impl ProfibusPhy,
         peripherals: &mut crate::fdl::PeripheralSet<'_>,
     ) -> Option<TxMarker> {
-        debug_assert!(self.have_token);
-
         // First check for ongoing message cycles and handle them.
-        match self.communication_state {
-            CommunicationState::Idle => (),
-            CommunicationState::AwaitingResponse(addr, sent_time) => {
+        match *self.communication_state.assert_with_token() {
+            StateWithToken::AwaitingResponse { addr, sent_time } => {
                 if self.check_for_response(now, phy, peripherals, addr) {
-                    self.communication_state = CommunicationState::Idle;
+                    *self.communication_state.assert_with_token() =
+                        StateWithToken::Idle { first: false };
                 } else if (now - sent_time) >= self.p.slot_time() {
                     todo!("handle message cycle response timeout");
                 } else {
@@ -559,16 +606,16 @@ impl FdlMaster {
                     return None;
                 }
             }
-            CommunicationState::AwaitingGapResponse(addr, sent_time) => {
+            StateWithToken::AwaitingFdlStatusResponse { addr, sent_time } => {
                 if self.check_for_status_response(now, phy, addr) {
                     log::trace!("Address {addr} responded!");
                     // After the gap response, we pass on the token.
-                    self.live_list.set(addr as usize, true);
+                    self.live_list.set(usize::from(addr), true);
                     return Some(self.forward_token(now, phy));
                 } else if (now - sent_time) >= self.p.slot_time() {
                     log::trace!("Address {addr} didn't respond in {}!", self.p.slot_time());
                     // Mark this address as not alive and pass on the token.
-                    self.live_list.set(addr as usize, false);
+                    self.live_list.set(usize::from(addr), false);
                     return Some(self.forward_token(now, phy));
                 } else {
                     // Still waiting for the response, nothing to do here.
@@ -576,7 +623,16 @@ impl FdlMaster {
                     return None;
                 }
             }
+            // Continue towards transmission when idle.
+            StateWithToken::Idle { .. } => (),
         }
+
+        // If we get here, the master must be idling and ready for transmission.  If the previous
+        // code is correct, this unreachable!() panic should get optimized out.
+        let first_with_token = match self.communication_state.assert_with_token() {
+            StateWithToken::Idle { first } => *first,
+            _ => unreachable!(),
+        };
 
         // Before we can send anything, we must wait 33 bit times (synchronization pause).
         return_if_tx!(self.wait_synchronization_pause(now));
@@ -586,9 +642,7 @@ impl FdlMaster {
             if rotation_time >= self.p.token_rotation_time() {
                 // If we're over the rotation time and just acquired the token, we are allowed to
                 // perform one more high priority message cycle.
-                //
-                // TODO: This is broken due to the synchronization pause.
-                if self.last_token_time == Some(now) {
+                if first_with_token {
                     return_if_tx!(self.try_start_message_cycle(now, phy, peripherals, true));
                 }
 
@@ -613,7 +667,7 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
     ) -> Option<TxMarker> {
-        debug_assert!(!self.have_token);
+        debug_assert!(!self.communication_state.have_token());
 
         enum NextAction {
             RespondWithStatus { da: u8 },
@@ -710,13 +764,13 @@ impl FdlMaster {
 
         self.check_for_bus_activity(now, phy);
 
-        if self.have_token {
+        if self.communication_state.have_token() {
             // log::trace!("{} has token!", self.p.address);
             return_if_tx!(self.handle_with_token(now, phy, peripherals));
         } else {
             return_if_tx!(self.handle_without_token(now, phy));
             // We may have just received the token so do one more pass "with token".
-            if self.have_token {
+            if self.communication_state.have_token() {
                 return_if_tx!(self.handle_with_token(now, phy, peripherals));
             }
         }

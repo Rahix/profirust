@@ -785,6 +785,8 @@ mod tests {
             now += crate::time::Duration::from_micros(100);
         }
 
+        assert!(master7.is_in_ring());
+
         let timeout_start = start + baud.bits_to_time(3 * 11);
         let timeout_measured = new_token_time.expect("never reached token timeout?")
             - timeout_start

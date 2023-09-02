@@ -726,11 +726,92 @@ impl FdlMaster {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::phy::ProfibusPhy;
 
     /// Ensure the `FdlMaster` struct size doesn't completely get out of control.
     #[test]
     fn fdl_master_size() {
-        assert!(std::mem::size_of::<FdlMaster>() <= 256);
+        assert!(std::mem::size_of::<crate::fdl::FdlMaster>() <= 256);
+    }
+
+    /// Ensure proper token timeout.
+    #[test]
+    fn test_token_timeout() {
+        crate::test_utils::prepare_test_logger();
+        let baud = crate::Baudrate::B19200;
+        let mut phy0 = crate::phy::SimulatorPhy::new(baud, "phy#0");
+        let mut phy7 = phy0.duplicate("phy#7");
+
+        let mut per7 = crate::fdl::PeripheralSet::new(vec![]);
+        let mut master7 = crate::fdl::FdlMaster::new(crate::fdl::Parameters {
+            address: 7,
+            baudrate: baud,
+            highest_station_address: 16,
+            slot_bits: 300,
+            ..Default::default()
+        });
+
+        crate::test_utils::set_active_addr(7);
+        master7.enter_operate();
+
+        crate::test_utils::set_active_addr(0);
+        phy0.transmit_telegram(|tx| Some(tx.send_token_telegram(0, 0)));
+
+        let start = crate::time::Instant::ZERO;
+        let mut now = start;
+        let mut new_token_time = None;
+        while now.total_millis() < 800 {
+            crate::test_utils::set_log_timestamp(now);
+            phy0.set_bus_time(now);
+
+            crate::test_utils::set_active_addr(7);
+            master7.poll(now, &mut phy7, &mut per7);
+
+            crate::test_utils::set_active_addr(7);
+            if !phy0.is_transmitting() {
+                phy0.receive_telegram(|t| match t {
+                    crate::fdl::Telegram::Token(crate::fdl::TokenTelegram { da, sa }) => {
+                        if new_token_time.is_none() {
+                            new_token_time = Some(now);
+                            assert_eq!(da, master7.parameters().address);
+                            assert_eq!(sa, master7.parameters().address);
+                        }
+                    }
+                    crate::fdl::Telegram::Data(_) => assert!(new_token_time.is_some()),
+                    crate::fdl::Telegram::ShortConfirmation(_) => assert!(new_token_time.is_some()),
+                });
+            }
+
+            now += crate::time::Duration::from_micros(100);
+        }
+
+        let timeout_start = start + baud.bits_to_time(3 * 11);
+        let timeout_measured =
+            new_token_time.expect("never reached token timeout?") - timeout_start;
+
+        let expected_timeout = baud.bits_to_time(
+            u32::from(master7.parameters().slot_bits)
+                * (6 + 2 * u32::from(master7.parameters().address)),
+        );
+
+        // Ensure the measured timeout also lies well before the timeout of the next address would
+        // be reached.
+        let expected_timeout_max = baud.bits_to_time(
+            u32::from(master7.parameters().slot_bits)
+                * (6 + 2 * u32::from(master7.parameters().address + 1)),
+        );
+
+        log::info!(
+            "Measured token timeout: {}us",
+            timeout_measured.total_micros()
+        );
+        log::info!(
+            "Expected token timeout: {}us - {}us",
+            expected_timeout.total_micros(),
+            expected_timeout_max.total_micros()
+        );
+
+        assert!(timeout_measured >= expected_timeout);
+        assert!(timeout_measured <= expected_timeout_max);
     }
 }

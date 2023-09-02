@@ -70,6 +70,8 @@ enum StateWithToken {
     /// Master is ready to start a message cycle of any kind (unless it is waiting for the
     /// synchronization pause to pass).
     Idle { first: bool },
+    /// Master should forward the token at the next possible time.
+    ForwardToken,
     /// Waiting for the response to a message cycle.
     AwaitingResponse {
         addr: u8,
@@ -540,31 +542,33 @@ impl FdlMaster {
                     log::trace!("Address {addr} responded!");
                     // After the gap response, we pass on the token.
                     self.live_list.set(usize::from(addr), true);
-                    return Some(self.forward_token(now, phy));
+                    *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
                 } else if (now - sent_time) >= self.p.slot_time() {
                     log::trace!("Address {addr} didn't respond in {}!", self.p.slot_time());
                     // Mark this address as not alive and pass on the token.
                     self.live_list.set(usize::from(addr), false);
-                    return Some(self.forward_token(now, phy));
+                    *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
                 } else {
                     // Still waiting for the response, nothing to do here.
                     // TODO: shouldn't we also return the marker here?
                     return None;
                 }
             }
-            // Continue towards transmission when idle.
+            // Continue towards transmission when idle or forwarding token.
             StateWithToken::Idle { .. } => (),
+            StateWithToken::ForwardToken => (),
         }
 
-        // If we get here, the master must be idling and ready for transmission.  If the previous
-        // code is correct, this unreachable!() panic should get optimized out.
+        // Before we can send anything, we must always wait 33 bit times (synchronization pause).
+        return_if_tx!(self.wait_synchronization_pause(now));
+
         let first_with_token = match self.communication_state.assert_with_token() {
+            StateWithToken::ForwardToken => {
+                return Some(self.forward_token(now, phy));
+            }
             StateWithToken::Idle { first } => *first,
             _ => unreachable!(),
         };
-
-        // Before we can send anything, we must wait 33 bit times (synchronization pause).
-        return_if_tx!(self.wait_synchronization_pause(now));
 
         // Check if there is still time to start a message cycle.
         if let Some(rotation_time) = self.previous_token_time.map(|p| now - p) {

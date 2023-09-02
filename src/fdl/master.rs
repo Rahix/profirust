@@ -602,48 +602,56 @@ impl FdlMaster {
             RespondWithStatus { da: u8 },
         }
 
-        let next_action: Option<NextAction> = phy
-            .receive_telegram(|telegram| {
-                match telegram {
-                    crate::fdl::Telegram::Token(token_telegram) => {
-                        if token_telegram.da == self.p.address {
-                            // Heyy, we got the token!
-                            self.acquire_token(now, &token_telegram);
-                        } else {
-                            log::trace!(
-                                "Witnessed token passing: {} => {}",
-                                token_telegram.sa,
-                                token_telegram.da,
-                            );
-                            if token_telegram.sa == token_telegram.da {
-                                if self.in_ring {
-                                    log::info!(
-                                        "Left the token ring due to self-passing by addr {}.",
-                                        token_telegram.sa
-                                    );
+        match *self.communication_state.assert_without_token() {
+            StateWithoutToken::Idle => phy
+                .receive_telegram(|telegram| {
+                    match telegram {
+                        crate::fdl::Telegram::Token(token_telegram) => {
+                            if token_telegram.da == self.p.address {
+                                // Heyy, we got the token!
+                                self.acquire_token(now, &token_telegram);
+                            } else {
+                                log::trace!(
+                                    "Witnessed token passing: {} => {}",
+                                    token_telegram.sa,
+                                    token_telegram.da,
+                                );
+                                if token_telegram.sa == token_telegram.da {
+                                    if self.in_ring {
+                                        log::info!(
+                                            "Left the token ring due to self-passing by addr {}.",
+                                            token_telegram.sa
+                                        );
+                                    }
+                                    self.in_ring = false;
                                 }
-                                self.in_ring = false;
                             }
+                            None
                         }
-                        None
-                    }
-                    crate::fdl::Telegram::Data(telegram) if telegram.h.da == self.p.address => {
-                        if let Some(da) = telegram.is_fdl_status_request() {
-                            Some(NextAction::RespondWithStatus { da })
-                        } else {
+                        crate::fdl::Telegram::Data(telegram) if telegram.h.da == self.p.address => {
+                            if let Some(da) = telegram.is_fdl_status_request() {
+                                *self.communication_state.assert_without_token() =
+                                    StateWithoutToken::PendingFdlStatusResponse {
+                                        destination: da,
+                                        recv_time: now,
+                                    };
+                            }
+                            None
+                        }
+                        t => {
+                            log::trace!("Unhandled telegram: {t:?}");
                             None
                         }
                     }
-                    t => {
-                        log::trace!("Unhandled telegram: {t:?}");
-                        None
-                    }
-                }
-            })
-            .unwrap_or(None);
+                })
+                .unwrap_or(None),
+            // TODO: This should be min(Tsdr)
+            StateWithoutToken::PendingFdlStatusResponse {
+                destination,
+                recv_time,
+            } if (now - recv_time) >= self.p.bits_to_time(11) => {
+                *self.communication_state.assert_without_token() = StateWithoutToken::Idle;
 
-        match next_action {
-            Some(NextAction::RespondWithStatus { da }) => {
                 let state = if self.in_ring {
                     crate::fdl::ResponseState::MasterInRing
                 } else {
@@ -653,7 +661,7 @@ impl FdlMaster {
                 let tx_bytes = phy
                     .transmit_telegram(|tx| {
                         Some(tx.send_fdl_status_response(
-                            da,
+                            destination,
                             self.p.address,
                             state,
                             crate::fdl::ResponseStatus::Ok,
@@ -662,7 +670,8 @@ impl FdlMaster {
                     .unwrap();
                 Some(self.mark_tx(now, tx_bytes))
             }
-            None => None,
+            // Continue waiting...
+            StateWithoutToken::PendingFdlStatusResponse { .. } => None,
         }
     }
 

@@ -162,6 +162,9 @@ pub struct FdlMaster {
 
     /// Operating State of the master.
     operating_state: OperatingState,
+
+    /// Timestamp of last global control telegram.
+    last_global_control: Option<crate::time::Instant>,
 }
 
 impl FdlMaster {
@@ -184,6 +187,7 @@ impl FdlMaster {
             communication_state: CommunicationState::WithoutToken(StateWithoutToken::Idle),
             in_ring: false,
             operating_state: OperatingState::Offline,
+            last_global_control: None,
 
             p: param,
         }
@@ -225,6 +229,8 @@ impl FdlMaster {
     pub fn enter_state(&mut self, state: OperatingState) {
         log::info!("Master entering state \"{:?}\"", state);
         self.operating_state = state;
+        // Ensure we will send a new global control telegram ASAP:
+        self.last_global_control = None;
 
         if state == OperatingState::Offline {
             // If we are going offline, reset all internal state by recreating the FDL master.
@@ -529,6 +535,59 @@ impl FdlMaster {
     }
 
     #[must_use = "tx token"]
+    fn handle_global_control(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+    ) -> Option<TxMarker> {
+        // We only need to send global control telegrams in OPERATE and CLEAR states.
+        if !matches!(
+            self.operating_state,
+            OperatingState::Operate | OperatingState::Clear
+        ) {
+            return None;
+        }
+
+        // TODO: 50 Tsl is an arbitrary interval.  Documentation talks about 3 times the watchdog
+        // period, but that seems rather arbitrary as well.
+        if self
+            .last_global_control
+            .map(|t| now - t >= self.p.slot_time() * 50)
+            .unwrap_or(true)
+        {
+            self.last_global_control = Some(now);
+            let tx_bytes = phy
+                .transmit_telegram(|tx| {
+                    Some(tx.send_data_telegram(
+                        crate::fdl::DataTelegramHeader {
+                            da: 0x7f,
+                            sa: self.p.address,
+                            dsap: crate::consts::SAP_SLAVE_GLOBAL_CONTROL,
+                            ssap: crate::consts::SAP_MASTER_MS0,
+                            fc: crate::fdl::FunctionCode::Request {
+                                // TODO: Do we need an FCB for GC telegrams?
+                                fcb: crate::fdl::FrameCountBit::Inactive,
+                                req: crate::fdl::RequestType::SdnLow,
+                            },
+                        },
+                        2,
+                        |buf| {
+                            buf[0] = 0x00;
+                            if self.operating_state.is_clear() {
+                                buf[0] |= 0x02;
+                            }
+                            buf[1] = 0x00;
+                        },
+                    ))
+                })
+                .unwrap();
+            Some(self.mark_tx(now, tx_bytes))
+        } else {
+            None
+        }
+    }
+
+    #[must_use = "tx token"]
     fn handle_with_token(
         &mut self,
         now: crate::time::Instant,
@@ -597,6 +656,11 @@ impl FdlMaster {
         }
 
         // We have time, try doing useful things.
+
+        // Start with global control.
+        return_if_tx!(self.handle_global_control(now, phy));
+
+        // Next, data exchange with peripherals.
         return_if_tx!(self.try_start_message_cycle(now, phy, peripherals, false));
 
         // If we end up here, there's nothing useful left to do so now handle the gap polling cycle.

@@ -26,6 +26,8 @@ pub const SAP_MASTER_MS0: Option<u8> = Some(62);
 
 /// SAP (Service Access Point) of a slave for **Data Exchange**
 pub const SAP_SLAVE_DATA_EXCHANGE: Option<u8> = None;
+/// SAP (Service Access Point) of a slave for **Global Control**
+pub const SAP_SLAVE_GLOBAL_CONTROL: Option<u8> = Some(58);
 /// SAP (Service Access Point) of a slave for **Get Configuration**
 pub const SAP_SLAVE_GET_CFG: Option<u8> = Some(59);
 /// SAP (Service Access Point) of a slave for **Slave Diagnosis**

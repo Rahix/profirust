@@ -35,8 +35,8 @@ fn two_masters_and_their_tokens() {
 
     let baud = profirust::Baudrate::B19200;
 
-    let mut phy1 = phy::SimulatorPhy::new(baud, "phy1");
-    let mut phy2 = phy1.duplicate("phy2");
+    let mut phy1 = phy::SimulatorPhy::new(baud, "phy#2");
+    let mut phy2 = phy1.duplicate("phy#7");
 
     let mut per1 = fdl::PeripheralSet::new(vec![]);
     let mut master1 = fdl::FdlMaster::new(fdl::Parameters {

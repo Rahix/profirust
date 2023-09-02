@@ -4,6 +4,8 @@ use std::sync::atomic;
 
 #[test]
 fn two_masters_and_their_tokens() {
+    // TODO: Does this work when more tests of this sort are added?  Maybe we need to factor this
+    // out into a general test helper...
     let timestamp = std::sync::Arc::new(atomic::AtomicI64::new(0));
     let active_master = std::sync::Arc::new(atomic::AtomicU8::new(0));
     env_logger::builder()

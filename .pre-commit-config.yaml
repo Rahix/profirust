@@ -1,0 +1,29 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.2.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-added-large-files
+-   repo: local
+    hooks:
+    - id: cargo-fmt
+      name: Format all rust sources
+      language: system
+      entry: cargo fmt
+      files: ^.*\.rs$
+      pass_filenames: false
+    - id: cargo-test
+      name: Run profirust testsuite
+      language: system
+      entry: cargo test
+      files: ^(src|tests)/.*\.rs$
+      pass_filenames: false
+    - id: cargo-test-gsd
+      name: Run gsd-parser testsuite
+      language: system
+      entry: cargo test -p gsd-parser
+      files: ^gsd-parser/.*\.rs$
+      pass_filenames: false

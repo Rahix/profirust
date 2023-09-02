@@ -327,7 +327,7 @@ impl<'a> DataTelegram<'a> {
         };
         let mut length = usize::from(length);
 
-        if buffer.len() < length + 2 {
+        if buffer.len() < length + 6 {
             return None;
         }
 

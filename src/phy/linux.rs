@@ -166,7 +166,7 @@ impl LinuxRs485Phy<'_> {
                     Err(err)
                 }
             }
-            written => Ok(written as usize),
+            written => Ok(usize::try_from(written).unwrap()),
         }
     }
 
@@ -176,7 +176,7 @@ impl LinuxRs485Phy<'_> {
         if res < 0 {
             return Err(io::Error::last_os_error());
         }
-        Ok(arg as usize)
+        Ok(usize::try_from(arg).unwrap())
     }
 
     fn read(fd: RawFd, buffer: &mut [u8]) -> io::Result<usize> {
@@ -189,7 +189,7 @@ impl LinuxRs485Phy<'_> {
                     Err(err)
                 }
             }
-            written => Ok(written as usize),
+            written => Ok(usize::try_from(written).unwrap()),
         }
     }
 }

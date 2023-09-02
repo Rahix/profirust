@@ -240,7 +240,8 @@ impl DataTelegramHeader {
     where
         F: FnOnce(&mut [u8]),
     {
-        let length_byte = pdu_len + self.dsap.is_some() as usize + self.ssap.is_some() as usize + 3;
+        let length_byte =
+            pdu_len + usize::from(self.dsap.is_some()) + usize::from(self.ssap.is_some()) + 3;
 
         let mut cursor = 0;
 
@@ -256,8 +257,8 @@ impl DataTelegramHeader {
         cursor += 1;
         if sc == crate::consts::SD2 {
             assert!(length_byte <= 249);
-            buffer[cursor] = length_byte as u8;
-            buffer[cursor + 1] = length_byte as u8;
+            buffer[cursor] = u8::try_from(length_byte).unwrap();
+            buffer[cursor + 1] = u8::try_from(length_byte).unwrap();
             buffer[cursor + 2] = sc;
             cursor += 3;
         }
@@ -324,9 +325,9 @@ impl<'a> DataTelegram<'a> {
             crate::consts::SD3 => 8,
             _ => unreachable!(),
         };
-        let mut length = length as usize;
+        let mut length = usize::from(length);
 
-        if buffer.len() < length as usize + 2 {
+        if buffer.len() < length + 2 {
             return None;
         }
 

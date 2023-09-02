@@ -63,7 +63,7 @@ impl Baudrate {
 
     /// At this baudrate, return how long a given number of bits take to transmit.
     pub fn bits_to_time(self, bits: u32) -> crate::time::Duration {
-        crate::time::Duration::from_micros(bits as u64 * 1000000 / self.to_rate())
+        crate::time::Duration::from_micros(u64::from(bits) * 1000000 / self.to_rate())
     }
 
     /// At this baudrate, return how many bits could be transmitted in the given time.
@@ -111,7 +111,7 @@ mod tests {
                     crate::Baudrate::B12000000 => 10,
                 };
                 assert!(
-                    bits as u64 - bits2 <= max_difference,
+                    u64::from(bits) - bits2 <= max_difference,
                     "{bits} (={micros}us) was converted to {bits2} (at {baud:?})"
                 );
             }

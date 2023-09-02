@@ -51,15 +51,14 @@ impl Parameters {
 
     /// T<sub>SL</sub> (slit time) converted to duration
     pub fn slot_time(&self) -> crate::time::Duration {
-        self.bits_to_time(self.slot_bits as u32)
+        self.bits_to_time(u32::from(self.slot_bits))
     }
 
     /// Timeout after which the token is considered lost.
     ///
     /// Calculated as 6 * T<sub>SL</sub> + 2 * Addr * T<sub>SL</sub>.
     pub fn token_lost_timeout(&self) -> crate::time::Duration {
-        let timeout_bits =
-            6 * self.slot_bits as u32 + 2 * self.address as u32 * self.slot_bits as u32;
+        let timeout_bits = u32::from(self.slot_bits) * (6 + 2 * u32::from(self.address));
         self.bits_to_time(timeout_bits)
     }
 

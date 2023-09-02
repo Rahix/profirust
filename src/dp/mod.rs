@@ -29,7 +29,7 @@ impl<'a> PeripheralOptions<'a> {
                     let f2 = (timeout_10ms + f1 - 1) / f1;
 
                     if f2 < 256 {
-                        return Ok((f1 as u8, f2 as u8));
+                        return Ok((u8::try_from(f1).unwrap(), u8::try_from(f2).unwrap()));
                     }
                 }
 

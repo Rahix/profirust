@@ -38,7 +38,7 @@ impl SimulatorBus {
 
         let last_telegram_tx_duration = self.bus_time - last_telegram.timestamp;
         let last_telegram_tx_bytes =
-            (self.baudrate.time_to_bits(last_telegram_tx_duration) / 11) as usize;
+            usize::try_from(self.baudrate.time_to_bits(last_telegram_tx_duration) / 11).unwrap();
 
         self.stream.len() - last_telegram.length + last_telegram_tx_bytes.min(last_telegram.length)
     }
@@ -56,7 +56,7 @@ impl SimulatorBus {
 
         let last_telegram_tx_duration = self.bus_time - last_telegram.timestamp;
         let last_telegram_tx_bytes =
-            (self.baudrate.time_to_bits(last_telegram_tx_duration) / 11) as usize;
+            usize::try_from(self.baudrate.time_to_bits(last_telegram_tx_duration) / 11).unwrap();
 
         if last_telegram_tx_bytes < last_telegram.length {
             Some(last_telegram.sender)
@@ -95,11 +95,12 @@ impl SimulatorBus {
         };
 
         // Ensure that at least 11 bit times were left between two consecutive transmissions.
-        if let Some(last_telegram_and_pause) = self
-            .telegrams
-            .last()
-            .map(|t| t.timestamp + self.baudrate.bits_to_time(t.length as u32 * 11 + min_delay))
-        {
+        if let Some(last_telegram_and_pause) = self.telegrams.last().map(|t| {
+            t.timestamp
+                + self
+                    .baudrate
+                    .bits_to_time(u32::try_from(t.length).unwrap() * 11 + min_delay)
+        }) {
             if self.bus_time < last_telegram_and_pause {
                 if sa == self.token_master {
                     panic!(

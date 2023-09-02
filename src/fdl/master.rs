@@ -169,7 +169,7 @@ impl FdlMaster {
     pub fn new(param: crate::fdl::Parameters) -> Self {
         let mut live_list = bitvec::array::BitArray::ZERO;
         // Mark ourselves as "live".
-        live_list.set(param.address as usize, true);
+        live_list.set(usize::from(param.address), true);
 
         debug_assert!(param.highest_station_address <= 125);
 
@@ -203,12 +203,17 @@ impl FdlMaster {
 
     /// Returns `true` when the given address is believed to be "alive" (responds on the bus).
     pub fn check_address_live(&self, addr: u8) -> bool {
-        *self.live_list.get(addr as usize).expect("invalid address")
+        *self
+            .live_list
+            .get(usize::from(addr))
+            .expect("invalid address")
     }
 
     /// Iterator over all station addresses which are currently responding on the bus.
     pub fn iter_live_stations(&self) -> impl Iterator<Item = u8> + '_ {
-        self.live_list.iter_ones().map(|addr| addr as u8)
+        self.live_list
+            .iter_ones()
+            .map(|addr| u8::try_from(addr).unwrap())
     }
 
     #[inline(always)]
@@ -320,7 +325,12 @@ impl FdlMaster {
 
     /// Marks transmission starting `now` and continuing for `bytes` length.
     fn mark_tx(&mut self, now: crate::time::Instant, bytes: usize) -> TxMarker {
-        self.last_bus_activity = Some(now + self.p.baudrate.bits_to_time(11 * bytes as u32));
+        self.last_bus_activity = Some(
+            now + self
+                .p
+                .baudrate
+                .bits_to_time(11 * u32::try_from(bytes).unwrap()),
+        );
         TxMarker()
     }
 

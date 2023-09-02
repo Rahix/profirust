@@ -49,7 +49,7 @@ impl<'a> PeripheralSet<'a> {
                 let address = peripheral.address();
                 slot.inner = Some(peripheral);
                 return PeripheralHandle {
-                    index: index as u8,
+                    index: u8::try_from(index).unwrap(),
                     address,
                 };
             }
@@ -75,7 +75,7 @@ impl<'a> PeripheralSet<'a> {
     /// # Panics
     /// This function may panic if the handle does not belong to this peripheral set.
     pub fn get_mut(&mut self, handle: PeripheralHandle) -> &mut Peripheral<'a> {
-        self.peripherals[handle.index as usize]
+        self.peripherals[usize::from(handle.index)]
             .inner
             .as_mut()
             .expect("Handle does not refer to a valid peripheral")
@@ -89,7 +89,7 @@ impl<'a> PeripheralSet<'a> {
                 p.inner.as_mut().map(|p| {
                     (
                         PeripheralHandle {
-                            index: i as u8,
+                            index: u8::try_from(i).unwrap(),
                             address: p.address(),
                         },
                         p,

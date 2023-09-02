@@ -14,6 +14,8 @@ struct SimulatorBus {
     telegrams: Vec<CapturedTelegram>,
     stream: Vec<u8>,
     bus_time: crate::time::Instant,
+    /// Which master is currently holding the token.  We use this to verify correct timing.
+    token_master: Option<u8>,
 }
 
 impl SimulatorBus {
@@ -23,6 +25,7 @@ impl SimulatorBus {
             telegrams: Vec::new(),
             stream: Vec::new(),
             bus_time: crate::time::Instant::ZERO,
+            token_master: None,
         }
     }
 
@@ -70,17 +73,45 @@ impl SimulatorBus {
             );
         }
 
+        let sa = if let Some(Ok(decoded)) = crate::fdl::Telegram::deserialize(&data) {
+            match decoded {
+                crate::fdl::Telegram::Token(crate::fdl::TokenTelegram { da, sa }) => {
+                    self.token_master = Some(da);
+                    Some(sa)
+                }
+                crate::fdl::Telegram::Data(crate::fdl::DataTelegram { h, pdu }) => Some(h.sa),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        let min_delay = if sa == self.token_master {
+            // Master must wait 33 bit synchronization pause before transmitting.
+            33
+        } else {
+            // Peripherals must wait at least 11 bit minimum Tsdr before responding.
+            11
+        };
+
         // Ensure that at least 11 bit times were left between two consecutive transmissions.
         if let Some(last_telegram_and_pause) = self
             .telegrams
             .last()
-            .map(|t| t.timestamp + self.baudrate.bits_to_time(t.length as u32 * 11 + 11))
+            .map(|t| t.timestamp + self.baudrate.bits_to_time(t.length as u32 * 11 + min_delay))
         {
             if self.bus_time < last_telegram_and_pause {
-                log::error!(
-                    "\"{}\" did not leave minimum Tsdr time before its transmission.",
-                    name
-                );
+                if sa == self.token_master {
+                    panic!(
+                        "\"{}\" did not leave synchronization pause before its transmission.",
+                        name
+                    );
+                } else {
+                    log::error!(
+                        "\"{}\" did not leave minimum Tsdr time before its transmission.",
+                        name
+                    );
+                }
             }
         }
 

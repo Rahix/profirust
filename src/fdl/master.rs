@@ -100,6 +100,7 @@ impl CommunicationState {
         matches!(self, CommunicationState::WithToken(_))
     }
 
+    #[track_caller]
     pub fn assert_with_token(&mut self) -> &mut StateWithToken {
         if let CommunicationState::WithToken(s) = self {
             s
@@ -108,6 +109,7 @@ impl CommunicationState {
         }
     }
 
+    #[track_caller]
     pub fn assert_without_token(&mut self) -> &mut StateWithoutToken {
         if let CommunicationState::WithoutToken(s) = self {
             s

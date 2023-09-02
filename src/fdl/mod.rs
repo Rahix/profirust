@@ -4,6 +4,9 @@ mod parameters;
 mod peripheral_set;
 mod telegram;
 
+#[cfg(test)]
+mod tests;
+
 pub use master::{FdlMaster, OperatingState};
 pub use parameters::Parameters;
 pub use peripheral_set::{PeripheralHandle, PeripheralSet, PeripheralStorage};

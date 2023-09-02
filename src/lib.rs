@@ -8,6 +8,9 @@ pub mod fdl;
 pub mod phy;
 pub mod time;
 
+#[cfg(all(test, feature = "std"))]
+pub mod test_utils;
+
 /// Baudrate for fieldbus communication.
 ///
 /// - PROFIBUS DP networks can run at any of the available baudrates given that all stations

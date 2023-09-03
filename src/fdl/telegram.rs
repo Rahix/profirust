@@ -544,7 +544,7 @@ pub struct TelegramTx<'a> {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct TelegramTxResponse {
     bytes_sent: usize,
-    expects_reply: bool,
+    expects_reply: Option<u8>,
 }
 
 impl<'a> TelegramTx<'a> {
@@ -554,12 +554,12 @@ impl<'a> TelegramTx<'a> {
 
     pub fn send_token_telegram(self, da: u8, sa: u8) -> TelegramTxResponse {
         let token_telegram = TokenTelegram::new(da, sa);
-        TelegramTxResponse::new(token_telegram.serialize(self.buf), false)
+        TelegramTxResponse::new(token_telegram.serialize(self.buf), None)
     }
 
     pub fn send_short_confirmation(self) -> TelegramTxResponse {
         let sc_telegram = ShortConfirmation;
-        TelegramTxResponse::new(sc_telegram.serialize(self.buf), false)
+        TelegramTxResponse::new(sc_telegram.serialize(self.buf), None)
     }
 
     pub fn send_data_telegram<F: FnOnce(&mut [u8])>(
@@ -569,8 +569,14 @@ impl<'a> TelegramTx<'a> {
         write_pdu: F,
     ) -> TelegramTxResponse {
         let expects_reply = match header.fc {
-            FunctionCode::Request { req, .. } => req.expects_reply(),
-            FunctionCode::Response { .. } => false,
+            FunctionCode::Request { req, .. } => {
+                if req.expects_reply() {
+                    Some(header.da)
+                } else {
+                    None
+                }
+            }
+            FunctionCode::Response { .. } => None,
         };
         TelegramTxResponse::new(
             header.serialize(self.buf, pdu_len, write_pdu),
@@ -617,7 +623,7 @@ impl<'a> TelegramTx<'a> {
 }
 
 impl TelegramTxResponse {
-    pub fn new(bytes_sent: usize, expects_reply: bool) -> Self {
+    pub fn new(bytes_sent: usize, expects_reply: Option<u8>) -> Self {
         Self {
             bytes_sent,
             expects_reply,
@@ -626,7 +632,7 @@ impl TelegramTxResponse {
     pub fn bytes_sent(self) -> usize {
         self.bytes_sent
     }
-    pub fn expects_reply(self) -> bool {
+    pub fn expects_reply(self) -> Option<u8> {
         self.expects_reply
     }
 }

@@ -407,9 +407,12 @@ impl FdlMaster {
         if let Some(tx_res) =
             phy.transmit_telegram(|tx| app.transmit_telegram(now, self, tx, high_prio_only))
         {
-            // TODO: It is not always correct to assume there will be a response.
+            // TODO: It is not always correct to assume there will be a response.  This wil
             *self.communication_state.assert_with_token() = StateWithToken::AwaitingResponse {
-                addr: todo!(),
+                addr: match tx_res.expects_reply() {
+                    Some(addr) => addr,
+                    None => todo!("Can't yet deal with messages that don't expect a reply!"),
+                },
                 sent_time: now,
             };
             Some(self.mark_tx(now, tx_res.bytes_sent()))

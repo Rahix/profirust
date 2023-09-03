@@ -18,7 +18,7 @@ fn test_token_timeout(#[values(0, 1, 7, 14)] addr: u8) {
     });
 
     crate::test_utils::set_active_addr(addr);
-    master7.enter_operate();
+    master7.set_online();
 
     crate::test_utils::set_active_addr(15);
     phy0.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
@@ -106,10 +106,10 @@ fn two_masters_and_their_tokens() {
     });
 
     crate::test_utils::set_active_addr(2);
-    master1.enter_operate();
+    master1.set_online();
 
     crate::test_utils::set_active_addr(7);
-    master2.enter_operate();
+    master2.set_online();
 
     let start = crate::time::Instant::ZERO;
     let mut now = start;

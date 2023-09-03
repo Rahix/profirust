@@ -71,7 +71,8 @@ fn main() {
 
     let start = profirust::time::Instant::now();
 
-    fdl_master.enter_operate();
+    fdl_master.set_online();
+    dp_master.enter_operate();
     loop {
         let now = profirust::time::Instant::now();
         fdl_master.poll(now, &mut phy, &mut dp_master);

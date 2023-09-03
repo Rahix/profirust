@@ -4,38 +4,30 @@ use crate::phy::ProfibusPhy;
 /// Operating state of the FDL master
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
-pub enum OperatingState {
+pub enum ConnectivityState {
     /// The FDL master is not participating in bus communication in any way.
     Offline,
-    /// The FDL master is part of the token ring but not performing any cyclic data exchange.
-    Stop,
-    /// All peripherals/slaves are initialized and blocked.  Cyclic data exchange is performed, but
-    /// not outputs are written.
-    Clear,
-    /// Regular operation.  All peripherals/slaves are initialized and blocked.  Cyclic data
-    /// exchange is performed with full I/O.
-    Operate,
+    /// The FDL master will respond to FDL status requests, but it does not want to become part of
+    /// the token ring.
+    Passive,
+    /// The FDL master tries to enter the token ring to perform normal operations.
+    Online,
 }
 
-impl OperatingState {
+impl ConnectivityState {
     #[inline(always)]
     pub fn is_offline(self) -> bool {
-        self == OperatingState::Offline
+        self == ConnectivityState::Offline
     }
 
     #[inline(always)]
-    pub fn is_stop(self) -> bool {
-        self == OperatingState::Stop
+    pub fn is_passive(self) -> bool {
+        self == ConnectivityState::Passive
     }
 
     #[inline(always)]
-    pub fn is_clear(self) -> bool {
-        self == OperatingState::Clear
-    }
-
-    #[inline(always)]
-    pub fn is_operate(self) -> bool {
-        self == OperatingState::Operate
+    pub fn is_online(self) -> bool {
+        self == ConnectivityState::Online
     }
 }
 
@@ -161,10 +153,7 @@ pub struct FdlMaster {
     communication_state: CommunicationState,
 
     /// Operating State of the master.
-    operating_state: OperatingState,
-
-    /// Timestamp of last global control telegram.
-    last_global_control: Option<crate::time::Instant>,
+    connectivity_state: ConnectivityState,
 }
 
 impl FdlMaster {
@@ -186,8 +175,7 @@ impl FdlMaster {
             live_list,
             communication_state: CommunicationState::WithoutToken(StateWithoutToken::Idle),
             in_ring: false,
-            operating_state: OperatingState::Offline,
-            last_global_control: None,
+            connectivity_state: ConnectivityState::Offline,
 
             p: param,
         }
@@ -221,56 +209,49 @@ impl FdlMaster {
     }
 
     #[inline(always)]
-    pub fn operating_state(&self) -> OperatingState {
-        self.operating_state
+    pub fn connectivity_state(&self) -> ConnectivityState {
+        self.connectivity_state
     }
 
     #[inline]
-    pub fn enter_state(&mut self, state: OperatingState) {
-        log::info!("Master entering state \"{:?}\"", state);
-        self.operating_state = state;
-        // Ensure we will send a new global control telegram ASAP:
-        self.last_global_control = None;
+    pub fn set_state(&mut self, state: ConnectivityState) {
+        log::info!("FDL master entering state \"{:?}\"", state);
+        self.connectivity_state = state;
 
-        if state == OperatingState::Offline {
+        if state == ConnectivityState::Offline {
             // If we are going offline, reset all internal state by recreating the FDL master.
             let parameters = core::mem::take(&mut self.p);
             *self = Self::new(parameters);
-        } else if state != OperatingState::Operate {
-            todo!("OperatingState {:?} is not yet supported properly!", state);
+        } else if state != ConnectivityState::Online {
+            todo!(
+                "ConnectivityState {:?} is not yet supported properly!",
+                state
+            );
         }
     }
 
-    /// Enter the [`Offline`][`OperatingState::Offline`] operating state.
+    /// Enter the [`Offline`][`ConnectivityState::Offline`] connectivity state.
     ///
-    /// This is equivalent to calling `.enter_state(OperatingState::Offline)`.
+    /// This is equivalent to calling `.set_state(ConnectivityState::Offline)`.
     #[inline]
-    pub fn enter_offline(&mut self) {
-        self.enter_state(OperatingState::Offline)
+    pub fn set_offline(&mut self) {
+        self.set_state(ConnectivityState::Offline)
     }
 
-    /// Enter the [`Stop`][`OperatingState::Stop`] operating state.
+    /// Enter the [`Passive`][`ConnectivityState::Passive`] connectivity state.
     ///
-    /// This is equivalent to calling `.enter_state(OperatingState::Stop)`.
+    /// This is equivalent to calling `.set_state(ConnectivityState::Passive)`.
     #[inline]
-    pub fn enter_stop(&mut self) {
-        self.enter_state(OperatingState::Stop)
+    pub fn set_passive(&mut self) {
+        self.set_state(ConnectivityState::Passive)
     }
 
-    /// Enter the [`Clear`][`OperatingState::Clear`] operating state.
+    /// Enter the [`Online`][`ConnectivityState::Online`] connectivity state.
     ///
-    /// This is equivalent to calling `.enter_state(OperatingState::Clear)`.
+    /// This is equivalent to calling `.set_state(ConnectivityState::Online)`.
     #[inline]
-    pub fn enter_clear(&mut self) {
-        self.enter_state(OperatingState::Clear)
-    }
-
-    /// Enter the [`Operate`][`OperatingState::Operate`] operating state.
-    ///
-    /// This is equivalent to calling `.enter_state(OperatingState::Operate)`.
-    #[inline]
-    pub fn enter_operate(&mut self) {
-        self.enter_state(OperatingState::Operate)
+    pub fn set_online(&mut self) {
+        self.set_state(ConnectivityState::Online)
     }
 }
 
@@ -407,14 +388,12 @@ impl FdlMaster {
         if let Some(tx_res) =
             phy.transmit_telegram(|tx| app.transmit_telegram(now, self, tx, high_prio_only))
         {
-            // TODO: It is not always correct to assume there will be a response.  This wil
-            *self.communication_state.assert_with_token() = StateWithToken::AwaitingResponse {
-                addr: match tx_res.expects_reply() {
-                    Some(addr) => addr,
-                    None => todo!("Can't yet deal with messages that don't expect a reply!"),
-                },
-                sent_time: now,
-            };
+            if let Some(addr) = tx_res.expects_reply() {
+                *self.communication_state.assert_with_token() = StateWithToken::AwaitingResponse {
+                    addr,
+                    sent_time: now,
+                };
+            }
             Some(self.mark_tx(now, tx_res.bytes_sent()))
         } else {
             None
@@ -531,59 +510,6 @@ impl FdlMaster {
     }
 
     #[must_use = "tx token"]
-    fn handle_global_control(
-        &mut self,
-        now: crate::time::Instant,
-        phy: &mut impl ProfibusPhy,
-    ) -> Option<TxMarker> {
-        // We only need to send global control telegrams in OPERATE and CLEAR states.
-        if !matches!(
-            self.operating_state,
-            OperatingState::Operate | OperatingState::Clear
-        ) {
-            return None;
-        }
-
-        // TODO: 50 Tsl is an arbitrary interval.  Documentation talks about 3 times the watchdog
-        // period, but that seems rather arbitrary as well.
-        if self
-            .last_global_control
-            .map(|t| now - t >= self.p.slot_time() * 50)
-            .unwrap_or(true)
-        {
-            self.last_global_control = Some(now);
-            let tx_res = phy
-                .transmit_telegram(|tx| {
-                    Some(tx.send_data_telegram(
-                        crate::fdl::DataTelegramHeader {
-                            da: 0x7f,
-                            sa: self.p.address,
-                            dsap: crate::consts::SAP_SLAVE_GLOBAL_CONTROL,
-                            ssap: crate::consts::SAP_MASTER_MS0,
-                            fc: crate::fdl::FunctionCode::Request {
-                                // TODO: Do we need an FCB for GC telegrams?
-                                fcb: crate::fdl::FrameCountBit::Inactive,
-                                req: crate::fdl::RequestType::SdnLow,
-                            },
-                        },
-                        2,
-                        |buf| {
-                            buf[0] = 0x00;
-                            if self.operating_state.is_clear() {
-                                buf[0] |= 0x02;
-                            }
-                            buf[1] = 0x00;
-                        },
-                    ))
-                })
-                .unwrap();
-            Some(self.mark_tx(now, tx_res.bytes_sent()))
-        } else {
-            None
-        }
-    }
-
-    #[must_use = "tx token"]
     fn handle_with_token(
         &mut self,
         now: crate::time::Instant,
@@ -652,11 +578,6 @@ impl FdlMaster {
         }
 
         // We have time, try doing useful things.
-
-        // Start with global control.
-        return_if_tx!(self.handle_global_control(now, phy));
-
-        // Next, data exchange with peripherals.
         return_if_tx!(self.try_start_message_cycle(now, phy, app, false));
 
         // If we end up here, there's nothing useful left to do so now handle the gap polling cycle.
@@ -769,7 +690,7 @@ impl FdlMaster {
         phy: &mut PHY,
         app: &mut impl crate::fdl::FdlApplication,
     ) -> Option<TxMarker> {
-        if self.operating_state == OperatingState::Offline {
+        if self.connectivity_state == ConnectivityState::Offline {
             // When we are offline, don't do anything at all.
             return None;
         }

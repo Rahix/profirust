@@ -30,7 +30,7 @@ fn main() {
 
     let mut i = 0u64;
 
-    fdl_master.enter_operate();
+    fdl_master.set_online();
     loop {
         fdl_master.poll(profirust::time::Instant::now(), &mut phy, &mut dp_master);
 

@@ -59,7 +59,8 @@ fn main() {
     }
     let mut state = State::WaitingForRing;
 
-    fdl_master.enter_operate();
+    fdl_master.set_online();
+    dp_master.enter_operate();
     loop {
         fdl_master.poll(profirust::time::Instant::now(), &mut phy, &mut dp_master);
 

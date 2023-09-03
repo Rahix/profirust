@@ -6,7 +6,7 @@ mod telegram;
 #[cfg(test)]
 mod tests;
 
-pub use master::{FdlMaster, OperatingState};
+pub use master::{ConnectivityState, FdlMaster};
 pub use parameters::Parameters;
 pub use telegram::{
     DataTelegram, DataTelegramHeader, FrameCountBit, FunctionCode, RequestType, ResponseState,

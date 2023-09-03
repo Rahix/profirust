@@ -167,14 +167,15 @@ impl<'a> Peripheral<'a> {
     pub fn try_start_message_cycle(
         &mut self,
         now: crate::time::Instant,
-        master: &crate::fdl::FdlMaster,
+        dp: &crate::dp::DpMasterState,
+        fdl: &crate::fdl::FdlMaster,
         tx: crate::fdl::TelegramTx,
         high_prio_only: bool,
     ) -> Option<crate::fdl::TelegramTxResponse> {
         // We never expect to be called in `Stop` or even worse `Offline` operating states.
-        debug_assert!(master.operating_state().is_operate() || master.operating_state().is_clear());
+        debug_assert!(dp.operating_state.is_operate() || dp.operating_state.is_clear());
 
-        if !master.check_address_live(self.address) {
+        if !fdl.check_address_live(self.address) {
             self.state = PeripheralState::Offline;
             return None;
         } else if self.state == PeripheralState::Offline {
@@ -185,7 +186,7 @@ impl<'a> Peripheral<'a> {
         match self.state {
             PeripheralState::Reset => {
                 // Request diagnostics
-                Some(self.send_diagnostics_request(master, tx))
+                Some(self.send_diagnostics_request(fdl, tx))
             }
             PeripheralState::WaitForParam => {
                 if let Some(user_parameters) = self.options.user_parameters {
@@ -193,7 +194,7 @@ impl<'a> Peripheral<'a> {
                     Some(tx.send_data_telegram(
                         crate::fdl::DataTelegramHeader {
                             da: self.address,
-                            sa: master.parameters().address,
+                            sa: fdl.parameters().address,
                             dsap: crate::consts::SAP_SLAVE_SET_PRM,
                             ssap: crate::consts::SAP_MASTER_MS0,
                             fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
@@ -236,7 +237,7 @@ impl<'a> Peripheral<'a> {
                     Some(tx.send_data_telegram(
                         crate::fdl::DataTelegramHeader {
                             da: self.address,
-                            sa: master.parameters().address,
+                            sa: fdl.parameters().address,
                             dsap: crate::consts::SAP_SLAVE_CHK_CFG,
                             ssap: crate::consts::SAP_MASTER_MS0,
                             fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
@@ -254,7 +255,7 @@ impl<'a> Peripheral<'a> {
             }
             PeripheralState::ValidateConfig => {
                 // Request diagnostics once more
-                Some(self.send_diagnostics_request(master, tx))
+                Some(self.send_diagnostics_request(fdl, tx))
             }
             PeripheralState::DataExchange => {
                 // Request diagnostics again
@@ -262,12 +263,12 @@ impl<'a> Peripheral<'a> {
                 if (now - *last_diag) > crate::time::Duration::from_secs(1) {
                     *last_diag = now;
                     self.sent_diag = true;
-                    Some(self.send_diagnostics_request(master, tx))
+                    Some(self.send_diagnostics_request(fdl, tx))
                 } else {
                     Some(tx.send_data_telegram(
                         crate::fdl::DataTelegramHeader {
                             da: self.address,
-                            sa: master.parameters().address,
+                            sa: fdl.parameters().address,
                             dsap: crate::consts::SAP_SLAVE_DATA_EXCHANGE,
                             ssap: crate::consts::SAP_MASTER_DATA_EXCHANGE,
                             fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
@@ -276,7 +277,7 @@ impl<'a> Peripheral<'a> {
                         |buf| {
                             // Only write output process image in `Operate` state.  In `Clear`
                             // state, we leave the output process image all zeros.
-                            if master.operating_state().is_operate() {
+                            if dp.operating_state.is_operate() {
                                 buf.copy_from_slice(&self.pi_q);
                             }
                         },
@@ -290,17 +291,15 @@ impl<'a> Peripheral<'a> {
     pub fn handle_response(
         &mut self,
         now: crate::time::Instant,
-        master: &crate::fdl::FdlMaster,
+        dp: &crate::dp::DpMasterState,
+        fdl: &crate::fdl::FdlMaster,
         telegram: crate::fdl::Telegram,
     ) {
         match self.state {
             PeripheralState::Offline => unreachable!(),
             PeripheralState::Reset => {
                 // Diagnostics response
-                if self
-                    .handle_diagnostics_response(master, &telegram)
-                    .is_some()
-                {
+                if self.handle_diagnostics_response(fdl, &telegram).is_some() {
                     self.state = PeripheralState::WaitForParam;
                 }
             }
@@ -324,8 +323,7 @@ impl<'a> Peripheral<'a> {
             }
             PeripheralState::ValidateConfig => {
                 let address = self.address;
-                self.state = if let Some(diag) = self.handle_diagnostics_response(master, &telegram)
-                {
+                self.state = if let Some(diag) = self.handle_diagnostics_response(fdl, &telegram) {
                     if diag.flags.contains(DiagnosticFlags::PARAMETER_FAULT) {
                         log::warn!("Peripheral {} reports a parameter fault!", address);
                         // TODO: Going to `Reset` here will just end in a loop.
@@ -353,7 +351,7 @@ impl<'a> Peripheral<'a> {
             PeripheralState::DataExchange => {
                 if self.sent_diag {
                     self.sent_diag = false;
-                    self.handle_diagnostics_response(master, &telegram);
+                    self.handle_diagnostics_response(fdl, &telegram);
                 } else {
                     if let crate::fdl::Telegram::Data(t) = telegram {
                         if t.pdu.len() == self.pi_i.len() {

@@ -99,4 +99,140 @@ impl<'a> PeripheralSet<'a> {
                 })
             })
     }
+
+    pub(crate) fn get_at_index_mut(
+        &mut self,
+        index: u8,
+    ) -> Option<(PeripheralHandle, &mut Peripheral<'a>)> {
+        self.peripherals
+            .iter_mut()
+            .enumerate()
+            .skip(usize::from(index))
+            .find_map(|(i, p)| {
+                p.inner.as_mut().map(|p| {
+                    (
+                        PeripheralHandle {
+                            index: u8::try_from(i).unwrap(),
+                            address: p.address(),
+                        },
+                        p,
+                    )
+                })
+            })
+    }
+
+    pub(crate) fn get_next_index(&mut self, index: u8) -> Option<u8> {
+        self.peripherals
+            .iter_mut()
+            .enumerate()
+            .skip(usize::from(index))
+            .filter(|(_, p)| p.inner.is_some())
+            .nth(1)
+            .map(|(i, _)| u8::try_from(i).unwrap())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cycle_index_api() {
+        let buffer = [
+            PeripheralStorage::default(),
+            PeripheralStorage::default(),
+            PeripheralStorage::default(),
+            PeripheralStorage {
+                inner: Some(Peripheral::default()),
+            },
+            PeripheralStorage::default(),
+            PeripheralStorage::default(),
+            PeripheralStorage {
+                inner: Some(Peripheral::default()),
+            },
+            PeripheralStorage {
+                inner: Some(Peripheral::default()),
+            },
+            PeripheralStorage::default(),
+            PeripheralStorage {
+                inner: Some(Peripheral::default()),
+            },
+            PeripheralStorage::default(),
+            PeripheralStorage::default(),
+        ];
+        let mut set = PeripheralSet::new(buffer);
+
+        let mut i = 0;
+        let mut indices = vec![];
+        loop {
+            let (h, _) = match set.get_at_index_mut(i) {
+                Some(p) => p,
+                None => break,
+            };
+            indices.push(h.index);
+
+            if let Some(next) = set.get_next_index(i) {
+                i = next;
+            } else {
+                break;
+            }
+
+            // Do some mean shenanigans
+            if i == 6 {
+                set.peripherals[0].inner = Some(Peripheral::default());
+            } else if i == 9 {
+                set.peripherals[11].inner = Some(Peripheral::default());
+            }
+        }
+
+        assert_eq!(indices, &[3, 6, 7, 9, 11]);
+
+        let mut i = 0;
+        let mut indices = vec![];
+        loop {
+            let (h, _) = match set.get_at_index_mut(i) {
+                Some(p) => p,
+                None => break,
+            };
+            indices.push(h.index);
+
+            if let Some(next) = set.get_next_index(i) {
+                i = next;
+            } else {
+                break;
+            }
+
+            // Do some mean shenanigans
+            if i == 6 {
+                set.peripherals[6].inner = None;
+            } else if i == 9 {
+                set.peripherals[11].inner = None;
+            }
+        }
+
+        assert_eq!(indices, &[0, 3, 7, 9]);
+
+        let mut i = 0;
+        let mut indices = vec![];
+        loop {
+            let (h, _) = match set.get_at_index_mut(i) {
+                Some(p) => p,
+                None => break,
+            };
+            indices.push(h.index);
+
+            if let Some(next) = set.get_next_index(i) {
+                i = next;
+            } else {
+                break;
+            }
+
+            // Do some mean shenanigans
+            if i == 9 {
+                set.peripherals[9].inner = None;
+            }
+        }
+
+        assert_eq!(indices, &[0, 3, 7]);
+    }
 }

@@ -32,9 +32,10 @@ pub trait ProfibusPhy {
 
     /// Schedule transmission of a telegram.
     ///
-    /// The closure `f` may (or may not) call one of the methods of [`TelegramTx`] to schedule
-    /// transmission of a telegram.  This function returns `Some(n)` (`n` = number of bytes for
-    /// transmission) when a telegram was scheduled and `None` otherwise.
+    /// The closure `f` may (or may not) call one of the methods of
+    /// [`fdl::TelegramTx`][`crate::fdl::TelegramTx`] to schedule transmission of a telegram.  This
+    /// function returns `Some(n)` (`n` = number of bytes for transmission) when a telegram was
+    /// scheduled and `None` otherwise.
     ///
     /// **Important**: This function must not block on the actual transmission!
     ///

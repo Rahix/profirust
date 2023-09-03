@@ -77,6 +77,8 @@ fn main() {
         let now = profirust::time::Instant::now();
         fdl_master.poll(now, &mut phy, &mut dp_master);
 
+        let cycle_completed = dp_master.cycle_completed();
+
         // Get mutable access the the peripheral here so we can interact with it.
         let remoteio = dp_master.get_mut(io_handle);
 
@@ -115,14 +117,16 @@ fn main() {
             }
 
             State::Running => {
-                println!("Inputs: {:?}", remoteio.pi_i());
+                if cycle_completed {
+                    println!("Inputs: {:?}", remoteio.pi_i());
 
-                // Set outputs according to our best intentions
-                let elapsed = (now - start).total_millis();
-                let i = usize::try_from(elapsed / 100).unwrap() % (remoteio.pi_q().len() * 4);
-                let pi_q = remoteio.pi_q_mut();
-                pi_q.fill(0x00);
-                pi_q[i / 4] |= 1 << (i % 4);
+                    // Set outputs according to our best intentions
+                    let elapsed = (now - start).total_millis();
+                    let i = usize::try_from(elapsed / 100).unwrap() % (remoteio.pi_q().len() * 4);
+                    let pi_q = remoteio.pi_q_mut();
+                    pi_q.fill(0x00);
+                    pi_q[i / 4] |= 1 << (i % 4);
+                }
             }
         }
 

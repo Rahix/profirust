@@ -64,6 +64,8 @@ fn main() {
     loop {
         fdl_master.poll(profirust::time::Instant::now(), &mut phy, &mut dp_master);
 
+        let cycle_completed = dp_master.cycle_completed();
+
         // Get mutable access the the peripheral here so we can interact with it.
         let encoder = dp_master.get_mut(encoder_handle);
 
@@ -102,8 +104,10 @@ fn main() {
             }
 
             State::Running => {
-                let value = u32::from_be_bytes(encoder.pi_i().try_into().unwrap());
-                println!("Encoder Counts: {:?}", value);
+                if cycle_completed {
+                    let value = u32::from_be_bytes(encoder.pi_i().try_into().unwrap());
+                    println!("Encoder Counts: {:?}", value);
+                }
             }
         }
 

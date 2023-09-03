@@ -1,5 +1,4 @@
 use crate::dp::Peripheral;
-use core::fmt;
 
 /// Operating state of the FDL master
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -32,6 +31,17 @@ impl OperatingState {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
+enum CycleState {
+    /// Currently exchanging data with peripheral at the given index.
+    ///
+    /// **Important**: This is **not** the address, but the internal peripheral index.
+    DataExchange(u8),
+    /// State to indicate the a full data exchange cycle has been completed.
+    CycleCompleted,
+}
+
 /// The DP master.
 ///
 /// Currently only implements a subset of DP-V0.
@@ -49,6 +59,9 @@ pub struct DpMasterState {
 
     /// Last time we sent a "Global Control" telegram to advertise our operating state.
     pub last_global_control: Option<crate::time::Instant>,
+
+    /// Cycle State, tracking progress of the data exchange cycle
+    cycle_state: CycleState,
 }
 
 impl<'a> DpMaster<'a> {
@@ -65,6 +78,7 @@ impl<'a> DpMaster<'a> {
             state: DpMasterState {
                 operating_state: OperatingState::Stop,
                 last_global_control: None,
+                cycle_state: CycleState::DataExchange(0),
             },
         }
     }
@@ -131,6 +145,20 @@ impl<'a> DpMaster<'a> {
     pub fn enter_operate(&mut self) {
         self.enter_state(OperatingState::Operate)
     }
+
+    fn increment_cycle_state(&mut self, index: u8) {
+        if let Some(next) = self.peripherals.get_next_index(index) {
+            self.state.cycle_state = CycleState::DataExchange(next);
+        } else {
+            self.state.cycle_state = CycleState::CycleCompleted;
+        }
+    }
+
+    /// Whether the DP bus cycle was completed during the last poll.
+    #[inline]
+    pub fn cycle_completed(&self) -> bool {
+        self.state.cycle_state == CycleState::CycleCompleted
+    }
 }
 
 impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
@@ -138,7 +166,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         &mut self,
         now: crate::time::Instant,
         fdl: &crate::fdl::FdlMaster,
-        tx: crate::fdl::TelegramTx,
+        mut tx: crate::fdl::TelegramTx,
         high_prio_only: bool,
     ) -> Option<crate::fdl::TelegramTxResponse> {
         // In STOP state, never send anything
@@ -186,15 +214,35 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
             ));
         }
 
-        // TODO: naive implementation that only works with one peripheral.
-        self.peripherals
-            .iter_mut()
-            .next()
-            .and_then(|(_, peripheral)| {
-                peripheral
-                    .try_start_message_cycle(now, &self.state, fdl, tx, high_prio_only)
-                    .ok()
-            })
+        loop {
+            let index = match self.state.cycle_state {
+                CycleState::DataExchange(i) => i,
+                CycleState::CycleCompleted => {
+                    // On CycleCompleted, return None to let the FDL know where done.  Reset the
+                    // cycle state to the beginning for the next time.
+                    self.state.cycle_state = CycleState::DataExchange(0);
+                    return None;
+                }
+            };
+
+            if let Some((handle, peripheral)) = self.peripherals.get_at_index_mut(index) {
+                let res =
+                    peripheral.try_start_message_cycle(now, &self.state, fdl, tx, high_prio_only);
+
+                match res {
+                    Ok(tx_res) => {
+                        // When this peripheral initiated a transmission, break out of the loop
+                        return Some(tx_res);
+                    }
+                    Err(tx_returned) => {
+                        // When this peripheral was not interested in sending data, move on to the
+                        // next one.
+                        self.increment_cycle_state(index);
+                        tx = tx_returned;
+                    }
+                }
+            }
+        }
     }
 
     fn receive_reply(
@@ -204,12 +252,22 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         addr: u8,
         telegram: crate::fdl::Telegram,
     ) {
-        for (_, peripheral) in self.peripherals.iter_mut() {
-            if peripheral.address() == addr {
+        let index = match self.state.cycle_state {
+            CycleState::DataExchange(i) => i,
+            CycleState::CycleCompleted => {
+                unreachable!("impossible to get a reply when the cycle was completed!");
+            }
+        };
+        match self.peripherals.get_at_index_mut(index) {
+            Some((handle, peripheral)) if addr == peripheral.address() => {
                 peripheral.handle_response(now, &self.state, fdl, telegram);
-                return;
+                self.increment_cycle_state(index);
+            }
+            _ => {
+                unreachable!(
+                    "Received reply for unknown/unexpected peripheral #{addr}: {telegram:?}"
+                );
             }
         }
-        unreachable!("Received reply for unknown peripheral #{addr}!");
     }
 }

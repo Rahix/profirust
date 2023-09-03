@@ -678,6 +678,7 @@ mod tests {
         dbg!(&header, &pdu);
 
         let length = header.serialize(&mut buffer, pdu.len(), |buf| buf.copy_from_slice(pdu));
+        println!("Telegram: {:?}", &buffer[..length]);
 
         let res = DataTelegram::deserialize(&buffer[..length])
             .unwrap()
@@ -692,6 +693,36 @@ mod tests {
             let res = DataTelegram::deserialize(&buffer[..i]);
             assert_eq!(res, None);
         }
+    }
+
+    /// Special-case to ensure we are definitely testing the SD1 telegram as well.
+    ///
+    /// This helps me sleep at night...
+    #[test]
+    fn data_telegram_sd1() {
+        data_telegram_serdes(
+            13,
+            14,
+            None,
+            None,
+            FunctionCode::new_srd_low(FrameCountBit::Inactive),
+            &[],
+        );
+    }
+
+    /// Special-case to ensure we are definitely testing the SD3 telegram as well.
+    ///
+    /// This helps me sleep at night...
+    #[test]
+    fn data_telegram_sd3() {
+        data_telegram_serdes(
+            13,
+            14,
+            None,
+            None,
+            FunctionCode::new_srd_low(FrameCountBit::Inactive),
+            &[42u8; 8],
+        );
     }
 
     proptest! {

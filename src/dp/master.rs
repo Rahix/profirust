@@ -84,8 +84,12 @@ impl<'a> DpMaster<'a> {
     where
         S: Into<managed::ManagedSlice<'a, PeripheralStorage<'a>>>,
     {
+        let storage = storage.into();
+        if storage.len() > 124 {
+            log::warn!("DP master was provided with storage for more than 124 peripherals, this is wasted memory!");
+        }
         Self {
-            peripherals: storage.into(),
+            peripherals: storage,
             state: DpMasterState {
                 operating_state: OperatingState::Stop,
                 last_global_control: None,

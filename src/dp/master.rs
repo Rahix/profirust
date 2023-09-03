@@ -32,11 +32,13 @@ impl OperatingState {
     }
 }
 
+/// Storage type that can hold one peripheral.
 #[derive(Default)]
 pub struct PeripheralStorage<'a> {
     inner: Option<Peripheral<'a>>,
 }
 
+/// Handle that can be used to obtain a peripheral from the DP master.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PeripheralHandle {
     index: u8,
@@ -44,6 +46,7 @@ pub struct PeripheralHandle {
 }
 
 impl PeripheralHandle {
+    /// The bus address of the peripheral.
     #[inline(always)]
     pub fn address(self) -> u8 {
         self.address
@@ -56,6 +59,12 @@ impl fmt::Display for PeripheralHandle {
     }
 }
 
+/// The DP master.
+///
+/// Currently only implements a subset of DP-V0.
+///
+/// The DP master holds all peripherals that we interact with.  To get access, use the
+/// [`PeripheralHandle`] that you get when calling [`.add()`][`DpMaster::add`].
 pub struct DpMaster<'a> {
     /// Storage for all peripherals this master interacts with.
     peripherals: managed::ManagedSlice<'a, PeripheralStorage<'a>>,

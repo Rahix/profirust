@@ -39,7 +39,10 @@ impl Default for Parameters {
             token_rotation_bits: 20000, // TODO: really sane default?  This was at least recommended somewhere...
             gap_wait_rotations: 100,    // TODO: sane default?
             highest_station_address: 125,
-            max_retry_limit: 6, // TODO: sane default?
+            // Retry limit defaults to 1, meaning that a telegram will be retried once.  This is a
+            // sane default as retries should not be necessary at all on a bus that is set up
+            // correctly.
+            max_retry_limit: 1,
         }
     }
 }

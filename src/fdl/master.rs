@@ -400,32 +400,29 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        peripherals: &mut crate::dp::PeripheralSet<'_>,
+        app: &mut impl crate::fdl::FdlApplication,
         high_prio_only: bool,
     ) -> Option<TxMarker> {
         debug_assert!(self.communication_state.have_token());
-        for (handle, peripheral) in peripherals.iter_mut() {
-            debug_assert_eq!(handle.address(), peripheral.address());
-
-            if let Some(tx_bytes) = phy.transmit_telegram(|tx| {
-                peripheral.try_start_message_cycle(now, self, tx, high_prio_only)
-            }) {
-                *self.communication_state.assert_with_token() = StateWithToken::AwaitingResponse {
-                    addr: peripheral.address(),
-                    sent_time: now,
-                };
-                return Some(self.mark_tx(now, tx_bytes));
-            }
+        if let Some(tx_bytes) =
+            phy.transmit_telegram(|tx| app.transmit_telegram(now, self, tx, high_prio_only))
+        {
+            // TODO: It is not always correct to assume there will be a response.
+            *self.communication_state.assert_with_token() = StateWithToken::AwaitingResponse {
+                addr: todo!(),
+                sent_time: now,
+            };
+            Some(self.mark_tx(now, tx_bytes))
+        } else {
+            None
         }
-
-        None
     }
 
     fn check_for_response(
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        peripherals: &mut crate::dp::PeripheralSet<'_>,
+        app: &mut impl crate::fdl::FdlApplication,
         addr: u8,
     ) -> bool {
         phy.receive_telegram(|telegram| {
@@ -444,13 +441,9 @@ impl FdlMaster {
                 }
                 _ => (),
             }
-            for (handle, peripheral) in peripherals.iter_mut() {
-                if peripheral.address() == addr {
-                    peripheral.handle_response(now, self, telegram);
-                    return true;
-                }
-            }
-            unreachable!("Peripheral {addr} not in set but expected to answer");
+            // TODO: This needs to be revisited.  Always return true?
+            app.receive_reply(now, self, addr, telegram);
+            return true;
         })
         .unwrap_or(false)
     }
@@ -592,12 +585,12 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        peripherals: &mut crate::dp::PeripheralSet<'_>,
+        app: &mut impl crate::fdl::FdlApplication,
     ) -> Option<TxMarker> {
         // First check for ongoing message cycles and handle them.
         match *self.communication_state.assert_with_token() {
             StateWithToken::AwaitingResponse { addr, sent_time } => {
-                if self.check_for_response(now, phy, peripherals, addr) {
+                if self.check_for_response(now, phy, app, addr) {
                     *self.communication_state.assert_with_token() =
                         StateWithToken::Idle { first: false };
                 } else if (now - sent_time) >= self.p.slot_time() {
@@ -647,7 +640,7 @@ impl FdlMaster {
                 // If we're over the rotation time and just acquired the token, we are allowed to
                 // perform one more high priority message cycle.
                 if first_with_token {
-                    return_if_tx!(self.try_start_message_cycle(now, phy, peripherals, true));
+                    return_if_tx!(self.try_start_message_cycle(now, phy, app, true));
                 }
 
                 // In any other case, we pass on the token to the next master.
@@ -661,7 +654,7 @@ impl FdlMaster {
         return_if_tx!(self.handle_global_control(now, phy));
 
         // Next, data exchange with peripherals.
-        return_if_tx!(self.try_start_message_cycle(now, phy, peripherals, false));
+        return_if_tx!(self.try_start_message_cycle(now, phy, app, false));
 
         // If we end up here, there's nothing useful left to do so now handle the gap polling cycle.
         return_if_tx!(self.handle_gap(now, phy));
@@ -759,9 +752,9 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        peripherals: &mut crate::dp::PeripheralSet<'a>,
+        app: &mut impl crate::fdl::FdlApplication,
     ) {
-        let _ = self.poll_inner(now, phy, peripherals);
+        let _ = self.poll_inner(now, phy, app);
         if !phy.is_transmitting() {
             self.pending_bytes = phy.get_pending_received_bytes().try_into().unwrap();
         }
@@ -771,7 +764,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        peripherals: &mut crate::dp::PeripheralSet<'a>,
+        app: &mut impl crate::fdl::FdlApplication,
     ) -> Option<TxMarker> {
         if self.operating_state == OperatingState::Offline {
             // When we are offline, don't do anything at all.
@@ -784,12 +777,12 @@ impl FdlMaster {
 
         if self.communication_state.have_token() {
             // log::trace!("{} has token!", self.p.address);
-            return_if_tx!(self.handle_with_token(now, phy, peripherals));
+            return_if_tx!(self.handle_with_token(now, phy, app));
         } else {
             return_if_tx!(self.handle_without_token(now, phy));
             // We may have just received the token so do one more pass "with token".
             if self.communication_state.have_token() {
-                return_if_tx!(self.handle_with_token(now, phy, peripherals));
+                return_if_tx!(self.handle_with_token(now, phy, app));
             }
         }
 

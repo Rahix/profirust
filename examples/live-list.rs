@@ -11,9 +11,9 @@ fn main() {
 
     println!("PROFIBUS Live List:");
 
-    let mut peripherals = dp::PeripheralSet::new(vec![]);
+    let mut dp_master = dp::DpMaster::new(vec![]);
 
-    let mut master = fdl::FdlMaster::new(fdl::Parameters {
+    let mut fdl_master = fdl::FdlMaster::new(fdl::Parameters {
         // Address of this master, i.e. ourselves
         address: 0x02,
         // Baudrate for bus communication
@@ -26,16 +26,16 @@ fn main() {
     });
 
     println!("Connecting to the bus...");
-    let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, master.parameters().baudrate);
+    let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl_master.parameters().baudrate);
 
     let mut i = 0u64;
 
-    master.enter_operate();
+    fdl_master.enter_operate();
     loop {
-        master.poll(profirust::time::Instant::now(), &mut phy, &mut peripherals);
+        fdl_master.poll(profirust::time::Instant::now(), &mut phy, &mut dp_master);
 
         if i % 100 == 0 {
-            let live_list: Vec<_> = master
+            let live_list: Vec<_> = fdl_master
                 .iter_live_stations()
                 .map(|addr| addr.to_string())
                 .collect();

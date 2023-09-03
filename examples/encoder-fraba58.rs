@@ -14,7 +14,7 @@ fn main() {
 
     println!("FRABA 58XX Encoder Example");
 
-    let mut peripherals = dp::PeripheralSet::new(vec![]);
+    let mut dp_master = dp::DpMaster::new(vec![]);
 
     let encoder_options = dp::PeripheralOptions {
         ident_number: 0x4711,
@@ -29,14 +29,14 @@ fn main() {
     };
     let mut buffer_inputs = [0x00; 4];
     let mut buffer_outputs = [0x00; 4];
-    let encoder_handle = peripherals.add(dp::Peripheral::new(
+    let encoder_handle = dp_master.add(dp::Peripheral::new(
         ENCODER_ADDRESS,
         encoder_options,
         &mut buffer_inputs,
         &mut buffer_outputs,
     ));
 
-    let mut master = fdl::FdlMaster::new(fdl::Parameters {
+    let mut fdl_master = fdl::FdlMaster::new(fdl::Parameters {
         // Address of this master, i.e. ourselves
         address: 0x02,
         // Baudrate for bus communication
@@ -49,7 +49,7 @@ fn main() {
     });
 
     println!("Connecting to the bus...");
-    let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, master.parameters().baudrate);
+    let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl_master.parameters().baudrate);
 
     enum State {
         WaitingForRing,
@@ -59,20 +59,20 @@ fn main() {
     }
     let mut state = State::WaitingForRing;
 
-    master.enter_operate();
+    fdl_master.enter_operate();
     loop {
-        master.poll(profirust::time::Instant::now(), &mut phy, &mut peripherals);
+        fdl_master.poll(profirust::time::Instant::now(), &mut phy, &mut dp_master);
 
         // Get mutable access the the peripheral here so we can interact with it.
-        let encoder = peripherals.get_mut(encoder_handle);
+        let encoder = dp_master.get_mut(encoder_handle);
 
         match state {
-            State::WaitingForRing if master.is_in_ring() => {
+            State::WaitingForRing if fdl_master.is_in_ring() => {
                 println!("Entered the token ring!");
                 state = State::WaitingForDevice;
             }
             State::WaitingForRing => (),
-            _ if !master.is_in_ring() => {
+            _ if !fdl_master.is_in_ring() => {
                 println!("Master dropped out of the token ring!");
                 state = State::WaitingForRing;
             }

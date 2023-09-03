@@ -25,11 +25,11 @@ impl fmt::Display for PeripheralHandle {
     }
 }
 
-pub struct PeripheralSet<'a> {
+pub struct DpMaster<'a> {
     peripherals: managed::ManagedSlice<'a, PeripheralStorage<'a>>,
 }
 
-impl<'a> PeripheralSet<'a> {
+impl<'a> DpMaster<'a> {
     pub fn new<S>(storage: S) -> Self
     where
         S: Into<managed::ManagedSlice<'a, PeripheralStorage<'a>>>,
@@ -56,7 +56,7 @@ impl<'a> PeripheralSet<'a> {
         }
 
         match &mut self.peripherals {
-            managed::ManagedSlice::Borrowed(_) => panic!("Adding peripheral to full PeripheralSet"),
+            managed::ManagedSlice::Borrowed(_) => panic!("Adding peripheral to full DpMaster"),
             managed::ManagedSlice::Owned(peripherals) => {
                 let address = peripheral.address();
                 peripherals.push(PeripheralStorage {
@@ -96,5 +96,36 @@ impl<'a> PeripheralSet<'a> {
                     )
                 })
             })
+    }
+}
+
+impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
+    fn transmit_telegram(
+        &mut self,
+        now: crate::time::Instant,
+        fdl: &crate::fdl::FdlMaster,
+        tx: crate::fdl::TelegramTx,
+        high_prio_only: bool,
+    ) -> Option<crate::fdl::TelegramTxResponse> {
+        // TODO: naive implementation that only works with one peripheral.
+        self.iter_mut().next().and_then(|(_, peripheral)| {
+            peripheral.try_start_message_cycle(now, fdl, tx, high_prio_only)
+        })
+    }
+
+    fn receive_reply(
+        &mut self,
+        now: crate::time::Instant,
+        fdl: &crate::fdl::FdlMaster,
+        addr: u8,
+        telegram: crate::fdl::Telegram,
+    ) {
+        for (_, peripheral) in self.iter_mut() {
+            if peripheral.address() == addr {
+                peripheral.handle_response(now, fdl, telegram);
+                return;
+            }
+        }
+        unreachable!("Received reply for unknown peripheral #{addr}!");
     }
 }

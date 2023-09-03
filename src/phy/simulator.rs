@@ -73,6 +73,11 @@ impl SimulatorBus {
             );
         }
 
+        // Drop out early if nothing needs to be sent.
+        if data.len() == 0 {
+            return;
+        }
+
         let sa = if let Some(Ok(decoded)) = crate::fdl::Telegram::deserialize(&data) {
             match decoded {
                 crate::fdl::Telegram::Token(crate::fdl::TokenTelegram { da, sa }) => {

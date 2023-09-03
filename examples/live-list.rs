@@ -11,8 +11,6 @@ fn main() {
 
     println!("PROFIBUS Live List:");
 
-    let mut dp_master = dp::DpMaster::new(vec![]);
-
     let mut fdl_master = fdl::FdlMaster::new(fdl::Parameters {
         // Address of this master, i.e. ourselves
         address: 0x02,
@@ -32,7 +30,7 @@ fn main() {
 
     fdl_master.set_online();
     loop {
-        fdl_master.poll(profirust::time::Instant::now(), &mut phy, &mut dp_master);
+        fdl_master.poll(profirust::time::Instant::now(), &mut phy, &mut ());
 
         if i % 100 == 0 {
             let live_list: Vec<_> = fdl_master

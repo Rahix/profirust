@@ -43,3 +43,26 @@ pub trait FdlApplication {
         telegram: Telegram,
     );
 }
+
+// A sort of placeholder when no application is used.
+impl FdlApplication for () {
+    fn transmit_telegram(
+        &mut self,
+        now: crate::time::Instant,
+        fdl: &FdlMaster,
+        tx: TelegramTx,
+        high_prio_only: bool,
+    ) -> Option<TelegramTxResponse> {
+        None
+    }
+
+    fn receive_reply(
+        &mut self,
+        now: crate::time::Instant,
+        fdl: &FdlMaster,
+        addr: u8,
+        telegram: Telegram,
+    ) {
+        // ignore
+    }
+}

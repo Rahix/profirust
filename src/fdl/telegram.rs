@@ -46,6 +46,24 @@ impl RequestType {
             _ => None,
         }
     }
+
+    pub fn expects_reply(self) -> bool {
+        match self {
+            Self::ClockValue => false,
+            Self::TimeEvent => false,
+            Self::SdnLow => false,
+            Self::SdnHigh => false,
+
+            Self::SdaLow => true,
+            Self::SdaHigh => true,
+            Self::MulticastSrd => true,
+            Self::FdlStatus => true,
+            Self::SrdLow => true,
+            Self::SrdHigh => true,
+            Self::Ident => true,
+            Self::LsapStatus => true,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -524,6 +542,7 @@ pub struct TelegramTx<'a> {
 
 pub struct TelegramTxResponse {
     bytes_sent: usize,
+    expects_reply: bool,
 }
 
 impl<'a> TelegramTx<'a> {
@@ -533,12 +552,12 @@ impl<'a> TelegramTx<'a> {
 
     pub fn send_token_telegram(self, da: u8, sa: u8) -> TelegramTxResponse {
         let token_telegram = TokenTelegram::new(da, sa);
-        TelegramTxResponse::new(token_telegram.serialize(self.buf))
+        TelegramTxResponse::new(token_telegram.serialize(self.buf), false)
     }
 
     pub fn send_short_confirmation(self) -> TelegramTxResponse {
         let sc_telegram = ShortConfirmation;
-        TelegramTxResponse::new(sc_telegram.serialize(self.buf))
+        TelegramTxResponse::new(sc_telegram.serialize(self.buf), false)
     }
 
     pub fn send_data_telegram<F: FnOnce(&mut [u8])>(
@@ -547,7 +566,14 @@ impl<'a> TelegramTx<'a> {
         pdu_len: usize,
         write_pdu: F,
     ) -> TelegramTxResponse {
-        TelegramTxResponse::new(header.serialize(self.buf, pdu_len, write_pdu))
+        let expects_reply = match header.fc {
+            FunctionCode::Request { req, .. } => req.expects_reply(),
+            FunctionCode::Response { .. } => false,
+        };
+        TelegramTxResponse::new(
+            header.serialize(self.buf, pdu_len, write_pdu),
+            expects_reply,
+        )
     }
 
     pub fn send_fdl_status_request(self, da: u8, sa: u8) -> TelegramTxResponse {
@@ -589,11 +615,17 @@ impl<'a> TelegramTx<'a> {
 }
 
 impl TelegramTxResponse {
-    pub fn new(bytes_sent: usize) -> Self {
-        Self { bytes_sent }
+    pub fn new(bytes_sent: usize, expects_reply: bool) -> Self {
+        Self {
+            bytes_sent,
+            expects_reply,
+        }
     }
     pub fn bytes_sent(self) -> usize {
         self.bytes_sent
+    }
+    pub fn expects_reply(self) -> bool {
+        self.expects_reply
     }
 }
 

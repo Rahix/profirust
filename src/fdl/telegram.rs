@@ -536,10 +536,12 @@ impl<'a> Telegram<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct TelegramTx<'a> {
     buf: &'a mut [u8],
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct TelegramTxResponse {
     bytes_sent: usize,
     expects_reply: bool,

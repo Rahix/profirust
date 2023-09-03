@@ -371,10 +371,10 @@ impl FdlMaster {
             self.acquire_token(now, &token_telegram);
         }
 
-        let tx_bytes = phy
+        let tx_res = phy
             .transmit_telegram(|tx| Some(tx.send_token_telegram(self.next_master, self.p.address)))
             .unwrap();
-        self.mark_tx(now, tx_bytes)
+        self.mark_tx(now, tx_res.bytes_sent())
     }
 
     #[must_use = "tx token"]
@@ -404,7 +404,7 @@ impl FdlMaster {
         high_prio_only: bool,
     ) -> Option<TxMarker> {
         debug_assert!(self.communication_state.have_token());
-        if let Some(tx_bytes) =
+        if let Some(tx_res) =
             phy.transmit_telegram(|tx| app.transmit_telegram(now, self, tx, high_prio_only))
         {
             // TODO: It is not always correct to assume there will be a response.
@@ -412,7 +412,7 @@ impl FdlMaster {
                 addr: todo!(),
                 sent_time: now,
             };
-            Some(self.mark_tx(now, tx_bytes))
+            Some(self.mark_tx(now, tx_res.bytes_sent()))
         } else {
             None
         }
@@ -518,10 +518,10 @@ impl FdlMaster {
                     sent_time: now,
                 };
 
-            let tx_bytes = phy
+            let tx_res = phy
                 .transmit_telegram(|tx| Some(tx.send_fdl_status_request(addr, self.p.address)))
                 .unwrap();
-            return Some(self.mark_tx(now, tx_bytes));
+            return Some(self.mark_tx(now, tx_res.bytes_sent()));
         }
 
         None
@@ -549,7 +549,7 @@ impl FdlMaster {
             .unwrap_or(true)
         {
             self.last_global_control = Some(now);
-            let tx_bytes = phy
+            let tx_res = phy
                 .transmit_telegram(|tx| {
                     Some(tx.send_data_telegram(
                         crate::fdl::DataTelegramHeader {
@@ -574,7 +574,7 @@ impl FdlMaster {
                     ))
                 })
                 .unwrap();
-            Some(self.mark_tx(now, tx_bytes))
+            Some(self.mark_tx(now, tx_res.bytes_sent()))
         } else {
             None
         }
@@ -731,7 +731,7 @@ impl FdlMaster {
                     crate::fdl::ResponseState::MasterWithoutToken
                 };
 
-                let tx_bytes = phy
+                let tx_res = phy
                     .transmit_telegram(|tx| {
                         Some(tx.send_fdl_status_response(
                             destination,
@@ -741,7 +741,7 @@ impl FdlMaster {
                         ))
                     })
                     .unwrap();
-                Some(self.mark_tx(now, tx_bytes))
+                Some(self.mark_tx(now, tx_res.bytes_sent()))
             }
             // Continue waiting...
             StateWithoutToken::PendingFdlStatusResponse { .. } => None,

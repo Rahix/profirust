@@ -40,7 +40,7 @@ pub trait ProfibusPhy {
     ///
     /// ## Panics
     /// This function may panic when a transmission is already ongoing.
-    fn transmit_telegram<F>(&mut self, f: F) -> Option<usize>
+    fn transmit_telegram<F>(&mut self, f: F) -> Option<crate::fdl::TelegramTxResponse>
     where
         F: FnOnce(crate::fdl::TelegramTx) -> Option<crate::fdl::TelegramTxResponse>,
     {
@@ -53,7 +53,7 @@ pub trait ProfibusPhy {
                     crate::fdl::Telegram::deserialize(buffer).unwrap().unwrap()
                 );
                 let bytes_sent = response.bytes_sent();
-                (bytes_sent, Some(bytes_sent))
+                (bytes_sent, Some(response))
             } else {
                 (0, None)
             }

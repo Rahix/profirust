@@ -164,20 +164,20 @@ impl<'a> Peripheral<'a> {
 }
 
 impl<'a> Peripheral<'a> {
-    pub fn try_start_message_cycle(
+    pub fn try_start_message_cycle<'b>(
         &mut self,
         now: crate::time::Instant,
         dp: &crate::dp::DpMasterState,
         fdl: &crate::fdl::FdlMaster,
-        tx: crate::fdl::TelegramTx,
+        tx: crate::fdl::TelegramTx<'b>,
         high_prio_only: bool,
-    ) -> Option<crate::fdl::TelegramTxResponse> {
+    ) -> Result<crate::fdl::TelegramTxResponse, crate::fdl::TelegramTx<'b>> {
         // We never expect to be called in `Stop` or even worse `Offline` operating states.
         debug_assert!(dp.operating_state.is_operate() || dp.operating_state.is_clear());
 
         if !fdl.check_address_live(self.address) {
             self.state = PeripheralState::Offline;
-            return None;
+            return Err(tx);
         } else if self.state == PeripheralState::Offline {
             // Live but we're still "offline" => go to "reset" state
             self.state = PeripheralState::Reset;
@@ -186,12 +186,12 @@ impl<'a> Peripheral<'a> {
         match self.state {
             PeripheralState::Reset => {
                 // Request diagnostics
-                Some(self.send_diagnostics_request(fdl, tx))
+                Ok(self.send_diagnostics_request(fdl, tx))
             }
             PeripheralState::WaitForParam => {
                 if let Some(user_parameters) = self.options.user_parameters {
                     // Send parameters
-                    Some(tx.send_data_telegram(
+                    Ok(tx.send_data_telegram(
                         crate::fdl::DataTelegramHeader {
                             da: self.address,
                             sa: fdl.parameters().address,
@@ -229,12 +229,12 @@ impl<'a> Peripheral<'a> {
                 } else {
                     // When self.options.user_parameters is None, we need to wait before we can
                     // start with configuration.
-                    None
+                    Err(tx)
                 }
             }
             PeripheralState::WaitForConfig => {
                 if let Some(config) = self.options.config {
-                    Some(tx.send_data_telegram(
+                    Ok(tx.send_data_telegram(
                         crate::fdl::DataTelegramHeader {
                             da: self.address,
                             sa: fdl.parameters().address,
@@ -250,12 +250,12 @@ impl<'a> Peripheral<'a> {
                 } else {
                     // When self.options.config is None, we need to wait before we can start with
                     // configuration.
-                    None
+                    Err(tx)
                 }
             }
             PeripheralState::ValidateConfig => {
                 // Request diagnostics once more
-                Some(self.send_diagnostics_request(fdl, tx))
+                Ok(self.send_diagnostics_request(fdl, tx))
             }
             PeripheralState::DataExchange => {
                 // Request diagnostics again
@@ -263,9 +263,9 @@ impl<'a> Peripheral<'a> {
                 if (now - *last_diag) > crate::time::Duration::from_secs(1) {
                     *last_diag = now;
                     self.sent_diag = true;
-                    Some(self.send_diagnostics_request(fdl, tx))
+                    Ok(self.send_diagnostics_request(fdl, tx))
                 } else {
-                    Some(tx.send_data_telegram(
+                    Ok(tx.send_data_telegram(
                         crate::fdl::DataTelegramHeader {
                             da: self.address,
                             sa: fdl.parameters().address,

@@ -244,7 +244,9 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
             .filter_map(|p| p.inner.as_mut())
             .next()
             .and_then(|peripheral| {
-                peripheral.try_start_message_cycle(now, &self.state, fdl, tx, high_prio_only)
+                peripheral
+                    .try_start_message_cycle(now, &self.state, fdl, tx, high_prio_only)
+                    .ok()
             })
     }
 

@@ -32,33 +32,6 @@ impl OperatingState {
     }
 }
 
-/// Storage type that can hold one peripheral.
-#[derive(Default)]
-pub struct PeripheralStorage<'a> {
-    inner: Option<Peripheral<'a>>,
-}
-
-/// Handle that can be used to obtain a peripheral from the DP master.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PeripheralHandle {
-    index: u8,
-    address: u8,
-}
-
-impl PeripheralHandle {
-    /// The bus address of the peripheral.
-    #[inline(always)]
-    pub fn address(self) -> u8 {
-        self.address
-    }
-}
-
-impl fmt::Display for PeripheralHandle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Station {}", self.address)
-    }
-}
-
 /// The DP master.
 ///
 /// Currently only implements a subset of DP-V0.
@@ -66,8 +39,7 @@ impl fmt::Display for PeripheralHandle {
 /// The DP master holds all peripherals that we interact with.  To get access, use the
 /// [`PeripheralHandle`] that you get when calling [`.add()`][`DpMaster::add`].
 pub struct DpMaster<'a> {
-    /// Storage for all peripherals this master interacts with.
-    peripherals: managed::ManagedSlice<'a, PeripheralStorage<'a>>,
+    peripherals: crate::dp::PeripheralSet<'a>,
     state: DpMasterState,
 }
 
@@ -82,14 +54,14 @@ pub struct DpMasterState {
 impl<'a> DpMaster<'a> {
     pub fn new<S>(storage: S) -> Self
     where
-        S: Into<managed::ManagedSlice<'a, PeripheralStorage<'a>>>,
+        S: Into<managed::ManagedSlice<'a, crate::dp::PeripheralStorage<'a>>>,
     {
         let storage = storage.into();
         if storage.len() > 124 {
             log::warn!("DP master was provided with storage for more than 124 peripherals, this is wasted memory!");
         }
         Self {
-            peripherals: storage,
+            peripherals: crate::dp::PeripheralSet::new(storage),
             state: DpMasterState {
                 operating_state: OperatingState::Stop,
                 last_global_control: None,
@@ -101,59 +73,22 @@ impl<'a> DpMaster<'a> {
     ///
     /// # Panics
     /// This function panics if the storage is fixed-size (not a `Vec`) and is full.
-    pub fn add(&mut self, peripheral: Peripheral<'a>) -> PeripheralHandle {
-        for (index, slot) in self.peripherals.iter_mut().enumerate() {
-            if slot.inner.is_none() {
-                let address = peripheral.address();
-                slot.inner = Some(peripheral);
-                return PeripheralHandle {
-                    index: u8::try_from(index).unwrap(),
-                    address,
-                };
-            }
-        }
-
-        match &mut self.peripherals {
-            managed::ManagedSlice::Borrowed(_) => panic!("Adding peripheral to full DpMaster"),
-            managed::ManagedSlice::Owned(peripherals) => {
-                let address = peripheral.address();
-                peripherals.push(PeripheralStorage {
-                    inner: Some(peripheral),
-                });
-                PeripheralHandle {
-                    index: (peripherals.len() - 1).try_into().unwrap(),
-                    address,
-                }
-            }
-        }
+    pub fn add(&mut self, peripheral: Peripheral<'a>) -> crate::dp::PeripheralHandle {
+        self.peripherals.add(peripheral)
     }
 
     /// Get a peripheral from the set by its handle, as mutable.
     ///
     /// # Panics
     /// This function may panic if the handle does not belong to this peripheral set.
-    pub fn get_mut(&mut self, handle: PeripheralHandle) -> &mut Peripheral<'a> {
-        self.peripherals[usize::from(handle.index)]
-            .inner
-            .as_mut()
-            .expect("Handle does not refer to a valid peripheral")
+    pub fn get_mut(&mut self, handle: crate::dp::PeripheralHandle) -> &mut Peripheral<'a> {
+        self.peripherals.get_mut(handle)
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (PeripheralHandle, &mut Peripheral<'a>)> {
-        self.peripherals
-            .iter_mut()
-            .enumerate()
-            .filter_map(|(i, p)| {
-                p.inner.as_mut().map(|p| {
-                    (
-                        PeripheralHandle {
-                            index: u8::try_from(i).unwrap(),
-                            address: p.address(),
-                        },
-                        p,
-                    )
-                })
-            })
+    pub fn iter_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (crate::dp::PeripheralHandle, &mut Peripheral<'a>)> {
+        self.peripherals.iter_mut()
     }
 
     #[inline(always)]
@@ -254,9 +189,8 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         // TODO: naive implementation that only works with one peripheral.
         self.peripherals
             .iter_mut()
-            .filter_map(|p| p.inner.as_mut())
             .next()
-            .and_then(|peripheral| {
+            .and_then(|(_, peripheral)| {
                 peripheral
                     .try_start_message_cycle(now, &self.state, fdl, tx, high_prio_only)
                     .ok()
@@ -270,7 +204,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         addr: u8,
         telegram: crate::fdl::Telegram,
     ) {
-        for peripheral in self.peripherals.iter_mut().filter_map(|p| p.inner.as_mut()) {
+        for (_, peripheral) in self.peripherals.iter_mut() {
             if peripheral.address() == addr {
                 peripheral.handle_response(now, &self.state, fdl, telegram);
                 return;

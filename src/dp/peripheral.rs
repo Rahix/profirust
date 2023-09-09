@@ -144,6 +144,11 @@ impl<'a> Peripheral<'a> {
         &mut self.pi_q
     }
 
+    /// Access to the process images of inputs (immutable) and outputs (mutable).
+    pub fn pi_both(&mut self) -> (&[u8], &mut [u8]) {
+        (&self.pi_i, &mut self.pi_q)
+    }
+
     /// Whether this peripheral is live and responds on the bus.
     #[inline(always)]
     pub fn is_live(&self) -> bool {

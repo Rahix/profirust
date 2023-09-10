@@ -255,13 +255,13 @@ impl FdlMaster {
     }
 }
 
-#[must_use = "Transmission marker must lead to exit of poll function!"]
-struct TxMarker();
+#[must_use = "\"poll done\" marker must lead to exit of poll function!"]
+struct PollDone();
 
-macro_rules! return_if_tx {
+macro_rules! return_if_done {
     ($expr:expr) => {
         match $expr {
-            e @ Some(TxMarker()) => return e,
+            e @ Some(PollDone()) => return e,
             None => (),
         }
     };
@@ -287,10 +287,10 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-    ) -> Option<TxMarker> {
+    ) -> Option<PollDone> {
         if self.last_bus_activity.map(|l| now <= l).unwrap_or(false) || phy.is_transmitting() {
             self.mark_bus_activity(now);
-            Some(TxMarker())
+            Some(PollDone())
         } else {
             None
         }
@@ -299,26 +299,26 @@ impl FdlMaster {
     /// Wait for 33 bit times since last bus activity.
     ///
     /// This synchronization pause is required before every transmission.
-    fn wait_synchronization_pause(&mut self, now: crate::time::Instant) -> Option<TxMarker> {
+    fn wait_synchronization_pause(&mut self, now: crate::time::Instant) -> Option<PollDone> {
         debug_assert!(self.communication_state.have_token());
         // TODO: Is it right to write the last_bus_activity here?  Probably does not matter as
         // handle_lost_token() will most likely get called way earlier.
         if now <= (*self.last_bus_activity.get_or_insert(now) + self.p.baudrate.bits_to_time(33)) {
-            Some(TxMarker())
+            Some(PollDone())
         } else {
             None
         }
     }
 
     /// Marks transmission starting `now` and continuing for `bytes` length.
-    fn mark_tx(&mut self, now: crate::time::Instant, bytes: usize) -> TxMarker {
+    fn mark_tx(&mut self, now: crate::time::Instant, bytes: usize) -> PollDone {
         self.last_bus_activity = Some(
             now + self
                 .p
                 .baudrate
                 .bits_to_time(11 * u32::try_from(bytes).unwrap()),
         );
-        TxMarker()
+        PollDone()
     }
 
     fn check_for_bus_activity(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) {
@@ -343,7 +343,7 @@ impl FdlMaster {
     }
 
     #[must_use = "tx token"]
-    fn forward_token(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) -> TxMarker {
+    fn forward_token(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) -> PollDone {
         self.communication_state = CommunicationState::WithoutToken(StateWithoutToken::Idle);
 
         let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
@@ -363,7 +363,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-    ) -> Option<TxMarker> {
+    ) -> Option<PollDone> {
         // If we do not know of any previous bus activity, conservatively assume that the last
         // activity was just now and start counting from here...
         let last_bus_activity = *self.last_bus_activity.get_or_insert(now);
@@ -383,7 +383,7 @@ impl FdlMaster {
         phy: &mut impl ProfibusPhy,
         app: &mut impl crate::fdl::FdlApplication,
         high_prio_only: bool,
-    ) -> Option<TxMarker> {
+    ) -> Option<PollDone> {
         debug_assert!(self.communication_state.have_token());
         if let Some(tx_res) =
             phy.transmit_telegram(|tx| app.transmit_telegram(now, self, tx, high_prio_only))
@@ -480,7 +480,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-    ) -> Option<TxMarker> {
+    ) -> Option<PollDone> {
         assert!(self.communication_state.have_token());
 
         if let GapState::Waiting(r) = self.gap_state {
@@ -515,7 +515,7 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
         app: &mut impl crate::fdl::FdlApplication,
-    ) -> Option<TxMarker> {
+    ) -> Option<PollDone> {
         // First check for ongoing message cycles and handle them.
         match *self.communication_state.assert_with_token() {
             StateWithToken::AwaitingResponse { addr, sent_time } => {
@@ -553,7 +553,7 @@ impl FdlMaster {
         }
 
         // Before we can send anything, we must always wait 33 bit times (synchronization pause).
-        return_if_tx!(self.wait_synchronization_pause(now));
+        return_if_done!(self.wait_synchronization_pause(now));
 
         let first_with_token = match self.communication_state.assert_with_token() {
             StateWithToken::ForwardToken => {
@@ -569,7 +569,7 @@ impl FdlMaster {
                 // If we're over the rotation time and just acquired the token, we are allowed to
                 // perform one more high priority message cycle.
                 if first_with_token {
-                    return_if_tx!(self.try_start_message_cycle(now, phy, app, true));
+                    return_if_done!(self.try_start_message_cycle(now, phy, app, true));
                 }
 
                 // In any other case, we pass on the token to the next master.
@@ -578,10 +578,10 @@ impl FdlMaster {
         }
 
         // We have time, try doing useful things.
-        return_if_tx!(self.try_start_message_cycle(now, phy, app, false));
+        return_if_done!(self.try_start_message_cycle(now, phy, app, false));
 
         // If we end up here, there's nothing useful left to do so now handle the gap polling cycle.
-        return_if_tx!(self.handle_gap(now, phy));
+        return_if_done!(self.handle_gap(now, phy));
 
         // And if even the gap poll didn't lead to a message, pass token immediately.
         return Some(self.forward_token(now, phy));
@@ -592,7 +592,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-    ) -> Option<TxMarker> {
+    ) -> Option<PollDone> {
         debug_assert!(!self.communication_state.have_token());
 
         enum NextAction {
@@ -689,28 +689,28 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut PHY,
         app: &mut impl crate::fdl::FdlApplication,
-    ) -> Option<TxMarker> {
+    ) -> Option<PollDone> {
         if self.connectivity_state == ConnectivityState::Offline {
             // When we are offline, don't do anything at all.
             return None;
         }
 
-        return_if_tx!(self.check_for_ongoing_transmision(now, phy));
+        return_if_done!(self.check_for_ongoing_transmision(now, phy));
 
         self.check_for_bus_activity(now, phy);
 
         if self.communication_state.have_token() {
             // log::trace!("{} has token!", self.p.address);
-            return_if_tx!(self.handle_with_token(now, phy, app));
+            return_if_done!(self.handle_with_token(now, phy, app));
         } else {
-            return_if_tx!(self.handle_without_token(now, phy));
+            return_if_done!(self.handle_without_token(now, phy));
             // We may have just received the token so do one more pass "with token".
             if self.communication_state.have_token() {
-                return_if_tx!(self.handle_with_token(now, phy, app));
+                return_if_done!(self.handle_with_token(now, phy, app));
             }
         }
 
-        return_if_tx!(self.handle_lost_token(now, phy));
+        return_if_done!(self.handle_lost_token(now, phy));
         None
     }
 }

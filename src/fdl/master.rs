@@ -342,7 +342,7 @@ impl FdlMaster {
         log::trace!("{} acquired the token!", self.p.address);
     }
 
-    #[must_use = "tx token"]
+    #[must_use = "poll done marker"]
     fn forward_token(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) -> PollDone {
         self.communication_state = CommunicationState::WithoutToken(StateWithoutToken::Idle);
 
@@ -358,7 +358,7 @@ impl FdlMaster {
         self.mark_tx(now, tx_res.bytes_sent())
     }
 
-    #[must_use = "tx token"]
+    #[must_use = "poll done marker"]
     fn handle_lost_token(
         &mut self,
         now: crate::time::Instant,
@@ -376,7 +376,7 @@ impl FdlMaster {
         }
     }
 
-    #[must_use = "tx token"]
+    #[must_use = "poll done marker"]
     fn try_start_message_cycle(
         &mut self,
         now: crate::time::Instant,
@@ -475,7 +475,7 @@ impl FdlMaster {
         }
     }
 
-    #[must_use = "tx token"]
+    #[must_use = "poll done marker"]
     fn handle_gap(
         &mut self,
         now: crate::time::Instant,
@@ -509,7 +509,7 @@ impl FdlMaster {
         None
     }
 
-    #[must_use = "tx token"]
+    #[must_use = "poll done marker"]
     fn handle_with_token(
         &mut self,
         now: crate::time::Instant,
@@ -587,7 +587,7 @@ impl FdlMaster {
         return Some(self.forward_token(now, phy));
     }
 
-    #[must_use = "tx token"]
+    #[must_use = "poll done marker"]
     fn handle_without_token(
         &mut self,
         now: crate::time::Instant,

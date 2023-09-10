@@ -526,8 +526,7 @@ impl FdlMaster {
                     todo!("handle message cycle response timeout");
                 } else {
                     // Still waiting for the response, nothing to do here.
-                    // TODO: shouldn't we also return the marker here?
-                    return None;
+                    return Some(PollDone());
                 }
             }
             StateWithToken::AwaitingFdlStatusResponse { addr, sent_time } => {
@@ -543,8 +542,7 @@ impl FdlMaster {
                     *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
                 } else {
                     // Still waiting for the response, nothing to do here.
-                    // TODO: shouldn't we also return the marker here?
-                    return None;
+                    return Some(PollDone());
                 }
             }
             // Continue towards transmission when idle or forwarding token.

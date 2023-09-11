@@ -330,21 +330,21 @@ impl<'a> Peripheral<'a> {
                 let address = self.address;
                 self.state = if let Some(diag) = self.handle_diagnostics_response(fdl, &telegram) {
                     if diag.flags.contains(DiagnosticFlags::PARAMETER_FAULT) {
-                        log::warn!("Peripheral {} reports a parameter fault!", address);
+                        log::warn!("Peripheral #{} reports a parameter fault!", address);
                         // TODO: Going to `Reset` here will just end in a loop.
                         PeripheralState::Reset
                     } else if diag.flags.contains(DiagnosticFlags::CONFIGURATION_FAULT) {
-                        log::warn!("Peripheral {} reports a configuration fault!", address);
+                        log::warn!("Peripheral #{} reports a configuration fault!", address);
                         // TODO: Going to `Reset` here will just end in a loop.
                         PeripheralState::Reset
                     } else if diag.flags.contains(DiagnosticFlags::PARAMETER_REQUIRED) {
                         log::warn!(
-                            "Peripheral {} wants parameters after completing setup?! Retrying...",
+                            "Peripheral #{} wants parameters after completing setup?! Retrying...",
                             address
                         );
                         PeripheralState::WaitForParam
                     } else if !diag.flags.contains(DiagnosticFlags::STATION_NOT_READY) {
-                        log::debug!("Peripheral {} becomes ready for data exchange.", address);
+                        log::info!("Peripheral #{} becomes ready for data exchange.", address);
                         PeripheralState::DataExchange
                     } else {
                         PeripheralState::ValidateConfig
@@ -396,15 +396,24 @@ impl<'a> Peripheral<'a> {
     ) -> Option<&PeripheralDiagnostics> {
         if let crate::fdl::Telegram::Data(t) = telegram {
             if t.h.dsap != crate::consts::SAP_MASTER_MS0 {
-                log::warn!("Diagnostics response to wrong SAP: {t:?}");
+                log::warn!(
+                    "Diagnostics response by #{} to wrong SAP: {t:?}",
+                    self.address
+                );
                 return None;
             }
             if t.h.ssap != crate::consts::SAP_SLAVE_DIAGNOSIS {
-                log::warn!("Diagnostics response from wrong SAP: {t:?}");
+                log::warn!(
+                    "Diagnostics response by #{} from wrong SAP: {t:?}",
+                    self.address
+                );
                 return None;
             }
             if t.pdu.len() < 6 {
-                log::warn!("Diagnostics response too short: {t:?}");
+                log::warn!(
+                    "Diagnostics response by #{} is too short: {t:?}",
+                    self.address
+                );
                 return None;
             }
 
@@ -422,7 +431,7 @@ impl<'a> Peripheral<'a> {
             // we don't need the permanent bit anymore now
             diag.flags.remove(DiagnosticFlags::PERMANENT_BIT);
 
-            log::info!("Peripheral Diagnostics (#{}):\n{:#?}\n", self.address, diag);
+            log::debug!("Peripheral Diagnostics (#{}): {:?}", self.address, diag);
 
             self.fcb.cycle();
 

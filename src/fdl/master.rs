@@ -193,6 +193,16 @@ impl FdlMaster {
         self.in_ring
     }
 
+    fn update_live_state(&mut self, addr: u8, live: bool) {
+        let previous = *self.live_list.get(usize::from(addr)).unwrap();
+        if live && !previous {
+            log::debug!("Discovered device #{addr}.");
+        } else if !live && previous {
+            log::debug!("Lost contact with device #{addr}.");
+        }
+        self.live_list.set(usize::from(addr), live);
+    }
+
     /// Returns `true` when the given address is believed to be "alive" (responds on the bus).
     pub fn check_address_live(&self, addr: u8) -> bool {
         *self
@@ -533,12 +543,12 @@ impl FdlMaster {
                 if self.check_for_status_response(now, phy, addr) {
                     log::trace!("Address {addr} responded!");
                     // After the gap response, we pass on the token.
-                    self.live_list.set(usize::from(addr), true);
+                    self.update_live_state(addr, true);
                     *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
                 } else if (now - sent_time) >= self.p.slot_time() {
                     log::trace!("Address {addr} didn't respond in {}!", self.p.slot_time());
                     // Mark this address as not alive and pass on the token.
-                    self.live_list.set(usize::from(addr), false);
+                    self.update_live_state(addr, false);
                     *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
                 } else {
                     // Still waiting for the response, nothing to do here.

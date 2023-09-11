@@ -214,34 +214,40 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     println!("        ident_number: 0x{:04x},", gsd.ident_number);
     println!();
     println!("        // Global Parameters:");
-    let longest_name = global_parameters
-        .iter()
-        .map(|(n, _)| n.len())
-        .max()
-        .unwrap_or(0);
-    for (name, value) in global_parameters.into_iter() {
-        println!(
-            "        //   - {:.<width$}: {}",
-            name,
-            value,
-            width = longest_name
-        );
-    }
-    println!("        //");
-    println!("        // Selected Modules:");
-    let modid_width = usize::try_from(module_selection_list.len().ilog10()).unwrap() + 1;
-    for (i, (module, param)) in module_selection_list.into_iter().enumerate() {
-        println!("        //   [{i:width$}] {}", module, width = modid_width);
-        let longest_name = param.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
-        for (name, value) in param.into_iter() {
+    if global_parameters.len() == 0 {
+        println!("        //   (none)");
+    } else {
+        let longest_name = global_parameters
+            .iter()
+            .map(|(n, _)| n.len())
+            .max()
+            .unwrap_or(0);
+        for (name, value) in global_parameters.into_iter() {
             println!(
-                "        //    {:modid_width$}  - {:.<width$}: {}",
-                "",
+                "        //   - {:.<width$}: {}",
                 name,
                 value,
-                width = longest_name,
-                modid_width = modid_width
+                width = longest_name
             );
+        }
+    }
+    if module_selection_list.len() > 0 {
+        println!("        //");
+        println!("        // Selected Modules:");
+        let modid_width = usize::try_from(module_selection_list.len().ilog10()).unwrap() + 1;
+        for (i, (module, param)) in module_selection_list.into_iter().enumerate() {
+            println!("        //   [{i:width$}] {}", module, width = modid_width);
+            let longest_name = param.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
+            for (name, value) in param.into_iter() {
+                println!(
+                    "        //    {:modid_width$}  - {:.<width$}: {}",
+                    "",
+                    name,
+                    value,
+                    width = longest_name,
+                    modid_width = modid_width
+                );
+            }
         }
     }
     print!("        user_parameters: Some(&[");

@@ -51,14 +51,6 @@ fn main() {
     println!("Connecting to the bus...");
     let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl_master.parameters().baudrate);
 
-    enum State {
-        WaitingForRing,
-        WaitingForDevice,
-        WaitingForDeviceInit,
-        Running,
-    }
-    let mut state = State::WaitingForRing;
-
     fdl_master.set_online();
     dp_master.enter_operate();
     loop {
@@ -69,46 +61,9 @@ fn main() {
         // Get mutable access the the peripheral here so we can interact with it.
         let encoder = dp_master.get_mut(encoder_handle);
 
-        match state {
-            State::WaitingForRing if fdl_master.is_in_ring() => {
-                println!("Entered the token ring!");
-                state = State::WaitingForDevice;
-            }
-            State::WaitingForRing => (),
-            _ if !fdl_master.is_in_ring() => {
-                println!("Master dropped out of the token ring!");
-                state = State::WaitingForRing;
-            }
-
-            State::WaitingForDevice if encoder.is_live() => {
-                println!("Device at address {} is responding!", encoder.address());
-                state = State::WaitingForDeviceInit;
-            }
-            State::WaitingForDevice => (),
-            _ if !encoder.is_live() => {
-                println!(
-                    "Device at address {} no longer responding!  Waiting for it again...",
-                    encoder.address()
-                );
-                state = State::WaitingForDevice;
-            }
-
-            State::WaitingForDeviceInit if encoder.is_running() => {
-                println!("Device configured successfully!");
-                state = State::Running;
-            }
-            State::WaitingForDeviceInit => (),
-            _ if !encoder.is_running() => {
-                println!("Cyclic data exchange stopped for some reason!");
-                state = State::WaitingForDeviceInit;
-            }
-
-            State::Running => {
-                if cycle_completed {
-                    let value = u32::from_be_bytes(encoder.pi_i().try_into().unwrap());
-                    println!("Encoder Counts: {:?}", value);
-                }
-            }
+        if encoder.is_running() && cycle_completed {
+            let value = u32::from_be_bytes(encoder.pi_i().try_into().unwrap());
+            println!("Encoder Counts: {:?}", value);
         }
 
         std::thread::sleep(std::time::Duration::from_millis(10));

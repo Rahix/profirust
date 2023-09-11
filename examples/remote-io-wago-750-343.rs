@@ -61,14 +61,6 @@ fn main() {
     println!("Connecting to the bus...");
     let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl_master.parameters().baudrate);
 
-    enum State {
-        WaitingForRing,
-        WaitingForDevice,
-        WaitingForDeviceInit,
-        Running,
-    }
-    let mut state = State::WaitingForRing;
-
     let start = profirust::time::Instant::now();
 
     fdl_master.set_online();
@@ -82,52 +74,15 @@ fn main() {
         // Get mutable access the the peripheral here so we can interact with it.
         let remoteio = dp_master.get_mut(io_handle);
 
-        match state {
-            State::WaitingForRing if fdl_master.is_in_ring() => {
-                println!("Entered the token ring!");
-                state = State::WaitingForDevice;
-            }
-            State::WaitingForRing => (),
-            _ if !fdl_master.is_in_ring() => {
-                println!("Master dropped out of the token ring!");
-                state = State::WaitingForRing;
-            }
+        if remoteio.is_running() && cycle_completed {
+            println!("Inputs: {:?}", remoteio.pi_i());
 
-            State::WaitingForDevice if remoteio.is_live() => {
-                println!("Device at address {} is responding!", remoteio.address());
-                state = State::WaitingForDeviceInit;
-            }
-            State::WaitingForDevice => (),
-            _ if !remoteio.is_live() => {
-                println!(
-                    "Device at address {} no longer responding!  Waiting for it again...",
-                    remoteio.address()
-                );
-                state = State::WaitingForDevice;
-            }
-
-            State::WaitingForDeviceInit if remoteio.is_running() => {
-                println!("Device configured successfully!");
-                state = State::Running;
-            }
-            State::WaitingForDeviceInit => (),
-            _ if !remoteio.is_running() => {
-                println!("Cyclic data exchange stopped for some reason!");
-                state = State::WaitingForDeviceInit;
-            }
-
-            State::Running => {
-                if cycle_completed {
-                    println!("Inputs: {:?}", remoteio.pi_i());
-
-                    // Set outputs according to our best intentions
-                    let elapsed = (now - start).total_millis();
-                    let i = usize::try_from(elapsed / 100).unwrap() % (remoteio.pi_q().len() * 4);
-                    let pi_q = remoteio.pi_q_mut();
-                    pi_q.fill(0x00);
-                    pi_q[i / 4] |= 1 << (i % 4);
-                }
-            }
+            // Set outputs according to our best intentions
+            let elapsed = (now - start).total_millis();
+            let i = usize::try_from(elapsed / 100).unwrap() % (remoteio.pi_q().len() * 4);
+            let pi_q = remoteio.pi_q_mut();
+            pi_q.fill(0x00);
+            pi_q[i / 4] |= 1 << (i % 4);
         }
 
         std::thread::sleep(std::time::Duration::from_millis(10));

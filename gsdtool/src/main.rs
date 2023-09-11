@@ -62,6 +62,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
 
     println!("{}", style("Global parameters:").bold());
     let mut prm = gsd_parser::PrmBuilder::new(&gsd.user_prm_data);
+    let mut global_parameters = vec![];
     for (_, prm_ref) in gsd.user_prm_data.data_ref.iter() {
         if let Some(texts) = prm_ref.text_ref.as_ref() {
             let texts_list: Vec<_> = texts.keys().collect();
@@ -81,6 +82,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
 
             let sel_text = &texts_list[selection];
             prm.set_prm_from_text(&prm_ref.name, sel_text);
+
+            global_parameters.push((prm_ref.name.to_owned(), sel_text.to_string()));
         } else {
             let value = dialoguer::Input::new()
                 .with_prompt(format!(
@@ -100,6 +103,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
 
             let value: i64 = str::parse(&value).unwrap();
             prm.set_prm(&prm_ref.name, value);
+
+            global_parameters.push((prm_ref.name.to_owned(), value.to_string()));
         }
     }
     println!();
@@ -120,6 +125,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
         .map(|m| m.name.to_string())
         .collect();
 
+    let mut module_selection_list = vec![];
     for i in 0..gsd.max_modules {
         let selection = dialoguer::FuzzySelect::new()
             .with_prompt(format!(
@@ -142,6 +148,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
             module_config.append(&mut module.config.to_vec());
 
             let mut prm = gsd_parser::PrmBuilder::new(&module.module_prm_data);
+            let mut module_parameters = vec![];
             for (_, prm_ref) in module.module_prm_data.data_ref.iter() {
                 if let Some(texts) = prm_ref.text_ref.as_ref() {
                     let texts_list: Vec<_> = texts.keys().collect();
@@ -161,6 +168,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
 
                     let sel_text = &texts_list[selection];
                     prm.set_prm_from_text(&prm_ref.name, sel_text);
+
+                    module_parameters.push((prm_ref.name.to_owned(), sel_text.to_string()));
                 } else {
                     let value = dialoguer::Input::new()
                         .with_prompt(format!(
@@ -180,8 +189,12 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
 
                     let value: i64 = str::parse(&value).unwrap();
                     prm.set_prm(&prm_ref.name, value);
+
+                    module_parameters.push((prm_ref.name.to_owned(), value.to_string()));
                 }
             }
+
+            module_selection_list.push((module_names[s].to_string(), module_parameters));
 
             user_prm_data.append(&mut prm.into_bytes());
         } else {
@@ -200,6 +213,37 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     println!("        // \"{}\" by \"{}\"", gsd.model, gsd.vendor);
     println!("        ident_number: 0x{:04x},", gsd.ident_number);
     println!();
+    println!("        // Global Parameters:");
+    let longest_name = global_parameters
+        .iter()
+        .map(|(n, _)| n.len())
+        .max()
+        .unwrap_or(0);
+    for (name, value) in global_parameters.into_iter() {
+        println!(
+            "        //   - {:.<width$}: {}",
+            name,
+            value,
+            width = longest_name
+        );
+    }
+    println!("        //");
+    println!("        // Selected Modules:");
+    let modid_width = usize::try_from(module_selection_list.len().ilog10()).unwrap() + 1;
+    for (i, (module, param)) in module_selection_list.into_iter().enumerate() {
+        println!("        //   [{i:width$}] {}", module, width = modid_width);
+        let longest_name = param.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
+        for (name, value) in param.into_iter() {
+            println!(
+                "        //    {:modid_width$}  - {:.<width$}: {}",
+                "",
+                name,
+                value,
+                width = longest_name,
+                modid_width = modid_width
+            );
+        }
+    }
     print!("        user_parameters: Some(&[");
     for b in user_prm_data.into_iter() {
         print!("0x{b:02x}, ");

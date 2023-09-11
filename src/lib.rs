@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-pub mod consts;
+mod consts;
 pub mod dp;
 pub mod fdl;
 pub mod phy;

@@ -1,5 +1,3 @@
-use crate::dp::Peripheral;
-
 /// Operating state of the FDL master
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
@@ -48,9 +46,10 @@ enum CycleState {
 ///
 /// The DP master holds all peripherals that we interact with.  To get access, use the
 /// [`PeripheralHandle`] that you get when calling [`.add()`][`DpMaster::add`].
+#[non_exhaustive]
 pub struct DpMaster<'a> {
-    peripherals: crate::dp::PeripheralSet<'a>,
-    state: DpMasterState,
+    pub peripherals: crate::dp::PeripheralSet<'a>,
+    pub state: DpMasterState,
 }
 
 pub struct DpMasterState {
@@ -83,39 +82,27 @@ impl<'a> DpMaster<'a> {
         }
     }
 
-    /// Add a peripheral to the set, and return its handle.
-    ///
-    /// # Panics
-    /// This function panics if the storage is fixed-size (not a `Vec`) and is full.
-    pub fn add(&mut self, peripheral: Peripheral<'a>) -> crate::dp::PeripheralHandle {
-        self.peripherals.add(peripheral)
+    fn increment_cycle_state(&mut self, index: u8) {
+        if let Some(next) = self.peripherals.get_next_index(index) {
+            self.state.cycle_state = CycleState::DataExchange(next);
+        } else {
+            self.state.cycle_state = CycleState::CycleCompleted;
+        }
     }
+}
 
-    /// Get a peripheral from the set by its handle, as mutable.
-    ///
-    /// # Panics
-    /// This function may panic if the handle does not belong to this peripheral set.
-    pub fn get_mut(&mut self, handle: crate::dp::PeripheralHandle) -> &mut Peripheral<'a> {
-        self.peripherals.get_mut(handle)
-    }
-
-    pub fn iter_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (crate::dp::PeripheralHandle, &mut Peripheral<'a>)> {
-        self.peripherals.iter_mut()
-    }
-
+impl DpMasterState {
     #[inline(always)]
     pub fn operating_state(&self) -> OperatingState {
-        self.state.operating_state
+        self.operating_state
     }
 
     #[inline]
     pub fn enter_state(&mut self, state: OperatingState) {
         log::info!("DP master entering state \"{:?}\"", state);
-        self.state.operating_state = state;
+        self.operating_state = state;
         // Ensure we will send a new global control telegram ASAP:
-        self.state.last_global_control = None;
+        self.last_global_control = None;
 
         if state != OperatingState::Operate {
             todo!("OperatingState {:?} is not yet supported properly!", state);
@@ -146,18 +133,10 @@ impl<'a> DpMaster<'a> {
         self.enter_state(OperatingState::Operate)
     }
 
-    fn increment_cycle_state(&mut self, index: u8) {
-        if let Some(next) = self.peripherals.get_next_index(index) {
-            self.state.cycle_state = CycleState::DataExchange(next);
-        } else {
-            self.state.cycle_state = CycleState::CycleCompleted;
-        }
-    }
-
     /// Whether the DP bus cycle was completed during the last poll.
     #[inline]
     pub fn cycle_completed(&self) -> bool {
-        self.state.cycle_state == CycleState::CycleCompleted
+        self.cycle_state == CycleState::CycleCompleted
     }
 }
 

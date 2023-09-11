@@ -29,7 +29,7 @@ fn main() {
     };
     let mut buffer_inputs = [0x00; 4];
     let mut buffer_outputs = [0x00; 4];
-    let encoder_handle = dp_master.add(dp::Peripheral::new(
+    let encoder_handle = dp_master.peripherals.add(dp::Peripheral::new(
         ENCODER_ADDRESS,
         encoder_options,
         &mut buffer_inputs,
@@ -52,16 +52,14 @@ fn main() {
     let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl_master.parameters().baudrate);
 
     fdl_master.set_online();
-    dp_master.enter_operate();
+    dp_master.state.enter_operate();
     loop {
         fdl_master.poll(profirust::time::Instant::now(), &mut phy, &mut dp_master);
 
-        let cycle_completed = dp_master.cycle_completed();
-
         // Get mutable access the the peripheral here so we can interact with it.
-        let encoder = dp_master.get_mut(encoder_handle);
+        let encoder = dp_master.peripherals.get_mut(encoder_handle);
 
-        if encoder.is_running() && cycle_completed {
+        if encoder.is_running() && dp_master.state.cycle_completed() {
             let value = u32::from_be_bytes(encoder.pi_i().try_into().unwrap());
             println!("Encoder Counts: {:?}", value);
         }

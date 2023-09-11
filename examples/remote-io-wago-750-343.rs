@@ -39,7 +39,7 @@ fn main() {
 
     let mut buffer_inputs = [0x00; 10];
     let mut buffer_outputs = [0x00; 7];
-    let io_handle = dp_master.add(dp::Peripheral::new(
+    let io_handle = dp_master.peripherals.add(dp::Peripheral::new(
         IO_STATION_ADDRESS,
         remoteio_options,
         &mut buffer_inputs,
@@ -64,17 +64,15 @@ fn main() {
     let start = profirust::time::Instant::now();
 
     fdl_master.set_online();
-    dp_master.enter_operate();
+    dp_master.state.enter_operate();
     loop {
         let now = profirust::time::Instant::now();
         fdl_master.poll(now, &mut phy, &mut dp_master);
 
-        let cycle_completed = dp_master.cycle_completed();
-
         // Get mutable access the the peripheral here so we can interact with it.
-        let remoteio = dp_master.get_mut(io_handle);
+        let remoteio = dp_master.peripherals.get_mut(io_handle);
 
-        if remoteio.is_running() && cycle_completed {
+        if remoteio.is_running() && dp_master.state.cycle_completed() {
             println!("Inputs: {:?}", remoteio.pi_i());
 
             // Set outputs according to our best intentions

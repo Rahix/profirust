@@ -61,6 +61,7 @@ pub struct SlaveFamily {
 }
 
 bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct SupportedSpeeds: u16 {
         const B9600 = 1 << 1;
         const B19200 = 1 << 2;

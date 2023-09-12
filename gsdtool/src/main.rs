@@ -290,6 +290,86 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     }
     println!("]),");
     println!();
+    println!("        // Set max_tsdr depending on baudrate and assert");
+    println!("        // that a supported baudrate is used.");
+    println!("        max_tsdr: match BAUDRATE {{");
+    for (_, speed) in gsd.supported_speeds.iter_names() {
+        match speed {
+            gsd_parser::SupportedSpeeds::B9600 => {
+                println!(
+                    "            profirust::Baudrate::B9600 => {},",
+                    gsd.max_tsdr.b9600
+                );
+            }
+            gsd_parser::SupportedSpeeds::B19200 => {
+                println!(
+                    "            profirust::Baudrate::B19200 => {},",
+                    gsd.max_tsdr.b19200
+                );
+            }
+            gsd_parser::SupportedSpeeds::B31250 => {
+                println!(
+                    "            profirust::Baudrate::B31250 => {},",
+                    gsd.max_tsdr.b31250
+                );
+            }
+            gsd_parser::SupportedSpeeds::B45450 => {
+                println!(
+                    "            profirust::Baudrate::B45450 => {},",
+                    gsd.max_tsdr.b45450
+                );
+            }
+            gsd_parser::SupportedSpeeds::B93750 => {
+                println!(
+                    "            profirust::Baudrate::B93750 => {},",
+                    gsd.max_tsdr.b93750
+                );
+            }
+            gsd_parser::SupportedSpeeds::B187500 => {
+                println!(
+                    "            profirust::Baudrate::B187500 => {},",
+                    gsd.max_tsdr.b187500
+                );
+            }
+            gsd_parser::SupportedSpeeds::B500000 => {
+                println!(
+                    "            profirust::Baudrate::B500000 => {},",
+                    gsd.max_tsdr.b500000
+                );
+            }
+            gsd_parser::SupportedSpeeds::B1500000 => {
+                println!(
+                    "            profirust::Baudrate::B1500000 => {},",
+                    gsd.max_tsdr.b1500000
+                );
+            }
+            gsd_parser::SupportedSpeeds::B3000000 => {
+                println!(
+                    "            profirust::Baudrate::B3000000 => {},",
+                    gsd.max_tsdr.b3000000
+                );
+            }
+            gsd_parser::SupportedSpeeds::B6000000 => {
+                println!(
+                    "            profirust::Baudrate::B6000000 => {},",
+                    gsd.max_tsdr.b6000000
+                );
+            }
+            gsd_parser::SupportedSpeeds::B12000000 => {
+                println!(
+                    "            profirust::Baudrate::B12000000 => {},",
+                    gsd.max_tsdr.b12000000
+                );
+            }
+            _ => unreachable!(),
+        }
+    }
+    println!(
+        "            b => panic!(\"Peripheral \\\"{}\\\" does not support baudrate {{b:?}}!\"),",
+        gsd.model
+    );
+    println!("        }},");
+    println!();
     println!("        ..Default::default()");
     println!("    }};");
     if bytes_input != 0 || bytes_output != 0 {

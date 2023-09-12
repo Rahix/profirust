@@ -6,6 +6,8 @@ pub struct PeripheralOptions<'a> {
     pub freeze_mode: bool,
     pub groups: u8,
     pub watchdog: Option<crate::time::Duration>,
+    pub max_tsdr: u16,
+    pub fail_safe: bool,
 
     pub user_parameters: Option<&'a [u8]>,
     pub config: Option<&'a [u8]>,

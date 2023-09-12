@@ -42,6 +42,9 @@ pub trait FdlApplication {
         addr: u8,
         telegram: Telegram,
     );
+
+    /// Handle a timeout while waiting for a reply from the given address.
+    fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &FdlMaster, addr: u8);
 }
 
 // A sort of placeholder when no application is used.
@@ -63,6 +66,10 @@ impl FdlApplication for () {
         addr: u8,
         telegram: Telegram,
     ) {
+        // ignore
+    }
+
+    fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &FdlMaster, addr: u8) {
         // ignore
     }
 }

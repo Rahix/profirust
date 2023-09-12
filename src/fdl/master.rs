@@ -440,6 +440,15 @@ impl FdlMaster {
         .unwrap_or(false)
     }
 
+    fn app_handle_timeout(
+        &mut self,
+        now: crate::time::Instant,
+        app: &mut impl crate::fdl::FdlApplication,
+        addr: u8,
+    ) {
+        app.handle_timeout(now, self, addr)
+    }
+
     fn check_for_status_response(
         &mut self,
         now: crate::time::Instant,
@@ -533,7 +542,9 @@ impl FdlMaster {
                     *self.communication_state.assert_with_token() =
                         StateWithToken::Idle { first: false };
                 } else if (now - sent_time) >= self.p.slot_time() {
-                    todo!("handle message cycle response timeout");
+                    self.app_handle_timeout(now, app, addr);
+                    *self.communication_state.assert_with_token() =
+                        StateWithToken::Idle { first: false };
                 } else {
                     // Still waiting for the response, nothing to do here.
                     return Some(PollDone());

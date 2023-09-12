@@ -203,6 +203,35 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     }
     println!();
 
+    let mut bytes_input = 0;
+    let mut bytes_output = 0;
+    for cfg_byte in module_config.iter().copied() {
+        let factor = if cfg_byte & 0x40 != 0 {
+            // length in words
+            2
+        } else {
+            // length in bytes
+            1
+        };
+        let length = ((cfg_byte & 0x0f) + 1) * factor;
+        if cfg_byte & 0x20 != 0 {
+            bytes_output += length;
+        }
+        if cfg_byte & 0x10 != 0 {
+            bytes_input += length;
+        }
+        if cfg_byte != 0 && cfg_byte & 0x30 == 0 {
+            bytes_input = 0;
+            bytes_output = 0;
+            println!(
+                "{}: Special module format not yet supported, I/O lengths are unknown.",
+                style("Warning").yellow().bold()
+            );
+            break;
+        }
+    }
+
+    println!();
     println!("{}", style("Peripheral Configuration:").bold());
     println!();
     println!(
@@ -263,5 +292,9 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     println!();
     println!("        ..Default::default()");
     println!("    }};");
+    if bytes_input != 0 || bytes_output != 0 {
+        println!("    let mut buffer_inputs = [0u8; {}];", bytes_input);
+        println!("    let mut buffer_outputs = [0u8; {}];", bytes_output);
+    }
     println!();
 }

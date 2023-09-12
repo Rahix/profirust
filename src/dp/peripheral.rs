@@ -190,6 +190,8 @@ impl<'a> Peripheral<'a> {
             self.state = PeripheralState::Reset;
         }
 
+        // TODO: Proper handling of `high_prio_only`.
+
         match self.state {
             PeripheralState::Reset => {
                 // Request diagnostics
@@ -278,7 +280,7 @@ impl<'a> Peripheral<'a> {
                             sa: fdl.parameters().address,
                             dsap: crate::consts::SAP_SLAVE_DATA_EXCHANGE,
                             ssap: crate::consts::SAP_MASTER_DATA_EXCHANGE,
-                            fc: crate::fdl::FunctionCode::new_srd_low(self.fcb),
+                            fc: crate::fdl::FunctionCode::new_srd_high(self.fcb),
                         },
                         self.pi_q.len(),
                         |buf| {

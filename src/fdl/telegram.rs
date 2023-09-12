@@ -237,6 +237,13 @@ impl FunctionCode {
             req: RequestType::SrdLow,
         }
     }
+
+    pub fn new_srd_high(fcb: FrameCountBit) -> Self {
+        Self::Request {
+            fcb,
+            req: RequestType::SrdHigh,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

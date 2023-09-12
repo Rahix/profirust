@@ -35,13 +35,10 @@ PROFIBUS peripheral:
    ```
    The configuration wizard will walk you through all the settings you need to
    make.  At this stage, you also need to setup the modules of your peripheral.
-   The wizard will then give you the ident number and byte arrays for
-   parameterization and configuration.
-3. Modify an example for your peripheral.  Update the peripheral address, ident
-   number, parameterization data, and configuration data.  You will also need
-   to correctly set the sizes of the input and output process image buffers.
-   Unfortunately, these sizes are not yet determined by `gsdtool`
-   automatically.
+   The wizard will then give you Rust code for configuring the peripheral
+   options to your selected values.
+3. Modify an example for your peripheral.  Update the peripheral address.  Then
+   paste the `PeripheralOptions` block and I/O buffers that `gsdtool` emitted.
 4. Run the example, ideally with `RUST_LOG=trace` to see bus communication.
    Hopefully, you should now be able to establish cyclic communication with
    your peripheral.

@@ -370,6 +370,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     );
     println!("        }},");
     println!();
+    println!("        fail_safe: {},", gsd.fail_safe);
     println!("        ..Default::default()");
     println!("    }};");
     if bytes_input != 0 || bytes_output != 0 {

@@ -387,7 +387,7 @@ impl FdlMaster {
     }
 
     #[must_use = "poll done marker"]
-    fn try_start_message_cycle(
+    fn app_transmit_telegram(
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
@@ -410,7 +410,7 @@ impl FdlMaster {
         }
     }
 
-    fn check_for_response(
+    fn app_receive_reply(
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
@@ -529,7 +529,7 @@ impl FdlMaster {
         // First check for ongoing message cycles and handle them.
         match *self.communication_state.assert_with_token() {
             StateWithToken::AwaitingResponse { addr, sent_time } => {
-                if self.check_for_response(now, phy, app, addr) {
+                if self.app_receive_reply(now, phy, app, addr) {
                     *self.communication_state.assert_with_token() =
                         StateWithToken::Idle { first: false };
                 } else if (now - sent_time) >= self.p.slot_time() {
@@ -577,7 +577,7 @@ impl FdlMaster {
                 // If we're over the rotation time and just acquired the token, we are allowed to
                 // perform one more high priority message cycle.
                 if first_with_token {
-                    return_if_done!(self.try_start_message_cycle(now, phy, app, true));
+                    return_if_done!(self.app_transmit_telegram(now, phy, app, true));
                 }
 
                 // In any other case, we pass on the token to the next master.
@@ -586,7 +586,7 @@ impl FdlMaster {
         }
 
         // We have time, try doing useful things.
-        return_if_done!(self.try_start_message_cycle(now, phy, app, false));
+        return_if_done!(self.app_transmit_telegram(now, phy, app, false));
 
         // If we end up here, there's nothing useful left to do so now handle the gap polling cycle.
         return_if_done!(self.handle_gap(now, phy));

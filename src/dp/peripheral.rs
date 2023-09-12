@@ -171,7 +171,7 @@ impl<'a> Peripheral<'a> {
 }
 
 impl<'a> Peripheral<'a> {
-    pub fn try_start_message_cycle<'b>(
+    pub fn transmit_telegram<'b>(
         &mut self,
         now: crate::time::Instant,
         dp: &crate::dp::DpMasterState,
@@ -297,7 +297,7 @@ impl<'a> Peripheral<'a> {
         }
     }
 
-    pub fn handle_response(
+    pub fn receive_reply(
         &mut self,
         now: crate::time::Instant,
         dp: &crate::dp::DpMasterState,

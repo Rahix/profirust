@@ -205,8 +205,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
             };
 
             if let Some((handle, peripheral)) = self.peripherals.get_at_index_mut(index) {
-                let res =
-                    peripheral.try_start_message_cycle(now, &self.state, fdl, tx, high_prio_only);
+                let res = peripheral.transmit_telegram(now, &self.state, fdl, tx, high_prio_only);
 
                 match res {
                     Ok(tx_res) => {
@@ -239,7 +238,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         };
         match self.peripherals.get_at_index_mut(index) {
             Some((handle, peripheral)) if addr == peripheral.address() => {
-                peripheral.handle_response(now, &self.state, fdl, telegram);
+                peripheral.receive_reply(now, &self.state, fdl, telegram);
                 self.increment_cycle_state(index);
             }
             _ => {

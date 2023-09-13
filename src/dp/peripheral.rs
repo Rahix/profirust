@@ -314,7 +314,7 @@ impl<'a> Peripheral<'a> {
             }
             PeripheralState::WaitForParam => {
                 if let crate::fdl::Telegram::ShortConfirmation(_) = telegram {
-                    log::debug!("Sent parameters to {}.", self.address);
+                    log::debug!("Sent parameters to #{}.", self.address);
                     self.fcb.cycle();
                     self.state = PeripheralState::WaitForConfig;
                 } else {
@@ -323,7 +323,7 @@ impl<'a> Peripheral<'a> {
             }
             PeripheralState::WaitForConfig => {
                 if let crate::fdl::Telegram::ShortConfirmation(_) = telegram {
-                    log::debug!("Sent configuration to {}.", self.address);
+                    log::debug!("Sent configuration to #{}.", self.address);
                     self.fcb.cycle();
                     self.state = PeripheralState::ValidateConfig;
                 } else {

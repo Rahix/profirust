@@ -363,11 +363,42 @@ impl<'a> Peripheral<'a> {
             }
             PeripheralState::DataExchange | PeripheralState::PreDataExchange => {
                 if let crate::fdl::Telegram::Data(t) = telegram {
-                    if t.pdu.len() == self.pi_i.len() {
-                        self.pi_i.copy_from_slice(&t.pdu);
-                        self.state = PeripheralState::DataExchange;
-                    } else {
-                        log::warn!("Got response with unexpected pdu length!");
+                    let data_ok = match t.is_response().unwrap() {
+                        crate::fdl::ResponseStatus::SapNotEnabled => {
+                            log::warn!(
+                                "Got \"SAP not enabled\" response from #{}, revalidating config...",
+                                self.address
+                            );
+                            self.state = PeripheralState::ValidateConfig;
+                            false
+                        }
+
+                        crate::fdl::ResponseStatus::Ok => true, // TODO: Is this actually correct?
+                        crate::fdl::ResponseStatus::DataLow => true,
+                        crate::fdl::ResponseStatus::DataHigh => true,
+
+                        e => {
+                            log::warn!(
+                                "Unhandled response status \"{:?}\" from #{}!",
+                                e,
+                                self.address
+                            );
+                            false
+                        }
+                    };
+
+                    if data_ok {
+                        if t.pdu.len() == self.pi_i.len() {
+                            self.pi_i.copy_from_slice(&t.pdu);
+                            self.state = PeripheralState::DataExchange;
+                        } else {
+                            log::warn!(
+                            "Got response from #{} with unexpected PDU length (got: {}, want: {})!",
+                            self.address,
+                            t.pdu.len(),
+                            self.pi_i.len()
+                        );
+                        }
                     }
                 }
                 self.retry_count = 0;

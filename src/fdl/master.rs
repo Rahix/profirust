@@ -649,7 +649,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-    ) -> Option<PollDone> {
+    ) -> PollDone {
         debug_assert!(!self.communication_state.have_token());
 
         enum NextAction {
@@ -664,6 +664,7 @@ impl FdlMaster {
                             if token_telegram.da == self.p.address {
                                 // Heyy, we got the token!
                                 self.acquire_token(now, &token_telegram);
+                                PollDone::waiting_for_delay()
                             } else {
                                 log::trace!(
                                     "Witnessed token passing: {} => {}",
@@ -679,8 +680,8 @@ impl FdlMaster {
                                     }
                                     self.in_ring = false;
                                 }
+                                PollDone::waiting_for_bus()
                             }
-                            None
                         }
                         crate::fdl::Telegram::Data(telegram) if telegram.h.da == self.p.address => {
                             if let Some(da) = telegram.is_fdl_status_request() {
@@ -689,16 +690,23 @@ impl FdlMaster {
                                         destination: da,
                                         recv_time: now,
                                     };
+                                PollDone::waiting_for_delay()
+                            } else {
+                                PollDone::waiting_for_bus()
                             }
-                            None
                         }
                         t => {
                             // Unhandled telegram, probably not for us.
-                            None
+                            PollDone::waiting_for_bus()
                         }
                     }
                 })
-                .unwrap_or(None),
+                .unwrap_or_else(|| {
+                    // When we did not receive a telegram, check whether the token got lost and if
+                    // it didn't, just end the poll cycle.
+                    return_if_done!(self.handle_lost_token(now, phy));
+                    PollDone::waiting_for_bus()
+                }),
             // TODO: This should be min(Tsdr)
             StateWithoutToken::PendingFdlStatusResponse {
                 destination,
@@ -722,10 +730,10 @@ impl FdlMaster {
                         ))
                     })
                     .unwrap();
-                Some(self.mark_tx(now, tx_res.bytes_sent()))
+                self.mark_tx(now, tx_res.bytes_sent())
             }
             // Continue waiting...
-            StateWithoutToken::PendingFdlStatusResponse { .. } => None,
+            StateWithoutToken::PendingFdlStatusResponse { .. } => PollDone::waiting_for_delay(),
         }
     }
 
@@ -746,10 +754,10 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut PHY,
         app: &mut impl crate::fdl::FdlApplication,
-    ) -> Option<PollDone> {
+    ) -> PollDone {
         if self.connectivity_state == ConnectivityState::Offline {
             // When we are offline, don't do anything at all.
-            return None;
+            return PollDone();
         }
 
         return_if_done!(self.check_for_ongoing_transmision(now, phy));
@@ -757,17 +765,10 @@ impl FdlMaster {
         self.check_for_bus_activity(now, phy);
 
         if self.communication_state.have_token() {
-            return Some(self.handle_with_token(now, phy, app));
+            self.handle_with_token(now, phy, app)
         } else {
-            return_if_done!(self.handle_without_token(now, phy));
-            // We may have just received the token so do one more pass "with token".
-            if self.communication_state.have_token() {
-                return Some(self.handle_with_token(now, phy, app));
-            }
+            self.handle_without_token(now, phy)
         }
-
-        return_if_done!(self.handle_lost_token(now, phy));
-        None
     }
 }
 

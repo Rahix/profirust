@@ -271,7 +271,7 @@ struct PollDone();
 macro_rules! return_if_done {
     ($expr:expr) => {
         match $expr {
-            e @ Some(PollDone()) => return e,
+            Some(e @ PollDone()) => return e.into(),
             None => (),
         }
     };
@@ -542,7 +542,7 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
         app: &mut impl crate::fdl::FdlApplication,
-    ) -> Option<PollDone> {
+    ) -> PollDone {
         // First check for ongoing message cycles and handle them.
         match *self.communication_state.assert_with_token() {
             StateWithToken::AwaitingResponse { addr, sent_time } => {
@@ -555,7 +555,7 @@ impl FdlMaster {
                         StateWithToken::Idle { first: false };
                 } else {
                     // Still waiting for the response, nothing to do here.
-                    return Some(PollDone());
+                    return PollDone();
                 }
             }
             StateWithToken::AwaitingFdlStatusResponse { addr, sent_time } => {
@@ -571,7 +571,7 @@ impl FdlMaster {
                     *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
                 } else {
                     // Still waiting for the response, nothing to do here.
-                    return Some(PollDone());
+                    return PollDone();
                 }
             }
             // Continue towards transmission when idle or forwarding token.
@@ -584,7 +584,7 @@ impl FdlMaster {
 
         let first_with_token = match self.communication_state.assert_with_token() {
             StateWithToken::ForwardToken => {
-                return Some(self.forward_token(now, phy));
+                return self.forward_token(now, phy);
             }
             StateWithToken::Idle { first } => *first,
             _ => unreachable!(),
@@ -600,7 +600,7 @@ impl FdlMaster {
                 }
 
                 // In any other case, we pass on the token to the next master.
-                return Some(self.forward_token(now, phy));
+                return self.forward_token(now, phy);
             }
         }
 
@@ -611,7 +611,7 @@ impl FdlMaster {
         return_if_done!(self.handle_gap(now, phy));
 
         // And if even the gap poll didn't lead to a message, pass token immediately.
-        return Some(self.forward_token(now, phy));
+        self.forward_token(now, phy)
     }
 
     #[must_use = "poll done marker"]
@@ -727,13 +727,12 @@ impl FdlMaster {
         self.check_for_bus_activity(now, phy);
 
         if self.communication_state.have_token() {
-            // log::trace!("{} has token!", self.p.address);
-            return_if_done!(self.handle_with_token(now, phy, app));
+            return Some(self.handle_with_token(now, phy, app));
         } else {
             return_if_done!(self.handle_without_token(now, phy));
             // We may have just received the token so do one more pass "with token".
             if self.communication_state.have_token() {
-                return_if_done!(self.handle_with_token(now, phy, app));
+                return Some(self.handle_with_token(now, phy, app));
             }
         }
 

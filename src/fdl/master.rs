@@ -378,7 +378,11 @@ impl FdlMaster {
         // activity was just now and start counting from here...
         let last_bus_activity = *self.last_bus_activity.get_or_insert(now);
         if (now - last_bus_activity) >= self.p.token_lost_timeout() {
-            log::warn!("Token lost! Generating a new one.");
+            if self.in_ring {
+                log::warn!("Token lost! Generating a new one.");
+            } else {
+                log::info!("Generating new token due to silent bus.");
+            }
             self.next_master = self.p.address;
             Some(self.forward_token(now, phy))
         } else {

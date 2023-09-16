@@ -280,6 +280,10 @@ impl PollDone {
     pub fn waiting_for_delay() -> Self {
         PollDone()
     }
+
+    pub fn offline() -> Self {
+        PollDone()
+    }
 }
 
 macro_rules! return_if_done {
@@ -757,7 +761,7 @@ impl FdlMaster {
     ) -> PollDone {
         if self.connectivity_state == ConnectivityState::Offline {
             // When we are offline, don't do anything at all.
-            return PollDone();
+            return PollDone::offline();
         }
 
         return_if_done!(self.check_for_ongoing_transmision(now, phy));

@@ -79,6 +79,7 @@ enum PeripheralState {
     WaitForParam,
     WaitForConfig,
     ValidateConfig,
+    PreDataExchange,
     DataExchange,
 }
 
@@ -269,7 +270,7 @@ impl<'a> Peripheral<'a> {
                 // Request diagnostics once more
                 Ok(self.send_diagnostics_request(fdl, tx))
             }
-            PeripheralState::DataExchange => {
+            PeripheralState::DataExchange | PeripheralState::PreDataExchange => {
                 // Request diagnostics again
                 let last_diag = self.last_diag.get_or_insert(now);
                 if (now - *last_diag) > crate::time::Duration::from_secs(1) {
@@ -362,7 +363,7 @@ impl<'a> Peripheral<'a> {
                         PeripheralState::WaitForParam
                     } else if !diag.flags.contains(DiagnosticFlags::STATION_NOT_READY) {
                         log::info!("Peripheral #{} becomes ready for data exchange.", address);
-                        PeripheralState::DataExchange
+                        PeripheralState::PreDataExchange
                     } else {
                         PeripheralState::ValidateConfig
                     }
@@ -370,7 +371,7 @@ impl<'a> Peripheral<'a> {
                     PeripheralState::ValidateConfig
                 };
             }
-            PeripheralState::DataExchange => {
+            PeripheralState::DataExchange | PeripheralState::PreDataExchange => {
                 if self.sent_diag {
                     self.sent_diag = false;
                     self.retry_count = 0;
@@ -379,6 +380,7 @@ impl<'a> Peripheral<'a> {
                     if let crate::fdl::Telegram::Data(t) = telegram {
                         if t.pdu.len() == self.pi_i.len() {
                             self.pi_i.copy_from_slice(&t.pdu);
+                            self.state = PeripheralState::DataExchange;
                         } else {
                             log::warn!("Got response with unexpected pdu length!");
                         }

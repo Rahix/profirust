@@ -228,7 +228,7 @@ impl<'a> Peripheral<'a> {
                                 buf[2] = f2;
                             }
                             // Minimum T_sdr
-                            buf[3] = 11;
+                            buf[3] = fdl.parameters().min_tsdr_bits;
                             // Ident
                             buf[4..6].copy_from_slice(&self.options.ident_number.to_be_bytes());
                             // Groups

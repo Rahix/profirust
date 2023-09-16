@@ -76,7 +76,6 @@ pub struct PeripheralDiagnostics {
 enum PeripheralState {
     #[default]
     Offline,
-    Reset,
     WaitForParam,
     WaitForConfig,
     ValidateConfig,
@@ -89,6 +88,8 @@ pub struct Peripheral<'a> {
     address: u8,
     /// Current state of this peripheral
     state: PeripheralState,
+    /// Retry count when messages don't receive a valid response.
+    retry_count: u8,
     /// FCB/FCV tracking for this peripheral
     ///
     /// The "Frame Count Bit" is used to detect lost messages and prevent duplication on either
@@ -182,20 +183,22 @@ impl<'a> Peripheral<'a> {
         // We never expect to be called in `Stop` or even worse `Offline` operating states.
         debug_assert!(dp.operating_state.is_operate() || dp.operating_state.is_clear());
 
-        if !fdl.check_address_live(self.address) {
-            self.state = PeripheralState::Offline;
-            return Err(tx);
-        } else if self.state == PeripheralState::Offline {
-            // Live but we're still "offline" => go to "reset" state
-            self.state = PeripheralState::Reset;
-        }
-
-        // TODO: Proper handling of `high_prio_only`.
-
-        match self.state {
-            PeripheralState::Reset => {
-                // Request diagnostics
-                Ok(self.send_diagnostics_request(fdl, tx))
+        let res = match self.state {
+            _ if self.retry_count > fdl.parameters().max_retry_limit => {
+                // Assume peripheral is now offline so the next step is sending SYNC messages to detect
+                // when it comes back.
+                log::warn!("Peripheral #{} stopped responding!", self.address);
+                self.state = PeripheralState::Offline;
+                Err(tx)
+            }
+            PeripheralState::Offline => {
+                if self.retry_count == 0 {
+                    // Request diagnostics to see whether the peripheral responds.
+                    Ok(self.send_diagnostics_request(fdl, tx))
+                } else {
+                    // Don't retry when the peripheral may be offline.
+                    Err(tx)
+                }
             }
             PeripheralState::WaitForParam => {
                 if let Some(user_parameters) = self.options.user_parameters {
@@ -293,8 +296,16 @@ impl<'a> Peripheral<'a> {
                     ))
                 }
             }
-            PeripheralState::Offline => unreachable!(),
+        };
+
+        // When we are transmitting a telegram, increment the retry count.
+        if res.is_ok() {
+            self.retry_count += 1;
+        } else {
+            self.retry_count = 0;
         }
+
+        res
     }
 
     pub fn receive_reply(
@@ -305,10 +316,10 @@ impl<'a> Peripheral<'a> {
         telegram: crate::fdl::Telegram,
     ) {
         match self.state {
-            PeripheralState::Offline => unreachable!(),
-            PeripheralState::Reset => {
+            PeripheralState::Offline => {
                 // Diagnostics response
                 if self.handle_diagnostics_response(fdl, &telegram).is_some() {
+                    self.retry_count = 0;
                     self.state = PeripheralState::WaitForParam;
                 }
             }
@@ -317,6 +328,7 @@ impl<'a> Peripheral<'a> {
                     log::debug!("Sent parameters to #{}.", self.address);
                     self.fcb.cycle();
                     self.state = PeripheralState::WaitForConfig;
+                    self.retry_count = 0;
                 } else {
                     todo!()
                 }
@@ -332,15 +344,16 @@ impl<'a> Peripheral<'a> {
             }
             PeripheralState::ValidateConfig => {
                 let address = self.address;
+                self.retry_count = 0;
                 self.state = if let Some(diag) = self.handle_diagnostics_response(fdl, &telegram) {
                     if diag.flags.contains(DiagnosticFlags::PARAMETER_FAULT) {
                         log::warn!("Peripheral #{} reports a parameter fault!", address);
-                        // TODO: Going to `Reset` here will just end in a loop.
-                        PeripheralState::Reset
+                        // TODO: Going to `Offline` here will just end in a loop.
+                        PeripheralState::Offline
                     } else if diag.flags.contains(DiagnosticFlags::CONFIGURATION_FAULT) {
                         log::warn!("Peripheral #{} reports a configuration fault!", address);
-                        // TODO: Going to `Reset` here will just end in a loop.
-                        PeripheralState::Reset
+                        // TODO: Going to `Offline` here will just end in a loop.
+                        PeripheralState::Offline
                     } else if diag.flags.contains(DiagnosticFlags::PARAMETER_REQUIRED) {
                         log::warn!(
                             "Peripheral #{} wants parameters after completing setup?! Retrying...",
@@ -360,6 +373,7 @@ impl<'a> Peripheral<'a> {
             PeripheralState::DataExchange => {
                 if self.sent_diag {
                     self.sent_diag = false;
+                    self.retry_count = 0;
                     self.handle_diagnostics_response(fdl, &telegram);
                 } else {
                     if let crate::fdl::Telegram::Data(t) = telegram {
@@ -369,6 +383,7 @@ impl<'a> Peripheral<'a> {
                             log::warn!("Got response with unexpected pdu length!");
                         }
                     }
+                    self.retry_count = 0;
                     self.fcb.cycle();
                 }
             }

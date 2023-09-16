@@ -250,7 +250,9 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
     }
 
     fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &crate::fdl::FdlMaster, addr: u8) {
-        log::warn!("Timeout while waiting for response from #{}!", addr);
-        todo!();
+        // At this time, there is no meaningful action to take in response to this.  Timeout
+        // handling is actually done as part of the transmit_telegram() code.
+        //
+        // log::warn!("Timeout while waiting for response from #{}!", addr);
     }
 }

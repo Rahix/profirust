@@ -52,7 +52,7 @@ impl Parameters {
         self.baudrate.bits_to_time(bits)
     }
 
-    /// T<sub>SL</sub> (slit time) converted to duration
+    /// T<sub>SL</sub> (slot time) converted to duration
     pub fn slot_time(&self) -> crate::time::Duration {
         self.bits_to_time(u32::from(self.slot_bits))
     }

@@ -28,6 +28,8 @@ pub struct Parameters {
     pub highest_station_address: u8,
     /// Maximum number of retries when no answer was received
     pub max_retry_limit: u8,
+    /// min T<sub>SDR</sub>: Minimum delay before anyone is allowed to respond to a telegram
+    pub min_tsdr_bits: u8,
 }
 
 impl Default for Parameters {
@@ -39,6 +41,8 @@ impl Default for Parameters {
             token_rotation_bits: 20000, // TODO: really sane default?  This was at least recommended somewhere...
             gap_wait_rotations: 100,    // TODO: sane default?
             highest_station_address: 125,
+            // Defaults to 1 byte time (= 11 bits)
+            min_tsdr_bits: 11,
             // Retry limit defaults to 1, meaning that a telegram will be retried once.  This is a
             // sane default as retries should not be necessary at all on a bus that is set up
             // correctly.
@@ -55,6 +59,11 @@ impl Parameters {
     /// T<sub>SL</sub> (slot time) converted to duration
     pub fn slot_time(&self) -> crate::time::Duration {
         self.bits_to_time(u32::from(self.slot_bits))
+    }
+
+    /// min T<sub>SDR</sub> (minimum time before responding) converted to duration
+    pub fn min_tsdr_time(&self) -> crate::time::Duration {
+        self.bits_to_time(u32::from(self.min_tsdr_bits))
     }
 
     /// Timeout after which the token is considered lost.

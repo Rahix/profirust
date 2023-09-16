@@ -711,11 +711,10 @@ impl FdlMaster {
                     return_if_done!(self.handle_lost_token(now, phy));
                     PollDone::waiting_for_bus()
                 }),
-            // TODO: This should be min(Tsdr)
             StateWithoutToken::PendingFdlStatusResponse {
                 destination,
                 recv_time,
-            } if (now - recv_time) >= self.p.bits_to_time(11) => {
+            } if (now - recv_time) >= self.p.min_tsdr_time() => {
                 *self.communication_state.assert_without_token() = StateWithoutToken::Idle;
 
                 let state = if self.in_ring {

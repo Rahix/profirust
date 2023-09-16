@@ -268,6 +268,20 @@ impl FdlMaster {
 #[must_use = "\"poll done\" marker must lead to exit of poll function!"]
 struct PollDone();
 
+impl PollDone {
+    pub fn waiting_for_transmission() -> Self {
+        PollDone()
+    }
+
+    pub fn waiting_for_bus() -> Self {
+        PollDone()
+    }
+
+    pub fn waiting_for_delay() -> Self {
+        PollDone()
+    }
+}
+
 macro_rules! return_if_done {
     ($expr:expr) => {
         match $expr {
@@ -300,7 +314,7 @@ impl FdlMaster {
     ) -> Option<PollDone> {
         if self.last_bus_activity.map(|l| now <= l).unwrap_or(false) || phy.is_transmitting() {
             self.mark_bus_activity(now);
-            Some(PollDone())
+            Some(PollDone::waiting_for_transmission())
         } else {
             None
         }
@@ -314,7 +328,7 @@ impl FdlMaster {
         // TODO: Is it right to write the last_bus_activity here?  Probably does not matter as
         // handle_lost_token() will most likely get called way earlier.
         if now <= (*self.last_bus_activity.get_or_insert(now) + self.p.baudrate.bits_to_time(33)) {
-            Some(PollDone())
+            Some(PollDone::waiting_for_delay())
         } else {
             None
         }
@@ -328,7 +342,7 @@ impl FdlMaster {
                 .baudrate
                 .bits_to_time(11 * u32::try_from(bytes).unwrap()),
         );
-        PollDone()
+        PollDone::waiting_for_transmission()
     }
 
     fn check_for_bus_activity(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) {
@@ -555,7 +569,7 @@ impl FdlMaster {
                         StateWithToken::Idle { first: false };
                 } else {
                     // Still waiting for the response, nothing to do here.
-                    return PollDone();
+                    return PollDone::waiting_for_bus();
                 }
             }
             StateWithToken::AwaitingFdlStatusResponse { addr, sent_time } => {
@@ -571,7 +585,7 @@ impl FdlMaster {
                     *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
                 } else {
                     // Still waiting for the response, nothing to do here.
-                    return PollDone();
+                    return PollDone::waiting_for_bus();
                 }
             }
             // Continue towards transmission when idle or forwarding token.

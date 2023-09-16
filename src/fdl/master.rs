@@ -430,12 +430,16 @@ impl FdlMaster {
                     return false;
                 }
                 crate::fdl::Telegram::Data(t) => {
+                    if t.is_response().is_none() {
+                        log::warn!("Received non-response telegram: {t:?}");
+                        return false;
+                    }
                     if t.h.da != self.p.address {
                         log::warn!("Received telegram with unexpected destination: {t:?}");
                         return false;
                     }
                 }
-                _ => (),
+                crate::fdl::Telegram::ShortConfirmation(_) => (),
             }
             // TODO: This needs to be revisited.  Always return true?
             app.receive_reply(now, self, addr, telegram);

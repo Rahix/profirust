@@ -445,6 +445,13 @@ impl DataTelegram<'_> {
             None
         }
     }
+
+    pub fn is_response(&self) -> Option<ResponseStatus> {
+        match self.h.fc {
+            FunctionCode::Response { status, .. } => Some(status),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

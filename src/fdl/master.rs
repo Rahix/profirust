@@ -563,13 +563,17 @@ impl FdlMaster {
                 if self.app_receive_reply(now, phy, app, addr) {
                     *self.communication_state.assert_with_token() =
                         StateWithToken::Idle { first: false };
+                    // Waiting for synchronization pause now
+                    PollDone::waiting_for_delay()
                 } else if (now - sent_time) >= self.p.slot_time() {
                     self.app_handle_timeout(now, app, addr);
                     *self.communication_state.assert_with_token() =
                         StateWithToken::Idle { first: false };
+                    // TODO: Will this transmit or wait?
+                    self.handle_with_token_transmission(now, phy, app)
                 } else {
                     // Still waiting for the response, nothing to do here.
-                    return PollDone::waiting_for_bus();
+                    PollDone::waiting_for_bus()
                 }
             }
             StateWithToken::AwaitingFdlStatusResponse { addr, sent_time } => {
@@ -578,21 +582,33 @@ impl FdlMaster {
                     // After the gap response, we pass on the token.
                     self.update_live_state(addr, true);
                     *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
+                    // Waiting for synchronization pause now
+                    PollDone::waiting_for_delay()
                 } else if (now - sent_time) >= self.p.slot_time() {
                     log::trace!("Address {addr} didn't respond in {}!", self.p.slot_time());
                     // Mark this address as not alive and pass on the token.
                     self.update_live_state(addr, false);
                     *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
+                    // TODO: Will this transmit or wait?
+                    self.handle_with_token_transmission(now, phy, app)
                 } else {
                     // Still waiting for the response, nothing to do here.
-                    return PollDone::waiting_for_bus();
+                    PollDone::waiting_for_bus()
                 }
             }
-            // Continue towards transmission when idle or forwarding token.
-            StateWithToken::Idle { .. } => (),
-            StateWithToken::ForwardToken => (),
+            StateWithToken::Idle { .. } | StateWithToken::ForwardToken => {
+                self.handle_with_token_transmission(now, phy, app)
+            }
         }
+    }
 
+    #[must_use = "poll done marker"]
+    fn handle_with_token_transmission(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+        app: &mut impl crate::fdl::FdlApplication,
+    ) -> PollDone {
         // Before we can send anything, we must always wait 33 bit times (synchronization pause).
         return_if_done!(self.wait_synchronization_pause(now));
 

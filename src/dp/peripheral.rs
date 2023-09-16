@@ -101,8 +101,6 @@ pub struct Peripheral<'a> {
     /// Process Image of Outputs
     pi_q: &'a mut [u8],
     /// Last diagnostics request
-    last_diag: Option<crate::time::Instant>,
-    sent_diag: bool,
     diag: Option<PeripheralDiagnostics>,
 
     options: PeripheralOptions<'a>,
@@ -271,31 +269,23 @@ impl<'a> Peripheral<'a> {
                 Ok(self.send_diagnostics_request(fdl, tx))
             }
             PeripheralState::DataExchange | PeripheralState::PreDataExchange => {
-                // Request diagnostics again
-                let last_diag = self.last_diag.get_or_insert(now);
-                if (now - *last_diag) > crate::time::Duration::from_secs(1) {
-                    *last_diag = now;
-                    self.sent_diag = true;
-                    Ok(self.send_diagnostics_request(fdl, tx))
-                } else {
-                    Ok(tx.send_data_telegram(
-                        crate::fdl::DataTelegramHeader {
-                            da: self.address,
-                            sa: fdl.parameters().address,
-                            dsap: crate::consts::SAP_SLAVE_DATA_EXCHANGE,
-                            ssap: crate::consts::SAP_MASTER_DATA_EXCHANGE,
-                            fc: crate::fdl::FunctionCode::new_srd_high(self.fcb),
-                        },
-                        self.pi_q.len(),
-                        |buf| {
-                            // Only write output process image in `Operate` state.  In `Clear`
-                            // state, we leave the output process image all zeros.
-                            if dp.operating_state.is_operate() {
-                                buf.copy_from_slice(&self.pi_q);
-                            }
-                        },
-                    ))
-                }
+                Ok(tx.send_data_telegram(
+                    crate::fdl::DataTelegramHeader {
+                        da: self.address,
+                        sa: fdl.parameters().address,
+                        dsap: crate::consts::SAP_SLAVE_DATA_EXCHANGE,
+                        ssap: crate::consts::SAP_MASTER_DATA_EXCHANGE,
+                        fc: crate::fdl::FunctionCode::new_srd_high(self.fcb),
+                    },
+                    self.pi_q.len(),
+                    |buf| {
+                        // Only write output process image in `Operate` state.  In `Clear`
+                        // state, we leave the output process image all zeros.
+                        if dp.operating_state.is_operate() {
+                            buf.copy_from_slice(&self.pi_q);
+                        }
+                    },
+                ))
             }
         };
 
@@ -372,22 +362,16 @@ impl<'a> Peripheral<'a> {
                 };
             }
             PeripheralState::DataExchange | PeripheralState::PreDataExchange => {
-                if self.sent_diag {
-                    self.sent_diag = false;
-                    self.retry_count = 0;
-                    self.handle_diagnostics_response(fdl, &telegram);
-                } else {
-                    if let crate::fdl::Telegram::Data(t) = telegram {
-                        if t.pdu.len() == self.pi_i.len() {
-                            self.pi_i.copy_from_slice(&t.pdu);
-                            self.state = PeripheralState::DataExchange;
-                        } else {
-                            log::warn!("Got response with unexpected pdu length!");
-                        }
+                if let crate::fdl::Telegram::Data(t) = telegram {
+                    if t.pdu.len() == self.pi_i.len() {
+                        self.pi_i.copy_from_slice(&t.pdu);
+                        self.state = PeripheralState::DataExchange;
+                    } else {
+                        log::warn!("Got response with unexpected pdu length!");
                     }
-                    self.retry_count = 0;
-                    self.fcb.cycle();
                 }
+                self.retry_count = 0;
+                self.fcb.cycle();
             }
         }
     }

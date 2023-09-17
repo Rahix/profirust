@@ -338,6 +338,29 @@ impl FdlMaster {
         }
     }
 
+    /// Check whether the time to respond has passed without initiation of a response.
+    fn check_slot_expired(&mut self, now: crate::time::Instant) -> bool {
+        // We have two situations:
+        // 1. Either the slot expires without any repsonse activity at all
+        // 2. Or we received some bytes, but not a full telegram
+        let last_bus_activity = *self.last_bus_activity.get_or_insert(now);
+        if self.pending_bytes == 0 {
+            now > (last_bus_activity + self.p.slot_time())
+        } else {
+            // TODO: Technically, no inter-character delay is allowed at all but we are in a rough
+            // spot here.  The peripheral will most likely continue transmitting data in a short
+            // while so let's be conservative and wait an entire slot time again after partial
+            // receival.
+            //
+            // The tricky part here is that this timeout also becomes very relevant on non-realtime
+            // systems like a vanilla Linux where PROFIBUS communication happens over USB.  We can
+            // have longer delays between consecutive characters there.  For example, sometimes
+            // data is received in chunks of 32 bytes.  This obviously looks like a large
+            // inter-character delay that we need to be robust against.
+            now > (last_bus_activity + self.p.slot_time())
+        }
+    }
+
     /// Marks transmission starting `now` and continuing for `bytes` length.
     fn mark_tx(&mut self, now: crate::time::Instant, bytes: usize) -> PollDone {
         self.last_bus_activity = Some(
@@ -569,7 +592,7 @@ impl FdlMaster {
                         StateWithToken::Idle { first: false };
                     // Waiting for synchronization pause now
                     PollDone::waiting_for_delay()
-                } else if (now - sent_time) >= self.p.slot_time() {
+                } else if self.check_slot_expired(now) {
                     self.app_handle_timeout(now, app, addr);
                     *self.communication_state.assert_with_token() =
                         StateWithToken::Idle { first: false };
@@ -588,7 +611,7 @@ impl FdlMaster {
                     *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
                     // Waiting for synchronization pause now
                     PollDone::waiting_for_delay()
-                } else if (now - sent_time) >= self.p.slot_time() {
+                } else if self.check_slot_expired(now) {
                     log::trace!("Address {addr} didn't respond in {}!", self.p.slot_time());
                     // Mark this address as not alive and pass on the token.
                     self.update_live_state(addr, false);

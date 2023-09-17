@@ -2,15 +2,18 @@
 ///
 /// These parameters configure the behavior of the FDL master.
 ///
+/// You should use the [`ParametersBuilder`] to build the parameters struct.
+///
 /// # Example
 /// ```
 /// use profirust::fdl;
+/// # let buffer: [profirust::dp::PeripheralStorage; 4] = Default::default();
+/// # let dp_master = profirust::dp::DpMaster::new(buffer);
 ///
-/// let param = fdl::Parameters {
-///     address: 2,
-///     baudrate: profirust::Baudrate::B31250,
-///     .. Default::default()
-/// };
+/// let master_address = 2;
+/// let param = fdl::ParametersBuilder::new(master_address, profirust::Baudrate::B19200)
+///     .slot_bits(300)
+///     .build_verified(&dp_master.peripherals);
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Parameters {

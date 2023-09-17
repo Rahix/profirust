@@ -8,13 +8,12 @@ fn test_token_timeout(#[values(0, 1, 7, 14)] addr: u8) {
     let mut phy0 = crate::phy::SimulatorPhy::new(baud, "phy#0");
     let mut phy7 = phy0.duplicate("phy#7");
 
-    let mut master7 = crate::fdl::FdlMaster::new(crate::fdl::Parameters {
-        address: addr,
-        baudrate: baud,
-        highest_station_address: 16,
-        slot_bits: 300,
-        ..Default::default()
-    });
+    let mut master7 = crate::fdl::FdlMaster::new(
+        crate::fdl::ParametersBuilder::new(addr, baud)
+            .highest_station_address(16)
+            .slot_bits(300)
+            .build(),
+    );
 
     crate::test_utils::set_active_addr(addr);
     master7.set_online();
@@ -87,20 +86,18 @@ fn two_masters_and_their_tokens() {
     let mut phy1 = crate::phy::SimulatorPhy::new(baud, "phy#2");
     let mut phy2 = phy1.duplicate("phy#7");
 
-    let mut master1 = crate::fdl::FdlMaster::new(crate::fdl::Parameters {
-        address: 2,
-        baudrate: baud,
-        highest_station_address: 16,
-        slot_bits: 300,
-        ..Default::default()
-    });
-    let mut master2 = crate::fdl::FdlMaster::new(crate::fdl::Parameters {
-        address: 7,
-        baudrate: baud,
-        highest_station_address: 16,
-        slot_bits: 300,
-        ..Default::default()
-    });
+    let mut master1 = crate::fdl::FdlMaster::new(
+        crate::fdl::ParametersBuilder::new(2, baud)
+            .highest_station_address(16)
+            .slot_bits(300)
+            .build(),
+    );
+    let mut master2 = crate::fdl::FdlMaster::new(
+        crate::fdl::ParametersBuilder::new(7, baud)
+            .highest_station_address(16)
+            .slot_bits(300)
+            .build(),
+    );
 
     crate::test_utils::set_active_addr(2);
     master1.set_online();

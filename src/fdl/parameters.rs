@@ -34,6 +34,8 @@ pub struct Parameters {
     pub max_retry_limit: u8,
     /// min T<sub>SDR</sub>: Minimum delay before anyone is allowed to respond to a telegram
     pub min_tsdr_bits: u8,
+    /// Watchdog timeout for peripherals monitoring the DP master
+    pub watchdog_factors: Option<(u8, u8)>,
 }
 
 impl Default for Parameters {
@@ -56,10 +58,15 @@ impl Default for Parameters {
             // sane default as retries should not be necessary at all on a bus that is set up
             // correctly.
             max_retry_limit: 1,
+            // No watchdog by default.
+            //
+            // TODO: Is this what we want?  Found 6250 x HSA recommended elsewhere.
+            watchdog_factors: None,
         }
     }
 }
 
+#[inline]
 fn min_slot_bits(baudrate: crate::Baudrate) -> u16 {
     match baudrate {
         crate::Baudrate::B9600
@@ -74,6 +81,27 @@ fn min_slot_bits(baudrate: crate::Baudrate) -> u16 {
         crate::Baudrate::B6000000 => 600,
         crate::Baudrate::B12000000 => 1000,
     }
+}
+
+#[inline]
+fn watchdog_factors(dur: crate::time::Duration) -> Option<Result<(u8, u8), ()>> {
+    // TODO: Support the different watchdog time bases in some way?
+    Some(dur)
+        .filter(|dur| *dur != crate::time::Duration::ZERO)
+        .map(|dur| {
+            let timeout_10ms: u32 = (dur.total_millis() / 10).try_into().or(Err(()))?;
+
+            for f1 in 1..256 {
+                let f2 = (timeout_10ms + f1 - 1) / f1;
+
+                if f2 < 256 {
+                    return Ok((u8::try_from(f1).unwrap(), u8::try_from(f2).unwrap()));
+                }
+            }
+
+            // Timeout is still too big
+            Err(())
+        })
 }
 
 pub struct ParametersBuilder(Parameters);
@@ -133,6 +161,14 @@ impl ParametersBuilder {
     }
 
     #[inline]
+    pub fn watchdog_timeout(&mut self, wdg: crate::time::Duration) -> &mut Self {
+        assert!(wdg >= crate::time::Duration::from_millis(10));
+        assert!(wdg <= crate::time::Duration::from_secs(650));
+        self.0.watchdog_factors = watchdog_factors(wdg).transpose().unwrap();
+        self
+    }
+
+    #[inline]
     pub fn build(&self) -> Parameters {
         self.0.clone()
     }
@@ -176,5 +212,11 @@ impl Parameters {
     /// T<sub>TR</sub> (projected token rotation time)
     pub fn token_rotation_time(&self) -> crate::time::Duration {
         self.bits_to_time(self.token_rotation_bits)
+    }
+
+    /// Watchdog timeout
+    pub fn watchdog_timeout(&self) -> Option<crate::time::Duration> {
+        self.watchdog_factors
+            .map(|(f1, f2)| crate::time::Duration::from_millis(u64::from(f1) * u64::from(f2) * 10))
     }
 }

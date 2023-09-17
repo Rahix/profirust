@@ -41,7 +41,8 @@ impl Default for Parameters {
         Parameters {
             address: 1,
             baudrate: crate::Baudrate::B19200,
-            slot_bits: 100, // TODO: needs to be adjusted depending on baudrate
+            /// Tied to the baudrate - will usually be adjusted by the ParametersBuilder.
+            slot_bits: 100,
             token_rotation_bits: 20000, // TODO: really sane default?  This was at least recommended somewhere...
             gap_wait_rotations: 100,    // TODO: sane default?
             highest_station_address: 125,
@@ -55,6 +56,22 @@ impl Default for Parameters {
     }
 }
 
+fn min_slot_bits(baudrate: crate::Baudrate) -> u16 {
+    match baudrate {
+        crate::Baudrate::B9600
+        | crate::Baudrate::B19200
+        | crate::Baudrate::B31250
+        | crate::Baudrate::B45450
+        | crate::Baudrate::B93750
+        | crate::Baudrate::B187500 => 100,
+        crate::Baudrate::B500000 => 200,
+        crate::Baudrate::B1500000 => 300,
+        crate::Baudrate::B3000000 => 400,
+        crate::Baudrate::B6000000 => 600,
+        crate::Baudrate::B12000000 => 1000,
+    }
+}
+
 pub struct ParametersBuilder(Parameters);
 
 impl ParametersBuilder {
@@ -64,6 +81,7 @@ impl ParametersBuilder {
         Self(Parameters {
             address,
             baudrate,
+            slot_bits: min_slot_bits(baudrate),
             ..Default::default()
         })
     }
@@ -71,20 +89,7 @@ impl ParametersBuilder {
     #[inline]
     pub fn slot_bits(&mut self, slot_bits: u16) -> &mut Self {
         self.0.slot_bits = slot_bits;
-        let slot_bits_min_from_baud = match self.0.baudrate {
-            crate::Baudrate::B9600
-            | crate::Baudrate::B19200
-            | crate::Baudrate::B31250
-            | crate::Baudrate::B45450
-            | crate::Baudrate::B93750
-            | crate::Baudrate::B187500 => 100,
-            crate::Baudrate::B500000 => 200,
-            crate::Baudrate::B1500000 => 300,
-            crate::Baudrate::B3000000 => 400,
-            crate::Baudrate::B6000000 => 600,
-            crate::Baudrate::B12000000 => 1000,
-        };
-        assert!(slot_bits >= slot_bits_min_from_baud);
+        assert!(slot_bits >= min_slot_bits(self.0.baudrate));
         self
     }
 

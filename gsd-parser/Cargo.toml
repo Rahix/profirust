@@ -3,6 +3,12 @@ name = "gsd-parser"
 version = "0.1.0"
 edition = "2021"
 
+description = "Parser for PROFIBUS GSD files (Generic Station Description)"
+categories = ["parser-implementations", "science::robotics"]
+keywords = ["profibus", "profibus-dp", "fieldbus", "siemens", "parser"]
+authors = ["Rahix <rahix@rahix.de>"]
+license = "MIT OR Apache-2.0"
+
 [dependencies]
 bitflags = "2.4.0"
 pest = "2.5.2"

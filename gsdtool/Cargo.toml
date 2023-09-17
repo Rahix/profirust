@@ -3,6 +3,12 @@ name = "gsdtool"
 version = "0.1.0"
 edition = "2021"
 
+description = "CLI utility for PROFIBUS GSD files (Generic Station Descripions)"
+categories = ["command-line-utilities", "development-tools::build-utils", "science::robotics"]
+keywords = ["profibus", "profibus-dp", "fieldbus", "siemens"]
+authors = ["Rahix <rahix@rahix.de>"]
+license = "MIT OR Apache-2.0"
+
 [dependencies]
 console = { version = "0.15.7", default-features = false }
 dialoguer = { version = "0.10.4", default-features = false, features = ["editor", "fuzzy-select"] }

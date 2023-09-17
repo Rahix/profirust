@@ -35,6 +35,27 @@ bitflags::bitflags! {
     }
 }
 
+/// Events that can occur while communicating with a peripheral.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
+pub enum PeripheralEvent {
+    /// Peripheral went online and started responding to messages.
+    Online,
+    /// Peripheral accepted parameters and configuration and is now ready for data exchange.
+    Configured,
+    /// Peripheral rejected configuration and needs to be re-configured.
+    ConfigError,
+    /// Peripheral rejected parameters and needs to be re-parameterized.
+    ParameterError,
+    /// Cyclic data exchange with this peripheral completed and the PI<sub>I</sub> and
+    /// PI<sub>Q</sub> have been updated.
+    DataExchanged,
+    /// Peripheral has new diagnostic data available.
+    Diagnostics,
+    /// Peripheral stopped responding to messages.
+    Offline,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PeripheralDiagnostics {
     pub flags: DiagnosticFlags,
@@ -154,7 +175,8 @@ impl<'a> Peripheral<'a> {
         fdl: &crate::fdl::FdlMaster,
         tx: crate::fdl::TelegramTx<'b>,
         high_prio_only: bool,
-    ) -> Result<crate::fdl::TelegramTxResponse, crate::fdl::TelegramTx<'b>> {
+    ) -> Result<crate::fdl::TelegramTxResponse, (crate::fdl::TelegramTx<'b>, Option<PeripheralEvent>)>
+    {
         // We never expect to be called in `Stop` or even worse `Offline` operating states.
         debug_assert!(dp.operating_state.is_operate() || dp.operating_state.is_clear());
 
@@ -168,7 +190,7 @@ impl<'a> Peripheral<'a> {
                 // when it comes back.
                 log::warn!("Peripheral #{} stopped responding!", self.address);
                 self.state = PeripheralState::Offline;
-                Err(tx)
+                Err((tx, Some(PeripheralEvent::Offline)))
             }
             PeripheralState::Offline => {
                 if self.retry_count == 0 {
@@ -176,7 +198,7 @@ impl<'a> Peripheral<'a> {
                     Ok(self.send_diagnostics_request(fdl, tx))
                 } else {
                     // Don't retry when the peripheral may be offline.
-                    Err(tx)
+                    Err((tx, None))
                 }
             }
             PeripheralState::WaitForParam => {
@@ -218,7 +240,7 @@ impl<'a> Peripheral<'a> {
                 } else {
                     // When self.options.user_parameters is None, we need to wait before we can
                     // start with configuration.
-                    Err(tx)
+                    Err((tx, None))
                 }
             }
             PeripheralState::WaitForConfig => {
@@ -239,7 +261,7 @@ impl<'a> Peripheral<'a> {
                 } else {
                     // When self.options.config is None, we need to wait before we can start with
                     // configuration.
-                    Err(tx)
+                    Err((tx, None))
                 }
             }
             PeripheralState::ValidateConfig => {
@@ -283,13 +305,16 @@ impl<'a> Peripheral<'a> {
         dp: &crate::dp::DpMasterState,
         fdl: &crate::fdl::FdlMaster,
         telegram: crate::fdl::Telegram,
-    ) {
+    ) -> Option<PeripheralEvent> {
         match self.state {
             PeripheralState::Offline => {
                 // Diagnostics response
                 if self.handle_diagnostics_response(fdl, &telegram).is_some() {
                     self.retry_count = 0;
                     self.state = PeripheralState::WaitForParam;
+                    Some(PeripheralEvent::Online)
+                } else {
+                    None
                 }
             }
             PeripheralState::WaitForParam => {
@@ -298,6 +323,7 @@ impl<'a> Peripheral<'a> {
                     self.fcb.cycle();
                     self.state = PeripheralState::WaitForConfig;
                     self.retry_count = 0;
+                    None
                 } else {
                     todo!()
                 }
@@ -308,6 +334,7 @@ impl<'a> Peripheral<'a> {
                     self.fcb.cycle();
                     self.state = PeripheralState::ValidateConfig;
                     self.retry_count = 0;
+                    None
                 } else {
                     todo!()
                 }
@@ -315,33 +342,43 @@ impl<'a> Peripheral<'a> {
             PeripheralState::ValidateConfig => {
                 let address = self.address;
                 self.retry_count = 0;
-                self.state = if let Some(diag) = self.handle_diagnostics_response(fdl, &telegram) {
-                    if diag.flags.contains(DiagnosticFlags::PARAMETER_FAULT) {
-                        log::warn!("Peripheral #{} reports a parameter fault!", address);
-                        // TODO: Going to `Offline` here will just end in a loop.
-                        PeripheralState::Offline
-                    } else if diag.flags.contains(DiagnosticFlags::CONFIGURATION_FAULT) {
-                        log::warn!("Peripheral #{} reports a configuration fault!", address);
-                        // TODO: Going to `Offline` here will just end in a loop.
-                        PeripheralState::Offline
-                    } else if diag.flags.contains(DiagnosticFlags::PARAMETER_REQUIRED) {
-                        log::warn!(
+                let (new_state, event) =
+                    if let Some(diag) = self.handle_diagnostics_response(fdl, &telegram) {
+                        if diag.flags.contains(DiagnosticFlags::PARAMETER_FAULT) {
+                            log::warn!("Peripheral #{} reports a parameter fault!", address);
+                            // TODO: Going to `Offline` here will just end in a loop.
+                            (
+                                PeripheralState::Offline,
+                                Some(PeripheralEvent::ParameterError),
+                            )
+                        } else if diag.flags.contains(DiagnosticFlags::CONFIGURATION_FAULT) {
+                            log::warn!("Peripheral #{} reports a configuration fault!", address);
+                            // TODO: Going to `Offline` here will just end in a loop.
+                            (PeripheralState::Offline, Some(PeripheralEvent::ConfigError))
+                        } else if diag.flags.contains(DiagnosticFlags::PARAMETER_REQUIRED) {
+                            log::warn!(
                             "Peripheral #{} wants parameters after completing setup?! Retrying...",
                             address
                         );
-                        PeripheralState::WaitForParam
-                    } else if !diag.flags.contains(DiagnosticFlags::STATION_NOT_READY) {
-                        log::info!("Peripheral #{} becomes ready for data exchange.", address);
-                        PeripheralState::PreDataExchange
+                            // TODO: Report an event here?
+                            (PeripheralState::WaitForParam, None)
+                        } else if !diag.flags.contains(DiagnosticFlags::STATION_NOT_READY) {
+                            log::info!("Peripheral #{} becomes ready for data exchange.", address);
+                            (
+                                PeripheralState::PreDataExchange,
+                                Some(PeripheralEvent::Configured),
+                            )
+                        } else {
+                            (PeripheralState::ValidateConfig, None)
+                        }
                     } else {
-                        PeripheralState::ValidateConfig
-                    }
-                } else {
-                    PeripheralState::ValidateConfig
-                };
+                        (PeripheralState::ValidateConfig, None)
+                    };
+                self.state = new_state;
+                event
             }
             PeripheralState::DataExchange | PeripheralState::PreDataExchange => {
-                if let crate::fdl::Telegram::Data(t) = telegram {
+                let event = if let crate::fdl::Telegram::Data(t) = telegram {
                     let data_ok = match t.is_response().unwrap() {
                         crate::fdl::ResponseStatus::SapNotEnabled => {
                             log::warn!(
@@ -370,6 +407,7 @@ impl<'a> Peripheral<'a> {
                         if t.pdu.len() == self.pi_i.len() {
                             self.pi_i.copy_from_slice(&t.pdu);
                             self.state = PeripheralState::DataExchange;
+                            Some(PeripheralEvent::DataExchanged)
                         } else {
                             log::warn!(
                             "Got response from #{} with unexpected PDU length (got: {}, want: {})!",
@@ -377,11 +415,17 @@ impl<'a> Peripheral<'a> {
                             t.pdu.len(),
                             self.pi_i.len()
                         );
+                            None
                         }
+                    } else {
+                        None
                     }
-                }
+                } else {
+                    None
+                };
                 self.retry_count = 0;
                 self.fcb.cycle();
+                event
             }
         }
     }

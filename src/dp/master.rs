@@ -32,7 +32,7 @@ impl OperatingState {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DpEvents {
     pub cycle_completed: bool,
-    // peripheral: Option<(crate::dp::PeripheralHandle, crate::dp::PeripheralEvent)>,
+    pub peripheral: Option<(crate::dp::PeripheralHandle, crate::dp::PeripheralEvent)>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -200,6 +200,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
             );
         }
 
+        let mut peripheral_event = None;
         loop {
             let index = match self.state.cycle_state {
                 CycleState::DataExchange(i) => i,
@@ -207,7 +208,13 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                     // On CycleCompleted, return None to let the FDL know where done.  Reset the
                     // cycle state to the beginning for the next time.
                     self.state.cycle_state = CycleState::DataExchange(0);
-                    return (None, DpEvents::default());
+                    return (
+                        None,
+                        DpEvents {
+                            peripheral: peripheral_event,
+                            ..Default::default()
+                        },
+                    );
                 }
             };
 
@@ -217,9 +224,29 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                 match res {
                     Ok(tx_res) => {
                         // When this peripheral initiated a transmission, break out of the loop
-                        return (Some(tx_res), DpEvents::default());
+                        return (
+                            Some(tx_res),
+                            DpEvents {
+                                peripheral: peripheral_event,
+                                ..Default::default()
+                            },
+                        );
                     }
-                    Err(tx_returned) => {
+                    Err((tx_returned, event)) => {
+                        tx = tx_returned;
+
+                        if let Some(event) = event {
+                            // If we get here and peripheral_event were already filled, we would
+                            // end up with the problem that only one event can be reported.
+                            //
+                            // However, lucky for us, this should never occur.  The only peripheral
+                            // event we can receive in transmit_telegram() is the Offline event and
+                            // there can never be a situation where multiple peripherals go offline
+                            // in the same poll cycle.
+                            assert!(peripheral_event.is_none());
+                            peripheral_event = Some((handle, event));
+                        }
+
                         // When this peripheral was not interested in sending data, move on to the
                         // next one.
                         if self.increment_cycle_state(index) {
@@ -231,10 +258,10 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                                 None,
                                 DpEvents {
                                     cycle_completed: true,
+                                    peripheral: peripheral_event,
                                 },
                             );
                         }
-                        tx = tx_returned;
                     }
                 }
             }
@@ -256,9 +283,12 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         };
         match self.peripherals.get_at_index_mut(index) {
             Some((handle, peripheral)) if addr == peripheral.address() => {
-                peripheral.receive_reply(now, &self.state, fdl, telegram);
+                let event = peripheral.receive_reply(now, &self.state, fdl, telegram);
                 let cycle_completed = self.increment_cycle_state(index);
-                DpEvents { cycle_completed }
+                DpEvents {
+                    cycle_completed,
+                    peripheral: event.map(|ev| (handle, ev)),
+                }
             }
             _ => {
                 unreachable!(

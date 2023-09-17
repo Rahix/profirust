@@ -10,19 +10,17 @@ fn main() {
 
     println!("PROFIBUS Live List:");
 
-    let mut fdl_master = fdl::FdlMaster::new(fdl::Parameters {
-        // Address of this master, i.e. ourselves
-        address: 0x02,
-        // Baudrate for bus communication
-        baudrate: BAUDRATE,
-        // We use a rather large T_sl time because USB-RS485 converters can induce large delays at
-        // times.
-        slot_bits: 1920,
-        token_rotation_bits: 30000,
-        // For generating the live-list as fast as possible, set GAP factor to 0.
-        gap_wait_rotations: 0,
-        ..Default::default()
-    });
+    let mut fdl_master = fdl::FdlMaster::new(
+        // Address of this master, i.e. ourselves = 0x02
+        fdl::ParametersBuilder::new(0x02, BAUDRATE)
+            // We use a rather large T_sl time because USB-RS485 converters can induce large delays at
+            // times.
+            .slot_bits(1920)
+            .token_rotation_bits(30000)
+            // For generating the live-list as fast as possible, set GAP factor to 0.
+            .gap_wait_rotations(0)
+            .build(),
+    );
 
     println!("Connecting to the bus...");
     let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl_master.parameters().baudrate);

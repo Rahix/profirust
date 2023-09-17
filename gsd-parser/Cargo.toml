@@ -16,3 +16,4 @@ pest_derive = "2.5.2"
 
 [dev-dependencies]
 insta = "1.24.1"
+rstest = { version = "0.18.2", default-features = false }

@@ -17,8 +17,8 @@ fn main() {
             // times.
             .slot_bits(1920)
             .token_rotation_bits(30000)
-            // For generating the live-list as fast as possible, set GAP factor to 0.
-            .gap_wait_rotations(0)
+            // For generating the live-list as fast as possible, set GAP factor to 1.
+            .gap_wait_rotations(1)
             .build(),
     );
 

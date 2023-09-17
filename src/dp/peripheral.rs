@@ -182,6 +182,10 @@ impl<'a> Peripheral<'a> {
         // We never expect to be called in `Stop` or even worse `Offline` operating states.
         debug_assert!(dp.operating_state.is_operate() || dp.operating_state.is_clear());
 
+        if self.state != PeripheralState::Offline && self.retry_count == 1 {
+            log::warn!("Resending a telegram to #{}...", self.address);
+        }
+
         let res = match self.state {
             _ if self.retry_count > fdl.parameters().max_retry_limit => {
                 // Assume peripheral is now offline so the next step is sending SYNC messages to detect

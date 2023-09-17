@@ -271,7 +271,7 @@ struct PollDone();
 
 #[must_use = "\"poll result\" must lead to exit of poll function!"]
 struct PollResult<E> {
-    event: Option<E>,
+    events: E,
 }
 
 impl PollDone {
@@ -291,18 +291,16 @@ impl PollDone {
         PollDone()
     }
 
-    pub fn with_event<E>(self, ev: E) -> PollResult<E> {
-        PollResult { event: Some(ev) }
-    }
-
-    pub fn with_event_maybe<E>(self, event: Option<E>) -> PollResult<E> {
-        PollResult { event }
+    pub fn with_events<E>(self, events: E) -> PollResult<E> {
+        PollResult { events }
     }
 }
 
-impl<E> From<PollDone> for PollResult<E> {
+impl<E: Default> From<PollDone> for PollResult<E> {
     fn from(value: PollDone) -> Self {
-        PollResult { event: None }
+        PollResult {
+            events: Default::default(),
+        }
     }
 }
 
@@ -458,9 +456,9 @@ impl FdlMaster {
         phy: &mut impl ProfibusPhy,
         app: &mut APP,
         high_prio_only: bool,
-    ) -> Option<PollResult<APP::Event>> {
+    ) -> Option<PollResult<APP::Events>> {
         debug_assert!(self.communication_state.have_token());
-        let mut event = None;
+        let mut event = Default::default();
         if let Some(tx_res) = phy.transmit_telegram(|tx| {
             let (res, ev) = app.transmit_telegram(now, self, tx, high_prio_only);
             event = ev;
@@ -472,10 +470,7 @@ impl FdlMaster {
                     sent_time: now,
                 };
             }
-            Some(
-                self.mark_tx(now, tx_res.bytes_sent())
-                    .with_event_maybe(event),
-            )
+            Some(self.mark_tx(now, tx_res.bytes_sent()).with_events(event))
         } else {
             None
         }
@@ -487,7 +482,7 @@ impl FdlMaster {
         phy: &mut impl ProfibusPhy,
         app: &mut APP,
         addr: u8,
-    ) -> Option<Option<APP::Event>> {
+    ) -> Option<APP::Events> {
         phy.receive_telegram(|telegram| {
             match &telegram {
                 crate::fdl::Telegram::Token(t) => {
@@ -608,7 +603,7 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
         app: &mut APP,
-    ) -> PollResult<APP::Event> {
+    ) -> PollResult<APP::Events> {
         // First check for ongoing message cycles and handle them.
         match *self.communication_state.assert_with_token() {
             StateWithToken::AwaitingResponse { addr, sent_time } => {
@@ -616,7 +611,7 @@ impl FdlMaster {
                     *self.communication_state.assert_with_token() =
                         StateWithToken::Idle { first: false };
                     // Waiting for synchronization pause now
-                    PollDone::waiting_for_delay().with_event_maybe(event)
+                    PollDone::waiting_for_delay().with_events(event)
                 } else if self.check_slot_expired(now) {
                     self.app_handle_timeout(now, app, addr);
                     *self.communication_state.assert_with_token() =
@@ -660,7 +655,7 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
         app: &mut APP,
-    ) -> PollResult<APP::Event> {
+    ) -> PollResult<APP::Events> {
         // Before we can send anything, we must always wait 33 bit times (synchronization pause).
         return_if_done!(self.wait_synchronization_pause(now));
 
@@ -793,12 +788,12 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut PHY,
         app: &mut APP,
-    ) -> Option<APP::Event> {
+    ) -> APP::Events {
         let result = self.poll_inner(now, phy, app);
         if !phy.is_transmitting() {
             self.pending_bytes = phy.get_pending_received_bytes().try_into().unwrap();
         }
-        result.event
+        result.events
     }
 
     fn poll_inner<'a, PHY: ProfibusPhy, APP: FdlApplication>(
@@ -806,7 +801,7 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut PHY,
         app: &mut APP,
-    ) -> PollResult<APP::Event> {
+    ) -> PollResult<APP::Events> {
         if self.connectivity_state == ConnectivityState::Offline {
             // When we are offline, don't do anything at all.
             return PollDone::offline().into();

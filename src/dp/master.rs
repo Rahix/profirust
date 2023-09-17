@@ -149,7 +149,7 @@ impl DpMasterState {
 }
 
 impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
-    type Event = DpEvents;
+    type Events = DpEvents;
 
     fn transmit_telegram(
         &mut self,
@@ -157,10 +157,10 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         fdl: &crate::fdl::FdlMaster,
         mut tx: crate::fdl::TelegramTx,
         high_prio_only: bool,
-    ) -> (Option<crate::fdl::TelegramTxResponse>, Option<Self::Event>) {
+    ) -> (Option<crate::fdl::TelegramTxResponse>, Self::Events) {
         // In STOP state, never send anything
         if self.state.operating_state.is_stop() {
-            return (None, None);
+            return (None, DpEvents::default());
         }
 
         // First check whether it is time for another global control telegram
@@ -202,7 +202,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                         buf[1] = 0x00;
                     },
                 )),
-                None,
+                DpEvents::default(),
             );
         }
 
@@ -213,7 +213,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                     // On CycleCompleted, return None to let the FDL know where done.  Reset the
                     // cycle state to the beginning for the next time.
                     self.state.cycle_state = CycleState::DataExchange(0);
-                    return (None, None);
+                    return (None, DpEvents::default());
                 }
             };
 
@@ -223,7 +223,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                 match res {
                     Ok(tx_res) => {
                         // When this peripheral initiated a transmission, break out of the loop
-                        return (Some(tx_res), None);
+                        return (Some(tx_res), DpEvents::default());
                     }
                     Err(tx_returned) => {
                         // When this peripheral was not interested in sending data, move on to the
@@ -235,9 +235,9 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                             self.state.cycle_state = CycleState::DataExchange(0);
                             return (
                                 None,
-                                Some(DpEvents {
+                                DpEvents {
                                     cycle_completed: true,
-                                }),
+                                },
                             );
                         }
                         tx = tx_returned;
@@ -253,7 +253,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         fdl: &crate::fdl::FdlMaster,
         addr: u8,
         telegram: crate::fdl::Telegram,
-    ) -> Option<Self::Event> {
+    ) -> Self::Events {
         let index = match self.state.cycle_state {
             CycleState::DataExchange(i) => i,
             CycleState::CycleCompleted => {
@@ -264,7 +264,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
             Some((handle, peripheral)) if addr == peripheral.address() => {
                 peripheral.receive_reply(now, &self.state, fdl, telegram);
                 let cycle_completed = self.increment_cycle_state(index);
-                Some(DpEvents { cycle_completed })
+                DpEvents { cycle_completed }
             }
             _ => {
                 unreachable!(

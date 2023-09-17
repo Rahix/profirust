@@ -141,7 +141,7 @@ impl ParametersBuilder {
     pub fn build_verified(&self, peripherals: &crate::dp::PeripheralSet) -> Parameters {
         for (_, peripheral) in peripherals.iter() {
             assert!(
-                peripheral.options().max_tsdr < self.0.slot_bits,
+                peripheral.options().max_tsdr + 15 <= self.0.slot_bits,
                 "max Tsdr of peripheral #{} too large for slot time",
                 peripheral.address(),
             );

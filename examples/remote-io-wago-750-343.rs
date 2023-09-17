@@ -92,7 +92,7 @@ fn main() {
             // We use a rather large T_sl time because USB-RS485 converters can induce large delays at
             // times.
             .slot_bits(1920)
-            .token_rotation_bits(20000)
+            .watchdog_timeout(profirust::time::Duration::from_secs(2))
             .build_verified(&dp_master.peripherals),
     );
 

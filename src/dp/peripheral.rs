@@ -128,6 +128,11 @@ impl<'a> Peripheral<'a> {
         self.address
     }
 
+    #[inline(always)]
+    pub fn options(&self) -> &PeripheralOptions<'a> {
+        &self.options
+    }
+
     /// Access to the full process image of inputs.
     #[inline(always)]
     pub fn pi_i(&self) -> &[u8] {

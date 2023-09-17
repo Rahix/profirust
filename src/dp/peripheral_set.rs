@@ -59,6 +59,7 @@ impl<'a> PeripheralSet<'a> {
 
         match &mut self.peripherals {
             managed::ManagedSlice::Borrowed(_) => panic!("Adding peripheral to full PeripheralSet"),
+            #[cfg(any(feature = "std", feature = "alloc"))]
             managed::ManagedSlice::Owned(peripherals) => {
                 let address = peripheral.address();
                 peripherals.push(PeripheralStorage {

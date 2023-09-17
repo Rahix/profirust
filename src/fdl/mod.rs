@@ -7,7 +7,7 @@ mod telegram;
 mod tests;
 
 pub use master::{ConnectivityState, FdlMaster};
-pub use parameters::Parameters;
+pub use parameters::{Parameters, ParametersBuilder};
 pub use telegram::{
     DataTelegram, DataTelegramHeader, FrameCountBit, FunctionCode, RequestType, ResponseState,
     ResponseStatus, ShortConfirmation, Telegram, TelegramTx, TelegramTxResponse, TokenTelegram,

@@ -51,6 +51,89 @@ impl Default for Parameters {
     }
 }
 
+pub struct ParametersBuilder(Parameters);
+
+impl ParametersBuilder {
+    #[inline]
+    pub fn new(address: u8, baudrate: crate::Baudrate) -> Self {
+        assert!(address <= 125);
+        Self(Parameters {
+            address,
+            baudrate,
+            ..Default::default()
+        })
+    }
+
+    #[inline]
+    pub fn slot_bits(&mut self, slot_bits: u16) -> &mut Self {
+        self.0.slot_bits = slot_bits;
+        let slot_bits_min_from_baud = match self.0.baudrate {
+            crate::Baudrate::B9600
+            | crate::Baudrate::B19200
+            | crate::Baudrate::B31250
+            | crate::Baudrate::B45450
+            | crate::Baudrate::B93750
+            | crate::Baudrate::B187500 => 100,
+            crate::Baudrate::B500000 => 200,
+            crate::Baudrate::B1500000 => 300,
+            crate::Baudrate::B3000000 => 400,
+            crate::Baudrate::B6000000 => 600,
+            crate::Baudrate::B12000000 => 1000,
+        };
+        assert!(slot_bits >= slot_bits_min_from_baud);
+        self
+    }
+
+    #[inline]
+    pub fn highest_station_address(&mut self, hsa: u8) -> &mut Self {
+        assert!(hsa >= self.0.address && hsa <= 125);
+        self.0.highest_station_address = hsa;
+        self
+    }
+
+    pub fn token_rotation_bits(&mut self, ttr: u32) -> &mut Self {
+        // TODO: Sanity check the value
+        self.0.token_rotation_bits = ttr;
+        self
+    }
+
+    pub fn gap_wait_rotations(&mut self, gap_wait: u8) -> &mut Self {
+        // TODO: Sanity checks
+        self.0.gap_wait_rotations = gap_wait;
+        self
+    }
+
+    #[inline]
+    pub fn max_retry_limit(&mut self, max_retry_limit: u8) -> &mut Self {
+        self.0.max_retry_limit = max_retry_limit;
+        self
+    }
+
+    #[inline]
+    pub fn min_tsdr(&mut self, min_tsdr_bits: u8) -> &mut Self {
+        assert!(min_tsdr_bits >= 11);
+        self.0.min_tsdr_bits = min_tsdr_bits;
+        self
+    }
+
+    #[inline]
+    pub fn build(&self) -> Parameters {
+        self.0.clone()
+    }
+
+    #[inline]
+    pub fn build_verified(&self, peripherals: &crate::dp::PeripheralSet) -> Parameters {
+        for (_, peripheral) in peripherals.iter() {
+            assert!(
+                peripheral.options().max_tsdr < self.0.slot_bits,
+                "max Tsdr of peripheral #{} too large for slot time",
+                peripheral.address(),
+            );
+        }
+        self.0.clone()
+    }
+}
+
 impl Parameters {
     pub fn bits_to_time(&self, bits: u32) -> crate::time::Duration {
         self.baudrate.bits_to_time(bits)

@@ -105,12 +105,12 @@ fn main() {
     dp_master.state.enter_operate();
     loop {
         let now = profirust::time::Instant::now();
-        fdl_master.poll(now, &mut phy, &mut dp_master);
+        let events = fdl_master.poll(now, &mut phy, &mut dp_master);
 
         // Get mutable access the the peripheral here so we can interact with it.
         let remoteio = dp_master.peripherals.get_mut(io_handle);
 
-        if remoteio.is_running() && dp_master.state.cycle_completed() {
+        if remoteio.is_running() && events.cycle_completed {
             println!("Inputs: {:?}", remoteio.pi_i());
 
             // Set outputs according to our best intentions

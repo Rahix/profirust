@@ -307,6 +307,7 @@ impl<'a> Peripheral<'a> {
                     log::debug!("Sent configuration to #{}.", self.address);
                     self.fcb.cycle();
                     self.state = PeripheralState::ValidateConfig;
+                    self.retry_count = 0;
                 } else {
                     todo!()
                 }

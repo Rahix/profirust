@@ -1,4 +1,5 @@
 #![deny(unused_must_use)]
+use crate::fdl::FdlApplication;
 use crate::phy::ProfibusPhy;
 
 /// Operating state of the FDL master
@@ -436,7 +437,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        app: &mut impl crate::fdl::FdlApplication,
+        app: &mut impl FdlApplication,
         high_prio_only: bool,
     ) -> Option<PollDone> {
         debug_assert!(self.communication_state.have_token());
@@ -459,7 +460,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        app: &mut impl crate::fdl::FdlApplication,
+        app: &mut impl FdlApplication,
         addr: u8,
     ) -> bool {
         phy.receive_telegram(|telegram| {
@@ -492,7 +493,7 @@ impl FdlMaster {
     fn app_handle_timeout(
         &mut self,
         now: crate::time::Instant,
-        app: &mut impl crate::fdl::FdlApplication,
+        app: &mut impl FdlApplication,
         addr: u8,
     ) {
         app.handle_timeout(now, self, addr)
@@ -582,7 +583,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        app: &mut impl crate::fdl::FdlApplication,
+        app: &mut impl FdlApplication,
     ) -> PollDone {
         // First check for ongoing message cycles and handle them.
         match *self.communication_state.assert_with_token() {
@@ -634,7 +635,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        app: &mut impl crate::fdl::FdlApplication,
+        app: &mut impl FdlApplication,
     ) -> PollDone {
         // Before we can send anything, we must always wait 33 bit times (synchronization pause).
         return_if_done!(self.wait_synchronization_pause(now));
@@ -767,7 +768,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        app: &mut impl crate::fdl::FdlApplication,
+        app: &mut impl FdlApplication,
     ) {
         let _ = self.poll_inner(now, phy, app);
         if !phy.is_transmitting() {
@@ -779,7 +780,7 @@ impl FdlMaster {
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        app: &mut impl crate::fdl::FdlApplication,
+        app: &mut impl FdlApplication,
     ) -> PollDone {
         if self.connectivity_state == ConnectivityState::Offline {
             // When we are offline, don't do anything at all.

@@ -28,7 +28,13 @@ pub struct Parameters {
     pub token_rotation_bits: u32,
     /// GAP: update factor (how many token rotations to wait before polling the gap again)
     pub gap_wait_rotations: u8,
-    /// HSA: Highest projected station address
+    /// HSA: Highest station address
+    ///
+    /// The HSA is only relevant for finding other masters who want to become part of the token
+    /// ring.  Peripherals are allows to have addresses higher than HSA.  Masters must have an
+    /// address less than HSA.
+    ///
+    /// **Important**: The live-list service will only detect stations below the HSA as well.
     pub highest_station_address: u8,
     /// Maximum number of retries when no answer was received
     pub max_retry_limit: u8,
@@ -51,7 +57,8 @@ impl Default for Parameters {
             /// GAP update factor, default 10 as found elsewhere.
             gap_wait_rotations: 10,
             /// 125 is the highest possible address - by default all addresses are included.
-            highest_station_address: 125,
+            /// (and HSA is highest address + 1)
+            highest_station_address: 126,
             // Defaults to 1 byte time (= 11 bits)
             min_tsdr_bits: 11,
             // Retry limit defaults to 1, meaning that a telegram will be retried once.  This is a
@@ -127,7 +134,7 @@ impl ParametersBuilder {
 
     #[inline]
     pub fn highest_station_address(&mut self, hsa: u8) -> &mut Self {
-        assert!(hsa >= self.0.address && hsa <= 125);
+        assert!(hsa > self.0.address && hsa <= 126);
         self.0.highest_station_address = hsa;
         // TODO: We probably shouldn't override an explicitly set value here...
         self.token_rotation_bits(u32::from(hsa) * 5000);

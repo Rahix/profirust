@@ -163,7 +163,7 @@ impl FdlMaster {
         // Mark ourselves as "live".
         live_list.set(usize::from(param.address), true);
 
-        debug_assert!(param.highest_station_address <= 125);
+        debug_assert!(param.highest_station_address <= 126);
 
         Self {
             next_master: param.address,
@@ -535,7 +535,7 @@ impl FdlMaster {
         } else if (addr + 1) == self.p.address {
             // Don't poll self.
             GapState::Waiting(0)
-        } else if addr == self.p.highest_station_address {
+        } else if addr == (self.p.highest_station_address - 1) {
             // Wrap around.
             GapState::NextPoll(0)
         } else {

@@ -29,6 +29,12 @@ impl OperatingState {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DpEvents {
+    pub cycle_completed: bool,
+    // peripheral: Option<(crate::dp::PeripheralHandle, crate::dp::PeripheralEvent)>,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 enum CycleState {
@@ -82,11 +88,13 @@ impl<'a> DpMaster<'a> {
         }
     }
 
-    fn increment_cycle_state(&mut self, index: u8) {
+    fn increment_cycle_state(&mut self, index: u8) -> bool {
         if let Some(next) = self.peripherals.get_next_index(index) {
             self.state.cycle_state = CycleState::DataExchange(next);
+            false
         } else {
             self.state.cycle_state = CycleState::CycleCompleted;
+            true
         }
     }
 }
@@ -141,7 +149,7 @@ impl DpMasterState {
 }
 
 impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
-    type Event = ();
+    type Event = DpEvents;
 
     fn transmit_telegram(
         &mut self,
@@ -220,7 +228,18 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                     Err(tx_returned) => {
                         // When this peripheral was not interested in sending data, move on to the
                         // next one.
-                        self.increment_cycle_state(index);
+                        if self.increment_cycle_state(index) {
+                            // And immediately reset to the beginning for the next cycle.  This is
+                            // only okay here because we are in transmit_telegram() and will return
+                            // without transmission on the next line.
+                            self.state.cycle_state = CycleState::DataExchange(0);
+                            return (
+                                None,
+                                Some(DpEvents {
+                                    cycle_completed: true,
+                                }),
+                            );
+                        }
                         tx = tx_returned;
                     }
                 }
@@ -244,7 +263,8 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         match self.peripherals.get_at_index_mut(index) {
             Some((handle, peripheral)) if addr == peripheral.address() => {
                 peripheral.receive_reply(now, &self.state, fdl, telegram);
-                self.increment_cycle_state(index);
+                let cycle_completed = self.increment_cycle_state(index);
+                Some(DpEvents { cycle_completed })
             }
             _ => {
                 unreachable!(
@@ -252,7 +272,6 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                 );
             }
         }
-        None
     }
 
     fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &crate::fdl::FdlMaster, addr: u8) {

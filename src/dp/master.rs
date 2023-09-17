@@ -140,12 +140,6 @@ impl DpMasterState {
     pub fn enter_operate(&mut self) {
         self.enter_state(OperatingState::Operate)
     }
-
-    /// Whether the DP bus cycle was completed during the last poll.
-    #[inline]
-    pub fn cycle_completed(&self) -> bool {
-        self.cycle_state == CycleState::CycleCompleted
-    }
 }
 
 impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {

@@ -101,23 +101,26 @@ impl ParametersBuilder {
     pub fn highest_station_address(&mut self, hsa: u8) -> &mut Self {
         assert!(hsa >= self.0.address && hsa <= 125);
         self.0.highest_station_address = hsa;
+        // TODO: We probably shouldn't override an explicitly set value here...
+        self.token_rotation_bits(u32::from(hsa) * 5000);
         self
     }
 
     pub fn token_rotation_bits(&mut self, ttr: u32) -> &mut Self {
-        // TODO: Sanity check the value
+        assert!(ttr >= 256 && ttr <= 16_777_960);
         self.0.token_rotation_bits = ttr;
         self
     }
 
     pub fn gap_wait_rotations(&mut self, gap_wait: u8) -> &mut Self {
-        // TODO: Sanity checks
+        assert!(gap_wait >= 1 && gap_wait <= 100);
         self.0.gap_wait_rotations = gap_wait;
         self
     }
 
     #[inline]
     pub fn max_retry_limit(&mut self, max_retry_limit: u8) -> &mut Self {
+        assert!(max_retry_limit >= 1 && max_retry_limit <= 15);
         self.0.max_retry_limit = max_retry_limit;
         self
     }

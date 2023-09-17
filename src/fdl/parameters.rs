@@ -16,6 +16,7 @@
 ///     .build_verified(&dp_master.peripherals);
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[non_exhaustive]
 pub struct Parameters {
     /// Station address for this master
     pub address: u8,

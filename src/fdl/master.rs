@@ -269,6 +269,11 @@ impl FdlMaster {
 #[must_use = "\"poll done\" marker must lead to exit of poll function!"]
 struct PollDone();
 
+#[must_use = "\"poll result\" must lead to exit of poll function!"]
+struct PollResult<E> {
+    event: Option<E>,
+}
+
 impl PollDone {
     pub fn waiting_for_transmission() -> Self {
         PollDone()
@@ -285,12 +290,26 @@ impl PollDone {
     pub fn offline() -> Self {
         PollDone()
     }
+
+    pub fn with_event<E>(self, ev: E) -> PollResult<E> {
+        PollResult { event: Some(ev) }
+    }
+
+    pub fn with_event_maybe<E>(self, event: Option<E>) -> PollResult<E> {
+        PollResult { event }
+    }
+}
+
+impl<E> From<PollDone> for PollResult<E> {
+    fn from(value: PollDone) -> Self {
+        PollResult { event: None }
+    }
 }
 
 macro_rules! return_if_done {
     ($expr:expr) => {
         match $expr {
-            Some(e @ PollDone()) => return e.into(),
+            Some(e) => return e.into(),
             None => (),
         }
     };
@@ -433,61 +452,66 @@ impl FdlMaster {
     }
 
     #[must_use = "poll done marker"]
-    fn app_transmit_telegram(
+    fn app_transmit_telegram<APP: FdlApplication>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        app: &mut impl FdlApplication,
+        app: &mut APP,
         high_prio_only: bool,
-    ) -> Option<PollDone> {
+    ) -> Option<PollResult<APP::Event>> {
         debug_assert!(self.communication_state.have_token());
-        if let Some(tx_res) =
-            phy.transmit_telegram(|tx| app.transmit_telegram(now, self, tx, high_prio_only).0)
-        {
+        let mut event = None;
+        if let Some(tx_res) = phy.transmit_telegram(|tx| {
+            let (res, ev) = app.transmit_telegram(now, self, tx, high_prio_only);
+            event = ev;
+            res
+        }) {
             if let Some(addr) = tx_res.expects_reply() {
                 *self.communication_state.assert_with_token() = StateWithToken::AwaitingResponse {
                     addr,
                     sent_time: now,
                 };
             }
-            Some(self.mark_tx(now, tx_res.bytes_sent()))
+            Some(
+                self.mark_tx(now, tx_res.bytes_sent())
+                    .with_event_maybe(event),
+            )
         } else {
             None
         }
     }
 
-    fn app_receive_reply(
+    fn app_receive_reply<APP: FdlApplication>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        app: &mut impl FdlApplication,
+        app: &mut APP,
         addr: u8,
-    ) -> bool {
+    ) -> Option<Option<APP::Event>> {
         phy.receive_telegram(|telegram| {
             match &telegram {
                 crate::fdl::Telegram::Token(t) => {
                     log::warn!(
                         "Received token telegram {t:?} while waiting for peripheral response"
                     );
-                    return false;
+                    return None;
                 }
                 crate::fdl::Telegram::Data(t) => {
                     if t.is_response().is_none() {
                         log::warn!("Received non-response telegram: {t:?}");
-                        return false;
+                        return None;
                     }
                     if t.h.da != self.p.address {
                         log::warn!("Received telegram with unexpected destination: {t:?}");
-                        return false;
+                        return None;
                     }
                 }
                 crate::fdl::Telegram::ShortConfirmation(_) => (),
             }
             // TODO: This needs to be revisited.  Always return true?
-            app.receive_reply(now, self, addr, telegram);
-            return true;
+            Some(app.receive_reply(now, self, addr, telegram))
         })
-        .unwrap_or(false)
+        .unwrap_or(None)
     }
 
     fn app_handle_timeout(
@@ -579,20 +603,20 @@ impl FdlMaster {
     }
 
     #[must_use = "poll done marker"]
-    fn handle_with_token(
+    fn handle_with_token<APP: FdlApplication>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        app: &mut impl FdlApplication,
-    ) -> PollDone {
+        app: &mut APP,
+    ) -> PollResult<APP::Event> {
         // First check for ongoing message cycles and handle them.
         match *self.communication_state.assert_with_token() {
             StateWithToken::AwaitingResponse { addr, sent_time } => {
-                if self.app_receive_reply(now, phy, app, addr) {
+                if let Some(event) = self.app_receive_reply(now, phy, app, addr) {
                     *self.communication_state.assert_with_token() =
                         StateWithToken::Idle { first: false };
                     // Waiting for synchronization pause now
-                    PollDone::waiting_for_delay()
+                    PollDone::waiting_for_delay().with_event_maybe(event)
                 } else if self.check_slot_expired(now) {
                     self.app_handle_timeout(now, app, addr);
                     *self.communication_state.assert_with_token() =
@@ -601,7 +625,7 @@ impl FdlMaster {
                     self.handle_with_token_transmission(now, phy, app)
                 } else {
                     // Still waiting for the response, nothing to do here.
-                    PollDone::waiting_for_bus()
+                    PollDone::waiting_for_bus().into()
                 }
             }
             StateWithToken::AwaitingFdlStatusResponse { addr, sent_time } => {
@@ -611,7 +635,7 @@ impl FdlMaster {
                     self.update_live_state(addr, true);
                     *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
                     // Waiting for synchronization pause now
-                    PollDone::waiting_for_delay()
+                    PollDone::waiting_for_delay().into()
                 } else if self.check_slot_expired(now) {
                     log::trace!("Address {addr} didn't respond in {}!", self.p.slot_time());
                     // Mark this address as not alive and pass on the token.
@@ -621,7 +645,7 @@ impl FdlMaster {
                     self.handle_with_token_transmission(now, phy, app)
                 } else {
                     // Still waiting for the response, nothing to do here.
-                    PollDone::waiting_for_bus()
+                    PollDone::waiting_for_bus().into()
                 }
             }
             StateWithToken::Idle { .. } | StateWithToken::ForwardToken => {
@@ -631,18 +655,18 @@ impl FdlMaster {
     }
 
     #[must_use = "poll done marker"]
-    fn handle_with_token_transmission(
+    fn handle_with_token_transmission<APP: FdlApplication>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
-        app: &mut impl FdlApplication,
-    ) -> PollDone {
+        app: &mut APP,
+    ) -> PollResult<APP::Event> {
         // Before we can send anything, we must always wait 33 bit times (synchronization pause).
         return_if_done!(self.wait_synchronization_pause(now));
 
         let first_with_token = match self.communication_state.assert_with_token() {
             StateWithToken::ForwardToken => {
-                return self.forward_token(now, phy);
+                return self.forward_token(now, phy).into();
             }
             StateWithToken::Idle { first } => *first,
             _ => unreachable!(),
@@ -658,7 +682,7 @@ impl FdlMaster {
                 }
 
                 // In any other case, we pass on the token to the next master.
-                return self.forward_token(now, phy);
+                return self.forward_token(now, phy).into();
             }
         }
 
@@ -669,7 +693,7 @@ impl FdlMaster {
         return_if_done!(self.handle_gap(now, phy));
 
         // And if even the gap poll didn't lead to a message, pass token immediately.
-        self.forward_token(now, phy)
+        self.forward_token(now, phy).into()
     }
 
     #[must_use = "poll done marker"]
@@ -764,27 +788,28 @@ impl FdlMaster {
         }
     }
 
-    pub fn poll<'a, PHY: ProfibusPhy>(
+    pub fn poll<'a, PHY: ProfibusPhy, APP: FdlApplication>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        app: &mut impl FdlApplication,
-    ) {
-        let _ = self.poll_inner(now, phy, app);
+        app: &mut APP,
+    ) -> Option<APP::Event> {
+        let result = self.poll_inner(now, phy, app);
         if !phy.is_transmitting() {
             self.pending_bytes = phy.get_pending_received_bytes().try_into().unwrap();
         }
+        result.event
     }
 
-    fn poll_inner<'a, PHY: ProfibusPhy>(
+    fn poll_inner<'a, PHY: ProfibusPhy, APP: FdlApplication>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        app: &mut impl FdlApplication,
-    ) -> PollDone {
+        app: &mut APP,
+    ) -> PollResult<APP::Event> {
         if self.connectivity_state == ConnectivityState::Offline {
             // When we are offline, don't do anything at all.
-            return PollDone::offline();
+            return PollDone::offline().into();
         }
 
         return_if_done!(self.check_for_ongoing_transmision(now, phy));
@@ -794,7 +819,7 @@ impl FdlMaster {
         if self.communication_state.have_token() {
             self.handle_with_token(now, phy, app)
         } else {
-            self.handle_without_token(now, phy)
+            self.handle_without_token(now, phy).into()
         }
     }
 }

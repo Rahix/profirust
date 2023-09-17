@@ -101,6 +101,20 @@ impl<'a> PeripheralSet<'a> {
             })
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = (PeripheralHandle, &Peripheral<'a>)> {
+        self.peripherals.iter().enumerate().filter_map(|(i, p)| {
+            p.inner.as_ref().map(|p| {
+                (
+                    PeripheralHandle {
+                        index: u8::try_from(i).unwrap(),
+                        address: p.address(),
+                    },
+                    p,
+                )
+            })
+        })
+    }
+
     pub(crate) fn get_at_index_mut(
         &mut self,
         index: u8,

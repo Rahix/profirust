@@ -442,7 +442,7 @@ impl FdlMaster {
     ) -> Option<PollDone> {
         debug_assert!(self.communication_state.have_token());
         if let Some(tx_res) =
-            phy.transmit_telegram(|tx| app.transmit_telegram(now, self, tx, high_prio_only))
+            phy.transmit_telegram(|tx| app.transmit_telegram(now, self, tx, high_prio_only).0)
         {
             if let Some(addr) = tx_res.expects_reply() {
                 *self.communication_state.assert_with_token() = StateWithToken::AwaitingResponse {

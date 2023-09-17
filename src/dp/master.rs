@@ -141,16 +141,18 @@ impl DpMasterState {
 }
 
 impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
+    type Event = ();
+
     fn transmit_telegram(
         &mut self,
         now: crate::time::Instant,
         fdl: &crate::fdl::FdlMaster,
         mut tx: crate::fdl::TelegramTx,
         high_prio_only: bool,
-    ) -> Option<crate::fdl::TelegramTxResponse> {
+    ) -> (Option<crate::fdl::TelegramTxResponse>, Option<Self::Event>) {
         // In STOP state, never send anything
         if self.state.operating_state.is_stop() {
-            return None;
+            return (None, None);
         }
 
         // First check whether it is time for another global control telegram
@@ -169,28 +171,31 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                 "DP master sending global control for state {:?}",
                 self.state.operating_state
             );
-            return Some(tx.send_data_telegram(
-                crate::fdl::DataTelegramHeader {
-                    da: 0x7f,
-                    sa: fdl.parameters().address,
-                    dsap: crate::consts::SAP_SLAVE_GLOBAL_CONTROL,
-                    ssap: crate::consts::SAP_MASTER_MS0,
-                    fc: crate::fdl::FunctionCode::Request {
-                        // TODO: Do we need an FCB for GC telegrams?
-                        fcb: crate::fdl::FrameCountBit::Inactive,
-                        req: crate::fdl::RequestType::SdnLow,
+            return (
+                Some(tx.send_data_telegram(
+                    crate::fdl::DataTelegramHeader {
+                        da: 0x7f,
+                        sa: fdl.parameters().address,
+                        dsap: crate::consts::SAP_SLAVE_GLOBAL_CONTROL,
+                        ssap: crate::consts::SAP_MASTER_MS0,
+                        fc: crate::fdl::FunctionCode::Request {
+                            // TODO: Do we need an FCB for GC telegrams?
+                            fcb: crate::fdl::FrameCountBit::Inactive,
+                            req: crate::fdl::RequestType::SdnLow,
+                        },
                     },
-                },
-                2,
-                |buf| {
-                    buf[0] = match self.state.operating_state {
-                        OperatingState::Clear => 0x02,
-                        OperatingState::Operate => 0x00,
-                        OperatingState::Stop => unreachable!(),
-                    };
-                    buf[1] = 0x00;
-                },
-            ));
+                    2,
+                    |buf| {
+                        buf[0] = match self.state.operating_state {
+                            OperatingState::Clear => 0x02,
+                            OperatingState::Operate => 0x00,
+                            OperatingState::Stop => unreachable!(),
+                        };
+                        buf[1] = 0x00;
+                    },
+                )),
+                None,
+            );
         }
 
         loop {
@@ -200,7 +205,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                     // On CycleCompleted, return None to let the FDL know where done.  Reset the
                     // cycle state to the beginning for the next time.
                     self.state.cycle_state = CycleState::DataExchange(0);
-                    return None;
+                    return (None, None);
                 }
             };
 
@@ -210,7 +215,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                 match res {
                     Ok(tx_res) => {
                         // When this peripheral initiated a transmission, break out of the loop
-                        return Some(tx_res);
+                        return (Some(tx_res), None);
                     }
                     Err(tx_returned) => {
                         // When this peripheral was not interested in sending data, move on to the
@@ -229,7 +234,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         fdl: &crate::fdl::FdlMaster,
         addr: u8,
         telegram: crate::fdl::Telegram,
-    ) {
+    ) -> Option<Self::Event> {
         let index = match self.state.cycle_state {
             CycleState::DataExchange(i) => i,
             CycleState::CycleCompleted => {
@@ -247,6 +252,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                 );
             }
         }
+        None
     }
 
     fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &crate::fdl::FdlMaster, addr: u8) {

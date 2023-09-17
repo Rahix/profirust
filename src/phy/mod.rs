@@ -8,6 +8,11 @@ pub mod simulator;
 #[cfg(feature = "phy-simulator")]
 pub use simulator::SimulatorPhy;
 
+#[cfg(feature = "phy-rp2040")]
+mod rp2040;
+#[cfg(feature = "phy-rp2040")]
+pub use rp2040::Rp2040Phy;
+
 pub type BufferHandle<'a> = managed::ManagedSlice<'a, u8>;
 
 pub trait ProfibusPhy {

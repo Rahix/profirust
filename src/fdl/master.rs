@@ -456,12 +456,12 @@ impl FdlMaster {
         phy: &mut impl ProfibusPhy,
         app: &mut APP,
         high_prio_only: bool,
-    ) -> Option<PollResult<APP::Events>> {
+    ) -> (Option<PollDone>, APP::Events) {
         debug_assert!(self.communication_state.have_token());
-        let mut event = Default::default();
+        let mut events = Default::default();
         if let Some(tx_res) = phy.transmit_telegram(|tx| {
             let (res, ev) = app.transmit_telegram(now, self, tx, high_prio_only);
-            event = ev;
+            events = ev;
             res
         }) {
             if let Some(addr) = tx_res.expects_reply() {
@@ -470,9 +470,9 @@ impl FdlMaster {
                     sent_time: now,
                 };
             }
-            Some(self.mark_tx(now, tx_res.bytes_sent()).with_events(event))
+            (Some(self.mark_tx(now, tx_res.bytes_sent())), events)
         } else {
-            None
+            (None, events)
         }
     }
 
@@ -672,23 +672,37 @@ impl FdlMaster {
             if rotation_time >= self.p.token_rotation_time() {
                 // If we're over the rotation time and just acquired the token, we are allowed to
                 // perform one more high priority message cycle.
-                if first_with_token {
-                    return_if_done!(self.app_transmit_telegram(now, phy, app, true));
-                }
+                let events = if first_with_token {
+                    let (done, events) = self.app_transmit_telegram(now, phy, app, true);
+                    match done {
+                        Some(d) => return d.with_events(events),
+                        None => (),
+                    }
+                    events
+                } else {
+                    Default::default()
+                };
 
                 // In any other case, we pass on the token to the next master.
-                return self.forward_token(now, phy).into();
+                return self.forward_token(now, phy).with_events(events);
             }
         }
 
         // We have time, try doing useful things.
-        return_if_done!(self.app_transmit_telegram(now, phy, app, false));
+        let (done, events) = self.app_transmit_telegram(now, phy, app, false);
+        match done {
+            Some(d) => return d.with_events(events),
+            None => (),
+        }
 
         // If we end up here, there's nothing useful left to do so now handle the gap polling cycle.
-        return_if_done!(self.handle_gap(now, phy));
+        match self.handle_gap(now, phy) {
+            Some(d) => return d.with_events(events),
+            None => (),
+        }
 
         // And if even the gap poll didn't lead to a message, pass token immediately.
-        self.forward_token(now, phy).into()
+        self.forward_token(now, phy).with_events(events)
     }
 
     #[must_use = "poll done marker"]

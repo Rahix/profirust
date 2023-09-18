@@ -1,3 +1,78 @@
+//! # `profirust` - A PROFIBUS-DP communication stack
+//!
+//! _profirust_ is structured according to the layered model of PROFIBUS:
+//!
+//! - The [`phy`] module abstracts physical interfaces for RS-485 communication.
+//! - The [`fdl`] module implements the _Fieldbus Data Link_ layer of basic bus communication and
+//!   token passing between multiple master stations.
+//! - The [`dp`] module implements the PROFIBUS-DP (Decentralized Peripherals) application layer.
+//!   This is where peripherals are managed and cyclic data exchange is facilitated.
+//!
+//! # Example
+//! To successfully communicate with a peripheral, you need to initialize and parameterize all
+//! layers.  Here is an example:
+//!
+//! ```no_run
+//! use profirust::{Baudrate, fdl, dp, phy};
+//!
+//! // Initialize the DP master:
+//! // =========================
+//! let buffer: [profirust::dp::PeripheralStorage; 4] = Default::default();
+//! let mut dp_master = profirust::dp::DpMaster::new(buffer);
+//! // or with `std`:
+//! // let mut dp_master = dp::DpMaster::new(Vec::new());
+//!
+//! // Let's add a peripheral:
+//! // =======================
+//! let remoteio_address = 7;
+//! let remoteio_options = dp::PeripheralOptions {
+//!     // ...
+//!     // best generated using `gsdtool`
+//!     // ...
+//!     ..Default::default()
+//! };
+//! let mut buffer_inputs = [0u8; 8];
+//! let mut buffer_outputs = [0u8; 4];
+//!
+//! let remoteio_handle = dp_master.peripherals.add(dp::Peripheral::new(
+//!     remoteio_address, remoteio_options, &mut buffer_inputs, &mut buffer_outputs
+//! ));
+//!
+//! // Set up the FDL master and parameterize it:
+//! // ==========================================
+//! let master_address = 2;
+//! let mut fdl_master = fdl::FdlMaster::new(
+//!     fdl::ParametersBuilder::new(master_address, Baudrate::B19200)
+//!         .slot_bits(300)
+//!         .build_verified(&dp_master.peripherals)
+//! );
+//!
+//! // Initialize the PHY layer:
+//! // =========================
+//! let mut phy = phy::LinuxRs485Phy::new("/dev/ttyS0", fdl_master.parameters().baudrate);
+//!
+//! // Now let's go live:
+//! // ==================
+//! fdl_master.set_online();
+//! dp_master.state.enter_operate();
+//!
+//! // Main Application Cycle
+//! // ======================
+//! loop {
+//!     let now = profirust::time::Instant::now();
+//!     let events = fdl_master.poll(now, &mut phy, &mut dp_master);
+//!
+//!     // Do something whenever new the DP cycle (for all peripherals) completes:
+//!     if events.cycle_completed {
+//!         let remoteio = dp_master.peripherals.get_mut(remoteio_handle);
+//!         println!("Inputs: {:?}", remoteio.pi_i());
+//!
+//!         // Set some output bits
+//!         let pi_q = remoteio.pi_q_mut();
+//!         pi_q[0] = 0x80;
+//!     }
+//! }
+//! ```
 // TODO: Remove this once the crate has matured.
 #![allow(dead_code)]
 #![allow(unused_variables)]
@@ -11,7 +86,7 @@ pub mod time;
 #[cfg(all(test, feature = "std"))]
 pub mod test_utils;
 
-/// Baudrate for fieldbus communication.
+/// Baudrate for fieldbus communication
 ///
 /// - PROFIBUS DP networks can run at any of the available baudrates given that all stations
 ///   support the selected speed.

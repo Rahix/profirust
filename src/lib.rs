@@ -76,6 +76,7 @@
 // TODO: Remove this once the crate has matured.
 #![allow(dead_code)]
 #![allow(unused_variables)]
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 
 mod consts;
 pub mod dp;

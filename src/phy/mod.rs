@@ -1,3 +1,13 @@
+//! "Physical" layer abstraction
+//!
+//! The PHY layer is an abstraction over the various hardware that `profirust` supports for
+//! PROFIBUS communication.  You will need to enable the corresponding crate features for your PHY
+//! implementation.  Here is a list:
+//!
+//! - `phy-linux`: Linux userspace PHY implementation using a serial TTY device
+//! - `phy-rp2040`: PHY implementation for UART of the RP2040
+//! - `phy-simulator`: Simulator PHY implementation for `profirust` testing with a simulated bus
+
 #[cfg(feature = "phy-linux")]
 mod linux;
 #[cfg(feature = "phy-linux")]
@@ -13,8 +23,10 @@ mod rp2040;
 #[cfg(feature = "phy-rp2040")]
 pub use rp2040::Rp2040Phy;
 
+/// Type alias for the message buffer used by some PHY implementations
 pub type BufferHandle<'a> = managed::ManagedSlice<'a, u8>;
 
+/// Generic abstraction for `profirust` PHY implementations
 pub trait ProfibusPhy {
     /// Check whether a transmission is currently ongoing.
     ///
@@ -29,7 +41,7 @@ pub trait ProfibusPhy {
     ///
     /// **Important**: This function must not block on the actual transmission!
     ///
-    /// ## Panics
+    /// # Panics
     /// This function may panic when a transmission is already ongoing.
     fn transmit_data<F, R>(&mut self, f: F) -> R
     where
@@ -44,7 +56,7 @@ pub trait ProfibusPhy {
     ///
     /// **Important**: This function must not block on the actual transmission!
     ///
-    /// ## Panics
+    /// # Panics
     /// This function may panic when a transmission is already ongoing.
     fn transmit_telegram<F>(&mut self, f: F) -> Option<crate::fdl::TelegramTxResponse>
     where
@@ -74,7 +86,7 @@ pub trait ProfibusPhy {
     /// **Important**: This function must not block on the actually receiving data and should
     /// instead return an empty buffer if no data is available!
     ///
-    /// ## Panics
+    /// # Panics
     /// This function may panic when a transmission is ongoing.
     fn receive_data<F, R>(&mut self, f: F) -> R
     where
@@ -87,7 +99,7 @@ pub trait ProfibusPhy {
     /// **Important**: This function must not block on the actually receiving a telegram and should
     /// return `None` in case no full telegram was received yet!
     ///
-    /// ## Panics
+    /// # Panics
     /// This function may panic when a transmission is ongoing.
     fn receive_telegram<F, R>(&mut self, f: F) -> Option<R>
     where
@@ -115,7 +127,7 @@ pub trait ProfibusPhy {
     /// **Important**: This function must not block on the actually receiving data and should
     /// instead return 0 if no data is available!
     ///
-    /// ## Panics
+    /// # Panics
     /// This function may panic when a transmission is ongoing.
     fn get_pending_received_bytes(&mut self) -> usize {
         self.receive_data(|buf| (0, buf.len()))

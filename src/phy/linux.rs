@@ -40,6 +40,36 @@ impl PhyData<'_> {
     }
 }
 
+/// Linux userspace PHY implementation for serial TTY devices
+///
+/// Available with the `phy-linux` feature.
+///
+/// **Important**: Due to the non-realtime nature of Linux, you must use this PHY implementation
+/// with care.  You may need to decrease the baudrate or lengthen timeouts (T<sub>SL</sub>, TTR) to
+/// get reliable communication.  You should also consider running your pogram at "real-time
+/// priority" if you need higher bus speeds.  It is advisable to run tests with heavy system load
+/// to ensure the bus communication stays reliable in all circumstances.
+///
+/// **Important 2**: If you plan to use this PHY with a USB-serial device, you have to choose your
+/// bus parameters even more carefully.  Stick to very low baudrates (19.2 kBit worked okay in
+/// tests) and increase T<sub>SL</sub> (slot time) to deal with communication delays (100ms => 1920
+/// t_Bit was reliable at 19.2 kBit in tests).
+///
+/// # Example
+/// ```no_run
+/// use profirust::{Baudrate, fdl, dp, phy};
+/// const BAUDRATE: Baudrate = Baudrate::B19200;
+/// # let mut dp_master = dp::DpMaster::new(vec![]);
+///
+/// let mut fdl_master = fdl::FdlMaster::new(
+///     fdl::ParametersBuilder::new(0x02, BAUDRATE)
+///         // Increase T_sl (slot time)
+///         .slot_bits(1920)
+///         .build_verified(&dp_master.peripherals)
+/// );
+///
+/// let mut phy = phy::LinuxRs485Phy::new("/dev/ttyS0", fdl_master.parameters().baudrate);
+/// ```
 #[derive(Debug)]
 pub struct LinuxRs485Phy<'a> {
     fd: RawFd,
@@ -47,6 +77,10 @@ pub struct LinuxRs485Phy<'a> {
 }
 
 impl LinuxRs485Phy<'_> {
+    /// Construct and initialize a new PHY device
+    ///
+    /// This function will attempt to configure the TTY device `serial_port` for PROFIBUS
+    /// communication (line settings via termios and RS-485 mode when available).
     #[inline]
     pub fn new<P: AsRef<Path>>(serial_port: P, baudrate: crate::Baudrate) -> Self {
         Self::new_inner(&serial_port.as_ref(), baudrate)

@@ -34,7 +34,7 @@
 //! let mut buffer_inputs = [0u8; 8];
 //! let mut buffer_outputs = [0u8; 4];
 //!
-//! let remoteio_handle = dp_master.peripherals.add(dp::Peripheral::new(
+//! let remoteio_handle = dp_master.add(dp::Peripheral::new(
 //!     remoteio_address, remoteio_options, &mut buffer_inputs, &mut buffer_outputs
 //! ));
 //!
@@ -44,7 +44,7 @@
 //! let mut fdl_master = fdl::FdlMaster::new(
 //!     fdl::ParametersBuilder::new(master_address, Baudrate::B19200)
 //!         .slot_bits(300)
-//!         .build_verified(&dp_master.peripherals)
+//!         .build_verified(&dp_master)
 //! );
 //!
 //! // Initialize the PHY layer:
@@ -54,7 +54,7 @@
 //! // Now let's go live:
 //! // ==================
 //! fdl_master.set_online();
-//! dp_master.state.enter_operate();
+//! dp_master.enter_operate();
 //!
 //! // Main Application Cycle
 //! // ======================
@@ -64,7 +64,7 @@
 //!
 //!     // Do something whenever new the DP cycle (for all peripherals) completes:
 //!     if events.cycle_completed {
-//!         let remoteio = dp_master.peripherals.get_mut(remoteio_handle);
+//!         let remoteio = dp_master.get_mut(remoteio_handle);
 //!         println!("Inputs: {:?}", remoteio.pi_i());
 //!
 //!         // Set some output bits

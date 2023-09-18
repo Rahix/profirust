@@ -13,7 +13,7 @@
 /// let master_address = 2;
 /// let param = fdl::ParametersBuilder::new(master_address, profirust::Baudrate::B19200)
 ///     .slot_bits(300)
-///     .build_verified(&dp_master.peripherals);
+///     .build_verified(&dp_master);
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[non_exhaustive]
@@ -181,8 +181,8 @@ impl ParametersBuilder {
     }
 
     #[inline]
-    pub fn build_verified(&self, peripherals: &crate::dp::PeripheralSet) -> Parameters {
-        for (_, peripheral) in peripherals.iter() {
+    pub fn build_verified(&self, dp_master: &crate::dp::DpMaster) -> Parameters {
+        for (_, peripheral) in dp_master.iter() {
             assert!(
                 peripheral.options().max_tsdr + 15 <= self.0.slot_bits,
                 "max Tsdr of peripheral #{} too large for slot time",

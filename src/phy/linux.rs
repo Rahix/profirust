@@ -65,7 +65,7 @@ impl PhyData<'_> {
 ///     fdl::ParametersBuilder::new(0x02, BAUDRATE)
 ///         // Increase T_sl (slot time)
 ///         .slot_bits(1920)
-///         .build_verified(&dp_master.peripherals)
+///         .build_verified(&dp_master)
 /// );
 ///
 /// let mut phy = phy::LinuxRs485Phy::new("/dev/ttyS0", fdl_master.parameters().baudrate);

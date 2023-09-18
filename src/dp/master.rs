@@ -1,3 +1,5 @@
+use crate::dp::Peripheral;
+
 /// Operating state of the FDL master
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
@@ -81,19 +83,18 @@ enum CycleState {
 /// let mut buffer_inputs = [0u8; 8];
 /// let mut buffer_outputs = [0u8; 4];
 ///
-/// let remoteio = dp_master.peripherals.add(dp::Peripheral::new(
+/// let remoteio = dp_master.add(dp::Peripheral::new(
 ///     remoteio_address,
 ///     remoteio_options,
 ///     &mut buffer_inputs,
 ///     &mut buffer_outputs,
 /// ));
 ///
-/// dp_master.state.enter_operate();
+/// dp_master.enter_operate();
 /// ```
-#[non_exhaustive]
 pub struct DpMaster<'a> {
-    pub peripherals: crate::dp::PeripheralSet<'a>,
-    pub state: DpMasterState,
+    peripherals: crate::dp::PeripheralSet<'a>,
+    state: DpMasterState,
 }
 
 pub struct DpMasterState {
@@ -126,29 +127,43 @@ impl<'a> DpMaster<'a> {
         }
     }
 
-    fn increment_cycle_state(&mut self, index: u8) -> bool {
-        if let Some(next) = self.peripherals.get_next_index(index) {
-            self.state.cycle_state = CycleState::DataExchange(next);
-            false
-        } else {
-            self.state.cycle_state = CycleState::CycleCompleted;
-            true
-        }
+    /// Add a peripheral to the set, and return its handle.
+    ///
+    /// # Panics
+    /// This function panics if the storage is fixed-size (not a `Vec`) and is full.
+    pub fn add(&mut self, peripheral: Peripheral<'a>) -> crate::dp::PeripheralHandle {
+        self.peripherals.add(peripheral)
     }
-}
 
-impl DpMasterState {
+    /// Get a peripheral from the set by its handle, as mutable.
+    ///
+    /// # Panics
+    /// This function may panic if the handle does not belong to this peripheral set.
+    pub fn get_mut(&mut self, handle: crate::dp::PeripheralHandle) -> &mut Peripheral<'a> {
+        self.peripherals.get_mut(handle)
+    }
+
+    pub fn iter_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (crate::dp::PeripheralHandle, &mut Peripheral<'a>)> {
+        self.peripherals.iter_mut()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (crate::dp::PeripheralHandle, &Peripheral<'a>)> {
+        self.peripherals.iter()
+    }
+
     #[inline(always)]
     pub fn operating_state(&self) -> OperatingState {
-        self.operating_state
+        self.state.operating_state
     }
 
     #[inline]
     pub fn enter_state(&mut self, state: OperatingState) {
         log::info!("DP master entering state \"{:?}\"", state);
-        self.operating_state = state;
+        self.state.operating_state = state;
         // Ensure we will send a new global control telegram ASAP:
-        self.last_global_control = None;
+        self.state.last_global_control = None;
 
         if state != OperatingState::Operate {
             todo!("OperatingState {:?} is not yet supported properly!", state);
@@ -177,6 +192,16 @@ impl DpMasterState {
     #[inline]
     pub fn enter_operate(&mut self) {
         self.enter_state(OperatingState::Operate)
+    }
+
+    fn increment_cycle_state(&mut self, index: u8) -> bool {
+        if let Some(next) = self.peripherals.get_next_index(index) {
+            self.state.cycle_state = CycleState::DataExchange(next);
+            false
+        } else {
+            self.state.cycle_state = CycleState::CycleCompleted;
+            true
+        }
     }
 }
 

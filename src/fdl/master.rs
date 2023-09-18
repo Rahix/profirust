@@ -128,7 +128,7 @@ impl CommunicationState {
 /// let mut fdl_master = fdl::FdlMaster::new(
 ///     fdl::ParametersBuilder::new(master_address, Baudrate::B19200)
 ///         .slot_bits(300)
-///         .build_verified(&dp_master.peripherals)
+///         .build_verified(&dp_master)
 /// );
 ///
 /// fdl_master.set_online();

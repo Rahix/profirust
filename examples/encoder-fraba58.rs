@@ -56,7 +56,7 @@ fn main() {
     };
     let mut buffer_inputs = [0u8; 4];
     let mut buffer_outputs = [0u8; 4];
-    let encoder_handle = dp_master.peripherals.add(dp::Peripheral::new(
+    let encoder_handle = dp_master.add(dp::Peripheral::new(
         ENCODER_ADDRESS,
         options,
         &mut buffer_inputs,
@@ -70,20 +70,20 @@ fn main() {
             // times.
             .slot_bits(1920)
             .token_rotation_bits(20000)
-            .build_verified(&dp_master.peripherals),
+            .build_verified(&dp_master),
     );
 
     println!("Connecting to the bus...");
     let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl_master.parameters().baudrate);
 
     fdl_master.set_online();
-    dp_master.state.enter_operate();
+    dp_master.enter_operate();
     loop {
         let now = profirust::time::Instant::now();
         let events = fdl_master.poll(now, &mut phy, &mut dp_master);
 
         // Get mutable access the the peripheral here so we can interact with it.
-        let encoder = dp_master.peripherals.get_mut(encoder_handle);
+        let encoder = dp_master.get_mut(encoder_handle);
 
         if encoder.is_running() && events.cycle_completed {
             let value = u32::from_be_bytes(encoder.pi_i().try_into().unwrap());

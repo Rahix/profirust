@@ -79,7 +79,7 @@ fn main() {
     };
     let mut buffer_inputs = [0u8; 10];
     let mut buffer_outputs = [0u8; 7];
-    let io_handle = dp_master.peripherals.add(dp::Peripheral::new(
+    let io_handle = dp_master.add(dp::Peripheral::new(
         IO_STATION_ADDRESS,
         options,
         &mut buffer_inputs,
@@ -93,7 +93,7 @@ fn main() {
             // times.
             .slot_bits(1920)
             .watchdog_timeout(profirust::time::Duration::from_secs(2))
-            .build_verified(&dp_master.peripherals),
+            .build_verified(&dp_master),
     );
 
     println!("Connecting to the bus...");
@@ -102,13 +102,13 @@ fn main() {
     let start = profirust::time::Instant::now();
 
     fdl_master.set_online();
-    dp_master.state.enter_operate();
+    dp_master.enter_operate();
     loop {
         let now = profirust::time::Instant::now();
         let events = fdl_master.poll(now, &mut phy, &mut dp_master);
 
         // Get mutable access the the peripheral here so we can interact with it.
-        let remoteio = dp_master.peripherals.get_mut(io_handle);
+        let remoteio = dp_master.get_mut(io_handle);
 
         if remoteio.is_running() && events.cycle_completed {
             println!("Inputs: {:?}", remoteio.pi_i());

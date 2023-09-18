@@ -498,6 +498,7 @@ impl ShortConfirmation {
     }
 }
 
+/// Representation of a decoded telegram
 #[derive(PartialEq, Eq, Clone)]
 pub enum Telegram<'a> {
     Data(DataTelegram<'a>),

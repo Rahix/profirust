@@ -112,6 +112,27 @@ impl CommunicationState {
     }
 }
 
+/// FDL master implementation
+///
+/// The FDL master starts in the [`Offline`][`ConnectivityState::Offline`] state.  To start bus
+/// interaction, you must first move it into [`Online`][`ConnectivityState::Online`] state (using
+/// [`.set_online()`][`FdlMaster::set_online`]).
+///
+/// # Example
+/// ```
+/// use profirust::{Baudrate, fdl};
+/// # let buffer: [profirust::dp::PeripheralStorage; 4] = Default::default();
+/// # let dp_master = profirust::dp::DpMaster::new(buffer);
+///
+/// let master_address = 2;
+/// let mut fdl_master = fdl::FdlMaster::new(
+///     fdl::ParametersBuilder::new(master_address, Baudrate::B19200)
+///         .slot_bits(300)
+///         .build_verified(&dp_master.peripherals)
+/// );
+///
+/// fdl_master.set_online();
+/// ```
 #[derive(Debug)]
 pub struct FdlMaster {
     p: crate::fdl::Parameters,

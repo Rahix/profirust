@@ -46,12 +46,50 @@ enum CycleState {
     CycleCompleted,
 }
 
-/// The DP master.
+/// The DP master
 ///
 /// Currently only implements a subset of DP-V0.
 ///
 /// The DP master holds all peripherals that we interact with.  To get access, use the
-/// [`PeripheralHandle`] that you get when calling [`.add()`][`DpMaster::add`].
+/// [`PeripheralHandle`][`crate::dp::PeripheralHandle`] that you get when calling
+/// [`dp_master.peripherals.add()`][`crate::dp::PeripheralSet::add`].
+///
+/// When constructing the DP master, you need to pass a storage for peripherals.  This can either
+/// be a fixed-size storage (slice or array) or, if `alloc`/`std` is available, a `Vec<>` that will
+/// be dynamically grown to house the peripherals.
+///
+/// The DP master starts in the [`Stop`][`OperatingState::Stop`] state.  To communicate with
+/// peripherals, you first need to move it into the [`Operate`][`OperatingState::Operate`] state
+/// using the [`dp_master.state.enter_operate()`][`DpMasterState::enter_operate`] method.
+///
+/// # Example
+/// ```
+/// use profirust::dp;
+/// let buffer: [dp::PeripheralStorage; 4] = Default::default();
+/// let mut dp_master = dp::DpMaster::new(buffer);
+/// // or with `std`:
+/// // let mut dp_master = dp::DpMaster::new(Vec::new());
+///
+/// // Let's add a peripheral.
+/// let remoteio_address = 7;
+/// let remoteio_options = dp::PeripheralOptions {
+///     // ...
+///     // best generated using `gsdtool`
+///     // ...
+///     ..Default::default()
+/// };
+/// let mut buffer_inputs = [0u8; 8];
+/// let mut buffer_outputs = [0u8; 4];
+///
+/// let remoteio = dp_master.peripherals.add(dp::Peripheral::new(
+///     remoteio_address,
+///     remoteio_options,
+///     &mut buffer_inputs,
+///     &mut buffer_outputs,
+/// ));
+///
+/// dp_master.state.enter_operate();
+/// ```
 #[non_exhaustive]
 pub struct DpMaster<'a> {
     pub peripherals: crate::dp::PeripheralSet<'a>,
@@ -60,10 +98,10 @@ pub struct DpMaster<'a> {
 
 pub struct DpMasterState {
     /// Operating State of the master.
-    pub operating_state: OperatingState,
+    pub(crate) operating_state: OperatingState,
 
     /// Last time we sent a "Global Control" telegram to advertise our operating state.
-    pub last_global_control: Option<crate::time::Instant>,
+    last_global_control: Option<crate::time::Instant>,
 
     /// Cycle State, tracking progress of the data exchange cycle
     cycle_state: CycleState,

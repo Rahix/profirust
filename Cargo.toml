@@ -12,7 +12,7 @@ license = "MIT OR Apache-2.0"
 [features]
 phy-linux = ["rs485", "libc", "std"]
 phy-simulator = ["std"]
-phy-rp2040 = ["rp2040-hal", "fugit", "embedded-hal", "nb"]
+phy-rp2040 = ["rp2040-hal", "fugit", "embedded-hal", "nb", "cortex-m"]
 std = ["managed/std"]
 alloc = ["managed/alloc"]
 
@@ -21,6 +21,7 @@ default = ["std", "phy-linux", "phy-simulator"]
 [dependencies]
 bitflags = "2.3.3"
 bitvec = { version = "1.0.1", default-features = false }
+cortex-m = { version = "0.7.7", optional = true }
 embedded-hal = { version = "0.2.7", optional = true }
 fugit = { version = "0.3.7", optional = true }
 libc = { version = "0.2.139", optional = true }

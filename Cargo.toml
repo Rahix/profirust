@@ -3,7 +3,7 @@ name = "profirust"
 version = "0.0.1"
 edition = "2021"
 
-description = "PROFIBUS-DP communication stack in pure Rust"
+description = "PROFIBUS-DP compatible communication stack in pure Rust"
 categories = ["no-std", "embedded", "science::robotics" ]
 keywords = ["profibus", "profibus-dp", "fieldbus", "siemens"]
 authors = ["Rahix <rahix@rahix.de>"]

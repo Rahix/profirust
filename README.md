@@ -1,13 +1,13 @@
 <p align="center">
   <img src="img/logo-header.svg" alt="profirust"><br>
   <br>
-  A PROFIBUS-DP communication stack written in Rust.
+  A PROFIBUS-DP compatible communication stack written in Rust.
 </p>
 
 ## What's this?
-**profirust** is a pure-Rust [PROFIBUS-DP] communication stack.  PROFIBUS is an
-industrial bus protocol used to communicate with field devices like remote I/O,
-transducers, valves, drives, etc.
+**profirust** is a pure-Rust [PROFIBUS-DP] compatible communication stack.
+PROFIBUS is an industrial bus protocol used to communicate with field devices
+like remote I/O, transducers, valves, drives, etc.
 
 ## Project Status
 **profirust** is not yet in a state where it should be used in production.  It
@@ -18,7 +18,7 @@ At this time, **profirust** is developed as a spare time project.  If you are
 interested in this project, help is gladly accepted in the following forms:
 
 - Code Contributions
-- Donation of PROFIBUS peripherals for testing purposes
+- Donation of PROFIBUS peripherals or other equipment for testing purposes
 - Funding of access to the needed IEC standards for improving compliance
 - Reporting any kinds of issues encountered while using **profirust**
 

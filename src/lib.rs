@@ -1,4 +1,4 @@
-//! # `profirust` - A PROFIBUS-DP communication stack
+//! # `profirust` - A PROFIBUS-DP compatible communication stack
 //!
 //! _profirust_ is structured according to the layered model of PROFIBUS:
 //!

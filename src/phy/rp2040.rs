@@ -99,8 +99,9 @@ where
         } = &mut self.data
         {
             if length != cursor {
-                let written = match self.uart.write_raw(&buffer[*cursor..*length]) {
-                    Ok(b) => b.len(),
+                let pending = &buffer[*cursor..*length];
+                let written = match self.uart.write_raw(pending) {
+                    Ok(b) => pending.len() - b.len(),
                     Err(nb::Error::WouldBlock) => 0,
                     Err(nb::Error::Other(_)) => unreachable!(),
                 };

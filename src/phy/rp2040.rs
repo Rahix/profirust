@@ -14,6 +14,7 @@ enum PhyData<'a> {
         buffer: crate::phy::BufferHandle<'a>,
         length: usize,
         cursor: usize,
+        start_tx: crate::time::Instant,
     },
 }
 
@@ -86,6 +87,7 @@ pub struct Rp2040Phy<'a, UART, DIR> {
     uart: UART,
     dir_pin: DIR,
     data: PhyData<'a>,
+    baudrate: crate::Baudrate,
 }
 
 impl<'a, D, P, DIR> Rp2040Phy<'a, uart::UartPeripheral<uart::Enabled, D, P>, DIR>
@@ -121,6 +123,7 @@ where
                 buffer: buffer.into(),
                 length: 0,
             },
+            baudrate,
         })
     }
 }
@@ -132,14 +135,18 @@ where
     P: uart::ValidUartPinout<D>,
     DIR: OutputPin,
 {
-    fn poll_transmission(&mut self, _now: crate::time::Instant) -> bool {
+    fn poll_transmission(&mut self, now: crate::time::Instant) -> bool {
         if let PhyData::Tx {
             buffer,
             length,
             cursor,
+            start_tx,
         } = &mut self.data
         {
-            if length != cursor {
+            if now < *start_tx {
+                // We must still wait before beginning transmission (Tset).
+                true
+            } else if length != cursor {
                 let pending = &buffer[*cursor..*length];
                 let written = match self.uart.write_raw(pending) {
                     Ok(b) => pending.len() - b.len(),
@@ -162,7 +169,7 @@ where
         }
     }
 
-    fn transmit_data<F, R>(&mut self, _now: crate::time::Instant, f: F) -> R
+    fn transmit_data<F, R>(&mut self, now: crate::time::Instant, f: F) -> R
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
@@ -184,24 +191,18 @@ where
                     return res;
                 }
 
-                // TODO: timing considerations?  for now, let's only set the pin here and hope that
-                // enough time passes before the next `is_transmitting()` call happens.
+                // We enable the transmitter here and then wait for Tset before poll_transmission()
+                // will start scheduling bytes for transmission.
                 self.dir_pin.set_high().ok().unwrap();
+                // TODO: Tset is not always 1 bit time
+                let t_set = self.baudrate.bits_to_time(1);
 
-                // TODO: delay for the transmitter (roughly Tset)
-                cortex_m::asm::delay(13020);
-
-                let cursor = match self.uart.write_raw(&buffer[..length]) {
-                    Ok(b) => length - b.len(),
-                    Err(nb::Error::WouldBlock) => 0,
-                    Err(nb::Error::Other(_)) => unreachable!(),
-                };
-                debug_assert!(cursor <= length);
                 let buffer = core::mem::replace(buffer, (&mut [][..]).into());
                 self.data = PhyData::Tx {
                     buffer,
                     length,
-                    cursor,
+                    cursor: 0,
+                    start_tx: now + t_set,
                 };
                 res
             }

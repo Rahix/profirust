@@ -1,4 +1,4 @@
-//! "Physical" layer abstraction
+//! PHY - Physical layer abstraction
 //!
 //! The PHY layer is an abstraction over the various hardware that `profirust` supports for
 //! PROFIBUS communication.  You will need to enable the corresponding crate features for your PHY

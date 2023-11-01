@@ -42,3 +42,6 @@ env_logger = "0.10.0"
 proptest = "1.2.0"
 proptest-derive = "0.3.0"
 rstest = { version = "0.18.2", default-features = false }
+
+[patch.crates-io]
+rp2040-hal = { git = "https://github.com/rahix/rp-hal.git", rev = "6baaf07b0ac2017dbbea1ba8cf5986b74cd81104" }

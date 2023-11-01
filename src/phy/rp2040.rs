@@ -109,14 +109,7 @@ where
                 *cursor += written;
                 true
             } else {
-                // TODO: Upstream HAL does not yet provide access to this field.
-                let busy = unsafe {
-                    (*rp2040_hal::pac::UART0::PTR)
-                        .uartfr
-                        .read()
-                        .busy()
-                        .bit_is_set()
-                };
+                let busy = self.uart.uart_is_busy();
                 if !busy {
                     self.data.make_rx();
                     self.dir_pin.set_low().ok().unwrap();

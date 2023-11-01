@@ -109,10 +109,19 @@ where
                 *cursor += written;
                 true
             } else {
-                // TODO: Check for queued bytes
-                self.data.make_rx();
-                self.dir_pin.set_low().ok().unwrap();
-                false
+                // TODO: Upstream HAL does not yet provide access to this field.
+                let busy = unsafe {
+                    (*rp2040_hal::pac::UART0::PTR)
+                        .uartfr
+                        .read()
+                        .busy()
+                        .bit_is_set()
+                };
+                if !busy {
+                    self.data.make_rx();
+                    self.dir_pin.set_low().ok().unwrap();
+                }
+                busy
             }
         } else {
             false
@@ -145,11 +154,14 @@ where
                 // enough time passes before the next `is_transmitting()` call happens.
                 self.dir_pin.set_high().ok().unwrap();
 
-                let cursor = 0; /*match self.uart.write_raw(&buffer[..length]) {
-                                    Ok(b) => b.len(),
-                                    Err(nb::Error::WouldBlock) => 0,
-                                    Err(nb::Error::Other(_)) => unreachable!(),
-                                };*/
+                // TODO: delay for the transmitter (roughly Tset)
+                cortex_m::asm::delay(13020);
+
+                let cursor = match self.uart.write_raw(&buffer[..length]) {
+                    Ok(b) => b.len(),
+                    Err(nb::Error::WouldBlock) => 0,
+                    Err(nb::Error::Other(_)) => unreachable!(),
+                };
                 debug_assert!(cursor <= length);
                 let buffer = core::mem::replace(buffer, (&mut [][..]).into());
                 self.data = PhyData::Tx {

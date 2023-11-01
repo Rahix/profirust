@@ -411,7 +411,7 @@ impl FdlMaster {
     }
 
     fn check_for_bus_activity(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) {
-        let pending_bytes = phy.get_pending_received_bytes();
+        let pending_bytes = phy.poll_pending_received_bytes();
         if pending_bytes > self.pending_bytes {
             self.mark_bus_activity(now);
             self.pending_bytes = pending_bytes;

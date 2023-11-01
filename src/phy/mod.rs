@@ -123,16 +123,16 @@ pub trait ProfibusPhy {
         })
     }
 
-    /// Get current amount of bytes waiting in the receive buffer.
+    /// Poll for the current amount of bytes waiting in the receive buffer.
     ///
-    /// No modification of the receive buffer is performed.
+    /// The receive buffer is not emptied by this call.
     ///
     /// **Important**: This function must not block on the actually receiving data and should
     /// instead return 0 if no data is available!
     ///
     /// # Panics
     /// This function may panic when a transmission is ongoing.
-    fn get_pending_received_bytes(&mut self) -> usize {
+    fn poll_pending_received_bytes(&mut self) -> usize {
         self.receive_data(|buf| (0, buf.len()))
     }
 }

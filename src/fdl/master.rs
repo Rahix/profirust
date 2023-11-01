@@ -416,6 +416,12 @@ impl FdlMaster {
             self.pending_bytes = pending_bytes;
         }
     }
+
+    /// Mark receival of a telegram.
+    fn mark_rx(&mut self, now: crate::time::Instant) {
+        self.pending_bytes = 0;
+        self.mark_bus_activity(now);
+    }
 }
 
 impl FdlMaster {
@@ -503,6 +509,8 @@ impl FdlMaster {
         addr: u8,
     ) -> Option<APP::Events> {
         phy.receive_telegram(|telegram| {
+            self.mark_rx(now);
+
             match &telegram {
                 crate::fdl::Telegram::Token(t) => {
                     log::warn!(
@@ -544,6 +552,8 @@ impl FdlMaster {
         addr: u8,
     ) -> bool {
         phy.receive_telegram(|telegram| {
+            self.mark_rx(now);
+
             if let crate::fdl::Telegram::Data(telegram) = telegram {
                 if telegram.h.sa != addr {
                     log::warn!("Expected status response from {addr}, got telegram from someone else: {telegram:?}");
@@ -739,6 +749,8 @@ impl FdlMaster {
         match *self.communication_state.assert_without_token() {
             StateWithoutToken::Idle => phy
                 .receive_telegram(|telegram| {
+                    self.mark_rx(now);
+
                     match telegram {
                         crate::fdl::Telegram::Token(token_telegram) => {
                             if token_telegram.da == self.p.address {
@@ -823,9 +835,6 @@ impl FdlMaster {
         app: &mut APP,
     ) -> APP::Events {
         let result = self.poll_inner(now, phy, app);
-        if !phy.is_transmitting() {
-            self.pending_bytes = phy.get_pending_received_bytes();
-        }
         result.events
     }
 
@@ -842,6 +851,8 @@ impl FdlMaster {
 
         return_if_done!(self.check_for_ongoing_transmision(now, phy));
 
+        // Important: We may receive more data later during processing so we need to keep in mind
+        // that the activity marker might change again later during the poll cycle.
         self.check_for_bus_activity(now, phy);
 
         if self.communication_state.have_token() {

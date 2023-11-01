@@ -355,7 +355,7 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
     ) -> Option<PollDone> {
-        if self.last_bus_activity.map(|l| now <= l).unwrap_or(false) || phy.is_transmitting() {
+        if phy.is_transmitting() || self.last_bus_activity.map(|l| now <= l).unwrap_or(false) {
             self.mark_bus_activity(now);
             Some(PollDone::waiting_for_transmission())
         } else {

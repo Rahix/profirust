@@ -155,7 +155,7 @@ pub struct FdlMaster {
     ///
     /// This known value is compared to the latest one reported by the PHY to find out whether new
     /// data was received since the last poll.
-    pending_bytes: u8,
+    pending_bytes: usize,
 
     /// Whether we believe to be a part of the token ring.
     in_ring: bool,
@@ -412,7 +412,7 @@ impl FdlMaster {
     }
 
     fn check_for_bus_activity(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) {
-        let pending_bytes = phy.get_pending_received_bytes().try_into().unwrap();
+        let pending_bytes = phy.get_pending_received_bytes();
         if pending_bytes > self.pending_bytes {
             self.mark_bus_activity(now);
             self.pending_bytes = pending_bytes;
@@ -826,7 +826,7 @@ impl FdlMaster {
     ) -> APP::Events {
         let result = self.poll_inner(now, phy, app);
         if !phy.is_transmitting() {
-            self.pending_bytes = phy.get_pending_received_bytes().try_into().unwrap();
+            self.pending_bytes = phy.get_pending_received_bytes();
         }
         result.events
     }

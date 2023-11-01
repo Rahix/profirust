@@ -40,6 +40,47 @@ impl PhyData<'_> {
     }
 }
 
+/// PHY implementation for the [RP2040] microcontroller's UART peripheral
+///
+/// Available with the `phy-rp2040` feature.
+///
+/// [RP2040]: https://www.raspberrypi.com/documentation/microcontrollers/rp2040.html
+///
+/// # Example
+/// ```no_run
+/// # use rp2040_hal::gpio::{Pin, bank0, FunctionNull, PullNone};
+/// # let clocks: rp2040_hal::clocks::ClocksManager = todo!();
+/// # let pac: rp2040_hal::pac::Peripherals = todo!();
+/// # struct FakePins {
+/// #    pub gpio15: Pin<bank0::Gpio15, FunctionNull, PullNone>,
+/// #    pub gpio16: Pin<bank0::Gpio16, FunctionNull, PullNone>,
+/// #    pub gpio17: Pin<bank0::Gpio17, FunctionNull, PullNone>,
+/// # }
+/// # let pins: FakePins = todo!();
+/// use profirust::{Baudrate, fdl, dp, phy};
+/// const BAUDRATE: Baudrate = Baudrate::B19200;
+///
+/// let uart_pins = (
+///     // UART TX (characters sent from RP2040) on pin 1 (GPIO0)
+///     pins.gpio16.into_function(),
+///     // UART RX (characters received by RP2040) on pin 2 (GPIO1)
+///     pins.gpio17.into_function(),
+/// );
+/// let uart = rp2040_hal::uart::UartPeripheral::new(pac.UART0, uart_pins, &mut pac.RESETS);
+///
+/// // Pin to toggle the RS485 direction (transmit vs. receive)
+/// let dir_pin = pins.gpio15.into_push_pull_output();
+///
+/// let mut phy_buffer = [0u8; 256];
+/// let mut phy = phy::Rp2040Phy::new(
+///     uart,
+///     dir_pin,
+///     &clocks.peripheral_clock,
+///     &mut phy_buffer[..],
+///     BAUDRATE,
+/// )
+/// .unwrap();
+/// ```
 #[derive(Debug)]
 pub struct Rp2040Phy<'a, UART, DIR> {
     uart: UART,

@@ -28,11 +28,14 @@ pub type BufferHandle<'a> = managed::ManagedSlice<'a, u8>;
 
 /// Generic abstraction for `profirust` PHY implementations
 pub trait ProfibusPhy {
-    /// Check whether a transmission is currently ongoing.
+    /// Poll an ongoing transmission.
+    ///
+    /// Should return `true` while the transmission is still in progress and `false` once it has
+    /// been completed.
     ///
     /// While this function returns `true`, calling any of the `transmit_*()` or `receive_*()`
     /// functions may panic.
-    fn is_transmitting(&mut self) -> bool;
+    fn poll_transmission(&mut self) -> bool;
 
     /// Schedule transmission of some data.
     ///

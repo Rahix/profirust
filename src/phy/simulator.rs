@@ -198,7 +198,7 @@ impl SimulatorPhy {
 }
 
 impl crate::phy::ProfibusPhy for SimulatorPhy {
-    fn is_transmitting(&mut self) -> bool {
+    fn poll_transmission(&mut self) -> bool {
         let bus = self.bus.lock().unwrap();
         bus.is_active() == Some(self.name)
     }
@@ -223,7 +223,7 @@ impl crate::phy::ProfibusPhy for SimulatorPhy {
     where
         F: FnOnce(&[u8]) -> (usize, R),
     {
-        if self.is_transmitting() {
+        if self.poll_transmission() {
             panic!(
                 "\"{}\" attempted to receive while it was still transmitting!",
                 self.name

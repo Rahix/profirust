@@ -32,7 +32,7 @@ fn test_token_timeout(#[values(0, 1, 7, 14)] addr: u8) {
         master7.poll(now, &mut phy7, &mut ());
 
         crate::test_utils::set_active_addr(15);
-        if !phy0.is_transmitting() {
+        if !phy0.poll_transmission() {
             phy0.receive_telegram(|t| match t {
                 crate::fdl::Telegram::Token(crate::fdl::TokenTelegram { da, sa }) => {
                     if new_token_time.is_none() {

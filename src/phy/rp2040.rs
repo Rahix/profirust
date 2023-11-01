@@ -132,7 +132,7 @@ where
     P: uart::ValidUartPinout<D>,
     DIR: OutputPin,
 {
-    fn is_transmitting(&mut self) -> bool {
+    fn poll_transmission(&mut self) -> bool {
         if let PhyData::Tx {
             buffer,
             length,

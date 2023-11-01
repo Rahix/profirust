@@ -229,7 +229,7 @@ impl LinuxRs485Phy<'_> {
 }
 
 impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
-    fn is_transmitting(&mut self) -> bool {
+    fn poll_transmission(&mut self) -> bool {
         if let PhyData::Tx {
             buffer,
             length,

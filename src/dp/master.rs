@@ -62,7 +62,7 @@ enum CycleState {
 ///
 /// The DP master starts in the [`Stop`][`OperatingState::Stop`] state.  To communicate with
 /// peripherals, you first need to move it into the [`Operate`][`OperatingState::Operate`] state
-/// using the [`dp_master.state.enter_operate()`][`DpMasterState::enter_operate`] method.
+/// using the [`dp_master.enter_operate()`][`DpMaster::enter_operate`] method.
 ///
 /// # Example
 /// ```

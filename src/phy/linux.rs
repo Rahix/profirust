@@ -229,7 +229,7 @@ impl LinuxRs485Phy<'_> {
 }
 
 impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
-    fn poll_transmission(&mut self) -> bool {
+    fn poll_transmission(&mut self, _now: crate::time::Instant) -> bool {
         if let PhyData::Tx {
             buffer,
             length,
@@ -259,7 +259,7 @@ impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
         }
     }
 
-    fn transmit_data<F, R>(&mut self, f: F) -> R
+    fn transmit_data<F, R>(&mut self, _now: crate::time::Instant, f: F) -> R
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
@@ -293,7 +293,7 @@ impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
         }
     }
 
-    fn receive_data<F, R>(&mut self, f: F) -> R
+    fn receive_data<F, R>(&mut self, _now: crate::time::Instant, f: F) -> R
     where
         F: FnOnce(&[u8]) -> (usize, R),
     {

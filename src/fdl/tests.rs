@@ -15,14 +15,15 @@ fn test_token_timeout(#[values(0, 1, 7, 14)] addr: u8) {
             .build(),
     );
 
+    let start = crate::time::Instant::ZERO;
+    let mut now = start;
+
     crate::test_utils::set_active_addr(addr);
     master7.set_online();
 
     crate::test_utils::set_active_addr(15);
-    phy0.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
+    phy0.transmit_telegram(now, |tx| Some(tx.send_token_telegram(15, 15)));
 
-    let start = crate::time::Instant::ZERO;
-    let mut now = start;
     let mut new_token_time = None;
     while now.total_millis() < 800 {
         crate::test_utils::set_log_timestamp(now);
@@ -32,8 +33,8 @@ fn test_token_timeout(#[values(0, 1, 7, 14)] addr: u8) {
         master7.poll(now, &mut phy7, &mut ());
 
         crate::test_utils::set_active_addr(15);
-        if !phy0.poll_transmission() {
-            phy0.receive_telegram(|t| match t {
+        if !phy0.poll_transmission(now) {
+            phy0.receive_telegram(now, |t| match t {
                 crate::fdl::Telegram::Token(crate::fdl::TokenTelegram { da, sa }) => {
                     if new_token_time.is_none() {
                         new_token_time = Some(now);

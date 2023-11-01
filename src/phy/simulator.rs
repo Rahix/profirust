@@ -198,12 +198,12 @@ impl SimulatorPhy {
 }
 
 impl crate::phy::ProfibusPhy for SimulatorPhy {
-    fn poll_transmission(&mut self) -> bool {
+    fn poll_transmission(&mut self, _now: crate::time::Instant) -> bool {
         let bus = self.bus.lock().unwrap();
         bus.is_active() == Some(self.name)
     }
 
-    fn transmit_data<F, R>(&mut self, f: F) -> R
+    fn transmit_data<F, R>(&mut self, _now: crate::time::Instant, f: F) -> R
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
@@ -219,11 +219,11 @@ impl crate::phy::ProfibusPhy for SimulatorPhy {
         res
     }
 
-    fn receive_data<F, R>(&mut self, f: F) -> R
+    fn receive_data<F, R>(&mut self, now: crate::time::Instant, f: F) -> R
     where
         F: FnOnce(&[u8]) -> (usize, R),
     {
-        if self.poll_transmission() {
+        if self.poll_transmission(now) {
             panic!(
                 "\"{}\" attempted to receive while it was still transmitting!",
                 self.name
@@ -255,37 +255,41 @@ mod tests {
         let mut phy1 = SimulatorPhy::new(crate::Baudrate::B19200, "phy1");
         let mut phy2 = phy1.duplicate("phy2");
 
+        let mut now = crate::time::Instant::ZERO;
+
         let data = &[0xde, 0xad, 0xbe, 0xef, 0x12, 0x34];
-        phy1.transmit_data(|buf| {
+        phy1.transmit_data(now, |buf| {
             buf[..data.len()].copy_from_slice(data);
             (data.len(), ())
         });
 
-        phy2.receive_data(|buf| {
+        phy2.receive_data(now, |buf| {
             assert_eq!(buf.len(), 0);
             (0, ())
         });
 
-        phy1.advance_bus_time(crate::time::Duration::from_millis(100));
+        now += crate::time::Duration::from_millis(100);
+        phy1.set_bus_time(now);
 
-        phy2.receive_data(|buf| {
+        phy2.receive_data(now, |buf| {
             assert_eq!(buf, data);
             (4, ())
         });
-        phy2.receive_data(|buf| {
+        phy2.receive_data(now, |buf| {
             assert_eq!(buf.len(), data.len() - 4);
             (buf.len(), ())
         });
 
         let data = &[0xc0, 0xff, 0xee];
-        phy2.transmit_data(|buf| {
+        phy2.transmit_data(now, |buf| {
             buf[..data.len()].copy_from_slice(data);
             (data.len(), ())
         });
 
-        phy1.advance_bus_time(crate::time::Duration::from_millis(100));
+        now += crate::time::Duration::from_millis(100);
+        phy1.set_bus_time(now);
 
-        phy1.receive_data(|buf| {
+        phy1.receive_data(now, |buf| {
             assert_eq!(buf, data);
             (buf.len(), ())
         });

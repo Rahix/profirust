@@ -132,7 +132,7 @@ where
     P: uart::ValidUartPinout<D>,
     DIR: OutputPin,
 {
-    fn poll_transmission(&mut self) -> bool {
+    fn poll_transmission(&mut self, _now: crate::time::Instant) -> bool {
         if let PhyData::Tx {
             buffer,
             length,
@@ -162,7 +162,7 @@ where
         }
     }
 
-    fn transmit_data<F, R>(&mut self, f: F) -> R
+    fn transmit_data<F, R>(&mut self, _now: crate::time::Instant, f: F) -> R
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
@@ -208,7 +208,7 @@ where
         }
     }
 
-    fn receive_data<F, R>(&mut self, f: F) -> R
+    fn receive_data<F, R>(&mut self, _now: crate::time::Instant, f: F) -> R
     where
         F: FnOnce(&[u8]) -> (usize, R),
     {

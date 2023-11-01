@@ -35,7 +35,7 @@ pub trait ProfibusPhy {
     ///
     /// While this function returns `true`, calling any of the `transmit_*()` or `receive_*()`
     /// functions may panic.
-    fn poll_transmission(&mut self) -> bool;
+    fn poll_transmission(&mut self, now: crate::time::Instant) -> bool;
 
     /// Schedule transmission of some data.
     ///
@@ -46,7 +46,7 @@ pub trait ProfibusPhy {
     ///
     /// # Panics
     /// This function may panic when a transmission is already ongoing.
-    fn transmit_data<F, R>(&mut self, f: F) -> R
+    fn transmit_data<F, R>(&mut self, now: crate::time::Instant, f: F) -> R
     where
         F: FnOnce(&mut [u8]) -> (usize, R);
 
@@ -61,11 +61,15 @@ pub trait ProfibusPhy {
     ///
     /// # Panics
     /// This function may panic when a transmission is already ongoing.
-    fn transmit_telegram<F>(&mut self, f: F) -> Option<crate::fdl::TelegramTxResponse>
+    fn transmit_telegram<F>(
+        &mut self,
+        now: crate::time::Instant,
+        f: F,
+    ) -> Option<crate::fdl::TelegramTxResponse>
     where
         F: FnOnce(crate::fdl::TelegramTx) -> Option<crate::fdl::TelegramTxResponse>,
     {
-        self.transmit_data(|buffer| {
+        self.transmit_data(now, |buffer| {
             let ttx = crate::fdl::TelegramTx::new(buffer);
             let response = f(ttx);
             if let Some(response) = response {
@@ -91,7 +95,7 @@ pub trait ProfibusPhy {
     ///
     /// # Panics
     /// This function may panic when a transmission is ongoing.
-    fn receive_data<F, R>(&mut self, f: F) -> R
+    fn receive_data<F, R>(&mut self, now: crate::time::Instant, f: F) -> R
     where
         F: FnOnce(&[u8]) -> (usize, R);
 
@@ -104,11 +108,11 @@ pub trait ProfibusPhy {
     ///
     /// # Panics
     /// This function may panic when a transmission is ongoing.
-    fn receive_telegram<F, R>(&mut self, f: F) -> Option<R>
+    fn receive_telegram<F, R>(&mut self, now: crate::time::Instant, f: F) -> Option<R>
     where
         F: FnOnce(crate::fdl::Telegram) -> R,
     {
-        self.receive_data(|buffer| {
+        self.receive_data(now, |buffer| {
             match crate::fdl::Telegram::deserialize(buffer) {
                 // Discard all received data on error.
                 Some(Err(_)) => (buffer.len(), None),
@@ -132,7 +136,7 @@ pub trait ProfibusPhy {
     ///
     /// # Panics
     /// This function may panic when a transmission is ongoing.
-    fn poll_pending_received_bytes(&mut self) -> usize {
-        self.receive_data(|buf| (0, buf.len()))
+    fn poll_pending_received_bytes(&mut self, now: crate::time::Instant) -> usize {
+        self.receive_data(now, |buf| (0, buf.len()))
     }
 }

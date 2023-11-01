@@ -14,7 +14,7 @@ fn main() {
     let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, BAUDRATE);
 
     loop {
-        phy.receive_telegram(|t| println!("{t:?}"));
+        phy.receive_telegram(profirust::time::Instant::now(), |t| println!("{t:?}"));
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }

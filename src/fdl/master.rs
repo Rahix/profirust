@@ -355,7 +355,7 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
     ) -> Option<PollDone> {
-        let phy_transmitting = phy.poll_transmission();
+        let phy_transmitting = phy.poll_transmission(now);
         if phy_transmitting || self.last_bus_activity.map(|l| now <= l).unwrap_or(false) {
             self.mark_bus_activity(now);
             Some(PollDone::waiting_for_transmission())
@@ -411,7 +411,7 @@ impl FdlMaster {
     }
 
     fn check_for_bus_activity(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) {
-        let pending_bytes = phy.poll_pending_received_bytes();
+        let pending_bytes = phy.poll_pending_received_bytes(now);
         if pending_bytes > self.pending_bytes {
             self.mark_bus_activity(now);
             self.pending_bytes = pending_bytes;
@@ -448,7 +448,9 @@ impl FdlMaster {
         }
 
         let tx_res = phy
-            .transmit_telegram(|tx| Some(tx.send_token_telegram(self.next_master, self.p.address)))
+            .transmit_telegram(now, |tx| {
+                Some(tx.send_token_telegram(self.next_master, self.p.address))
+            })
             .unwrap();
         self.mark_tx(now, tx_res.bytes_sent())
     }
@@ -485,7 +487,7 @@ impl FdlMaster {
     ) -> (Option<PollDone>, APP::Events) {
         debug_assert!(self.communication_state.have_token());
         let mut events = Default::default();
-        if let Some(tx_res) = phy.transmit_telegram(|tx| {
+        if let Some(tx_res) = phy.transmit_telegram(now, |tx| {
             let (res, ev) = app.transmit_telegram(now, self, tx, high_prio_only);
             events = ev;
             res
@@ -509,7 +511,7 @@ impl FdlMaster {
         app: &mut APP,
         addr: u8,
     ) -> Option<APP::Events> {
-        phy.receive_telegram(|telegram| {
+        phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);
 
             match &telegram {
@@ -552,7 +554,7 @@ impl FdlMaster {
         phy: &mut impl ProfibusPhy,
         addr: u8,
     ) -> bool {
-        phy.receive_telegram(|telegram| {
+        phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);
 
             if let crate::fdl::Telegram::Data(telegram) = telegram {
@@ -619,7 +621,9 @@ impl FdlMaster {
                 };
 
             let tx_res = phy
-                .transmit_telegram(|tx| Some(tx.send_fdl_status_request(addr, self.p.address)))
+                .transmit_telegram(now, |tx| {
+                    Some(tx.send_fdl_status_request(addr, self.p.address))
+                })
                 .unwrap();
             return Some(self.mark_tx(now, tx_res.bytes_sent()));
         }
@@ -749,7 +753,7 @@ impl FdlMaster {
 
         match *self.communication_state.assert_without_token() {
             StateWithoutToken::Idle => phy
-                .receive_telegram(|telegram| {
+                .receive_telegram(now, |telegram| {
                     self.mark_rx(now);
 
                     match telegram {
@@ -813,7 +817,7 @@ impl FdlMaster {
                 };
 
                 let tx_res = phy
-                    .transmit_telegram(|tx| {
+                    .transmit_telegram(now, |tx| {
                         Some(tx.send_fdl_status_response(
                             destination,
                             self.p.address,

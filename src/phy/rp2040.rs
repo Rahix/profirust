@@ -158,7 +158,7 @@ where
                 cortex_m::asm::delay(13020);
 
                 let cursor = match self.uart.write_raw(&buffer[..length]) {
-                    Ok(b) => b.len(),
+                    Ok(b) => length - b.len(),
                     Err(nb::Error::WouldBlock) => 0,
                     Err(nb::Error::Other(_)) => unreachable!(),
                 };

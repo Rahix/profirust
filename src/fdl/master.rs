@@ -368,8 +368,6 @@ impl FdlMaster {
     /// This synchronization pause is required before every transmission.
     fn wait_synchronization_pause(&mut self, now: crate::time::Instant) -> Option<PollDone> {
         debug_assert!(self.communication_state.have_token());
-        // TODO: Is it right to write the last_bus_activity here?  Probably does not matter as
-        // handle_lost_token() will most likely get called way earlier.
         if now <= (*self.last_bus_activity.get_or_insert(now) + self.p.bits_to_time(33)) {
             Some(PollDone::waiting_for_delay())
         } else {

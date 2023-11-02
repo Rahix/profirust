@@ -1,12 +1,9 @@
 #![no_std]
 #![no_main]
 
-use bsp::entry;
-use embedded_hal::digital::v2::ToggleableOutputPin;
 use panic_halt as _;
 
 use rp_pico as bsp;
-
 use bsp::hal::{
     self,
     clocks::init_clocks_and_plls,
@@ -15,19 +12,22 @@ use bsp::hal::{
     watchdog::Watchdog,
 };
 
-// USB Device support
 use usb_device::{class_prelude::*, prelude::*};
-
-// USB Communications Class Device support
 use usbd_serial::SerialPort;
+use embedded_hal::digital::v2::ToggleableOutputPin;
 
 use profirust::{dp, fdl, phy, Baudrate};
 
 mod logger;
+mod time;
 
+// Encoder Parameters
+const ENCODER_ADDRESS: u8 = 6;
+
+// Bus Parameters
 const BAUDRATE: Baudrate = Baudrate::B19200;
 
-#[entry]
+#[bsp::entry]
 fn main() -> ! {
     logger::init();
     log::info!("Booting...");
@@ -52,6 +52,7 @@ fn main() -> ! {
     .unwrap();
 
     let timer = hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
+    time::init(timer);
 
     let pins = bsp::Pins::new(
         pac.IO_BANK0,
@@ -113,17 +114,10 @@ fn main() -> ! {
         //   (none)
         //
         // Selected Modules:
-        //   [0] Class 2 Singleturn
-        //       - Code sequence.................: Increasing clockwise (0)
-        //       - Class 2 functionality.........: Enable
-        //       - Scaling function control......: Enable
-        //       - Measuring units per revolution: 12
-        //       - Total measuring range.........: 12
-        user_parameters: Some(&[
-            0x00, 0x0a, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00,
-        ]),
-        config: Some(&[0xf0]),
+        //   [0] Class 1 Singleturn
+        //       - Code sequence: Increasing clockwise (0)
+        user_parameters: Some(&[0x00, 0x00, ]),
+        config: Some(&[0xd0, ]),
 
         // Set max_tsdr depending on baudrate and assert
         // that a supported baudrate is used.
@@ -140,9 +134,9 @@ fn main() -> ! {
         ..Default::default()
     };
     let mut buffer_inputs = [0u8; 2];
-    let mut buffer_outputs = [0u8; 2];
+    let mut buffer_outputs = [0u8; 0];
     let encoder_handle = dp_master.add(dp::Peripheral::new(
-        6,
+        ENCODER_ADDRESS,
         options,
         &mut buffer_inputs,
         &mut buffer_outputs,
@@ -158,7 +152,7 @@ fn main() -> ! {
     let mut last = profirust::time::Instant::ZERO;
     let mut last_value = None;
     loop {
-        let now = profirust::time::Instant::from_micros(i64::try_from(timer.get_counter().ticks()).unwrap());
+        let now = time::now().unwrap();
 
         if !init && now.secs() > 1 {
             fdl_master.set_online();
@@ -172,16 +166,19 @@ fn main() -> ! {
             last_value = Some(u16::from_be_bytes(encoder.pi_i().try_into().unwrap()));
         }
 
+        if last.secs() != now.secs() {
+            if encoder.is_running() {
+                log::info!("Encoder Counts: {:5}", last_value.unwrap());
+            }
+            let _ = led_pin.toggle();
+        }
+
         logger::drain(|buf| match serial.write(buf) {
             Ok(n) => n,
             Err(_) => 0,
         });
         usb_dev.poll(&mut [&mut serial]);
 
-        if last.secs() != now.secs() {
-            log::info!("Encoder: {:?}!", last_value);
-            let _ = led_pin.toggle();
-        }
         last = now;
     }
 }

@@ -15,7 +15,7 @@ impl log::Log for RingBufferLogger {
     }
 
     fn log(&self, record: &log::Record<'_>) {
-        let timestamp = 0;
+        let timestamp = crate::time::now().unwrap_or(profirust::time::Instant::ZERO);
         let color = match record.level() {
             log::Level::Error => "\x1B[31m",
             log::Level::Warn => "\x1B[1m",
@@ -27,8 +27,9 @@ impl log::Log for RingBufferLogger {
             if let Some(module_path) = record.module_path() {
                 let _ = write!(
                     &mut buffer,
-                    "\x1B[32m[{:12}] \x1B[33m{}\x1B[0m: {}{}\x1B[0m\r\n",
-                    timestamp,
+                    "\x1B[32m[{:5}.{:06}] \x1B[33m{}\x1B[0m: {}{}\x1B[0m\r\n",
+                    timestamp.secs(),
+                    timestamp.micros(),
                     module_path.trim_start_matches("vlab_ethernet_bridge_firmware::"),
                     color,
                     record.args()

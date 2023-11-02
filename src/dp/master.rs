@@ -31,9 +31,17 @@ impl OperatingState {
     }
 }
 
+/// Events from the last poll cycle
+///
+/// These events have occurred during the last poll cycle and likely need to be handled by the
+/// application.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DpEvents {
+    /// A full message cycle with all peripherals was completed.
     pub cycle_completed: bool,
+    /// An event related to a specific peripheral occurred.
+    ///
+    /// The handle of the perpheral is included to identify it.
     pub peripheral: Option<(crate::dp::PeripheralHandle, crate::dp::PeripheralEvent)>,
 }
 
@@ -54,7 +62,7 @@ enum CycleState {
 ///
 /// The DP master holds all peripherals that we interact with.  To get access, use the
 /// [`PeripheralHandle`][`crate::dp::PeripheralHandle`] that you get when calling
-/// [`dp_master.peripherals.add()`][`crate::dp::PeripheralSet::add`].
+/// [`dp_master.add()`][`crate::dp::DpMaster::add`].
 ///
 /// When constructing the DP master, you need to pass a storage for peripherals.  This can either
 /// be a fixed-size storage (slice or array) or, if `alloc`/`std` is available, a `Vec<>` that will

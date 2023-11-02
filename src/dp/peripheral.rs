@@ -1,26 +1,54 @@
+/// Options for configuring and parametrizing a peripheral
 #[derive(Debug, PartialEq, Eq, Default)]
 pub struct PeripheralOptions<'a> {
+    /// Ident number to ensure the peripheral matches the GSD file
     pub ident_number: u16,
 
+    /// Whether SYNC mode should be enabled
+    ///
+    /// (SYNC mode is not yet supported in profirust)
     pub sync_mode: bool,
+    /// Whether FREEZE mode should be enabled
+    ///
+    /// (FREEZE mode is not yet supported in profirust)
     pub freeze_mode: bool,
+    /// Global control groups this peripheral should be a part of
     pub groups: u8,
+    /// Maximum response time (Tsdr) of this peripheral per the GSD file
     pub max_tsdr: u16,
+    /// Whether this peripheral supports fail-safe mode
+    ///
+    /// This is used when the DP master enters "clear" state.
     pub fail_safe: bool,
 
+    /// UserPrm constructed from the GSD file
     pub user_parameters: Option<&'a [u8]>,
+    /// Configuration constructed from the GSD file
     pub config: Option<&'a [u8]>,
 }
 
 bitflags::bitflags! {
+    /// Diagnostic flags reported by a peripheral
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct DiagnosticFlags: u16 {
         // const STATION_NON_EXISTENT = 0b00000001;
+        /// The peripheral is not ready for data exchange.
+        ///
+        /// Most likely it needs configuration and parameters.
         const STATION_NOT_READY =       0b00000010;
+        /// The supplied configuration is faulty.
+        ///
+        /// Most likely, the configuration does not match the plugged hardware modules.
         const CONFIGURATION_FAULT =     0b00000100;
+        /// Extended diagnostic information is available.
+        ///
+        /// (profirust does not yet support extended diagnostics.)
         const EXT_DIAG =                0b00001000;
         const NOT_SUPPORTED =           0b00010000;
         // const INVALID_RESPONSE =     0b00100000;
+        /// The supplied parameters are faulty.
+        ///
+        /// Re-check whether the correct GSD file was used for generating parameters.
         const PARAMETER_FAULT =         0b01000000;
         // const MASTER_LOCK =          0b10000000;
 
@@ -56,10 +84,16 @@ pub enum PeripheralEvent {
     Offline,
 }
 
+/// Diagnostic information reported by the peripheral
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PeripheralDiagnostics {
+    /// Diagnostic flags (see [`DiagnosticFlags`])
     pub flags: DiagnosticFlags,
+    /// Ident number reported by this peripheral
+    ///
+    /// This ident number must match the one passed in [`PeripheralOptions`].
     pub ident_number: u16,
+    /// Address of the DP master this peripheral is locked to (if any).
     pub master_address: u8,
 }
 
@@ -75,6 +109,52 @@ enum PeripheralState {
     DataExchange,
 }
 
+/// A PROFIBUS peripheral that is connected to the bus
+///
+/// The `Peripheral` struct is stored inside the [`DpMaster`][`crate::dp::DpMaster`] and a
+/// reference can be accessed using the [`PeripheralHandle`][`crate::dp::PeripheralHandle`].  From
+/// the `&mut Peripheral` you can then access its process image, status, and diagnostic
+/// information.
+///
+/// # Example
+/// ```
+/// use profirust::dp;
+/// let buffer: [dp::PeripheralStorage; 4] = Default::default();
+/// let mut dp_master = dp::DpMaster::new(buffer);
+///
+/// // Let's add a peripheral.
+/// let remoteio_address = 7;
+/// let remoteio_options = dp::PeripheralOptions {
+///     // ...
+///     // best generated using `gsdtool`
+///     // ...
+///     ..Default::default()
+/// };
+/// let mut buffer_inputs = [0u8; 8];
+/// let mut buffer_outputs = [0u8; 4];
+///
+/// let remoteio_handle = dp_master.add(dp::Peripheral::new(
+///     remoteio_address,
+///     remoteio_options,
+///     &mut buffer_inputs,
+///     &mut buffer_outputs,
+/// ));
+///
+/// dp_master.enter_operate();
+///
+/// # return;
+/// loop {
+///     // let events = fdl_master.poll(now, &mut phy, &mut dp_master);
+///     # let events: dp::DpEvents = todo!();
+///
+///     let remoteio = dp_master.get_mut(remoteio_handle);
+///     if events.cycle_completed && remoteio.is_running() {
+///         let (pi_i, pi_q) = remoteio.pi_both();
+///         // pi_i is the process image of inputs (received from peripheral)
+///         // pi_q is the process image of outputs (sent to the peripheral)
+///     }
+/// }
+/// ```
 #[derive(Debug, PartialEq, Eq, Default)]
 pub struct Peripheral<'a> {
     /// Station address of this peripheral (slave)
@@ -168,7 +248,7 @@ impl<'a> Peripheral<'a> {
 }
 
 impl<'a> Peripheral<'a> {
-    pub fn transmit_telegram<'b>(
+    pub(crate) fn transmit_telegram<'b>(
         &mut self,
         now: crate::time::Instant,
         dp: &crate::dp::DpMasterState,
@@ -299,7 +379,7 @@ impl<'a> Peripheral<'a> {
         res
     }
 
-    pub fn receive_reply(
+    pub(crate) fn receive_reply(
         &mut self,
         now: crate::time::Instant,
         dp: &crate::dp::DpMasterState,
@@ -430,7 +510,7 @@ impl<'a> Peripheral<'a> {
         }
     }
 
-    pub fn send_diagnostics_request(
+    pub(crate) fn send_diagnostics_request(
         &mut self,
         master: &crate::fdl::FdlMaster,
         tx: crate::fdl::TelegramTx,
@@ -448,7 +528,7 @@ impl<'a> Peripheral<'a> {
         )
     }
 
-    pub fn handle_diagnostics_response(
+    pub(crate) fn handle_diagnostics_response(
         &mut self,
         master: &crate::fdl::FdlMaster,
         telegram: &crate::fdl::Telegram,

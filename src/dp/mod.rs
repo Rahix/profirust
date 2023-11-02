@@ -10,8 +10,10 @@ mod master;
 mod peripheral;
 mod peripheral_set;
 
-pub use master::{DpEvents, DpMaster, DpMasterState, OperatingState};
+pub(crate) use master::DpMasterState;
+pub use master::{DpEvents, DpMaster, OperatingState};
 pub use peripheral::{
     DiagnosticFlags, Peripheral, PeripheralDiagnostics, PeripheralEvent, PeripheralOptions,
 };
-pub use peripheral_set::{PeripheralHandle, PeripheralSet, PeripheralStorage};
+pub(crate) use peripheral_set::PeripheralSet;
+pub use peripheral_set::{PeripheralHandle, PeripheralStorage};

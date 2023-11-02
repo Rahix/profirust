@@ -13,6 +13,9 @@ mod tests;
 
 pub use master::{ConnectivityState, FdlMaster};
 pub use parameters::{Parameters, ParametersBuilder};
+
+// Hide these for now until they get a cleaner interface
+#[doc(hidden)]
 pub use telegram::{
     DataTelegram, DataTelegramHeader, FrameCountBit, FunctionCode, RequestType, ResponseState,
     ResponseStatus, ShortConfirmation, Telegram, TelegramTx, TelegramTxResponse, TokenTelegram,

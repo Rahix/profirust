@@ -111,9 +111,14 @@ fn watchdog_factors(dur: crate::time::Duration) -> Option<Result<(u8, u8), ()>> 
         })
 }
 
+/// Builder for the parameters of an FDL master
 pub struct ParametersBuilder(Parameters);
 
 impl ParametersBuilder {
+    /// Start building parameters for an FDL master with the given `address`.
+    ///
+    /// - `address` must be a valid PROFIBUS address (<= 125).
+    /// - `baudrate` is the baudrate the is used for this PROFIBUS network.
     #[inline]
     pub fn new(address: u8, baudrate: crate::Baudrate) -> Self {
         assert!(address <= 125);
@@ -125,6 +130,21 @@ impl ParametersBuilder {
         })
     }
 
+    /// Configure non-standard T<sub>SL</sub> (slot time in bits)
+    ///
+    /// The slot time must be larger than the maximum T<sub>SDR</sub> of all peripherals.
+    /// `build_verified()` will check that this is the case.
+    ///
+    /// The slot time must be creater than the default slot time:
+    ///
+    /// | Baudrate | Minimum Slot Time (in Bits) |
+    /// | ---: | ---: |
+    /// | <=187500 | 100 |
+    /// | 500000 | 200 |
+    /// | 1500000 | 300 |
+    /// | 3000000 | 400 |
+    /// | 6000000 | 600 |
+    /// | 12000000 | 1000 |
     #[inline]
     pub fn slot_bits(&mut self, slot_bits: u16) -> &mut Self {
         self.0.slot_bits = slot_bits;
@@ -132,6 +152,11 @@ impl ParametersBuilder {
         self
     }
 
+    /// Set the highest projected station address.
+    ///
+    /// The HSA is used when scanning for other FDL masters who want to participate on the bus.
+    ///
+    /// The HSA also affects what addresses will appear in the live list recorded by this master.
     #[inline]
     pub fn highest_station_address(&mut self, hsa: u8) -> &mut Self {
         assert!(hsa > self.0.address && hsa <= 126);
@@ -141,18 +166,32 @@ impl ParametersBuilder {
         self
     }
 
+    /// Set the projected token rotation time (in bits).
+    ///
+    /// The TTR is used to ensure each FDL master gets a chance to communicate with its peripherals
+    /// in deterministic time.
+    ///
+    /// It is important that the TTR is not too small as this unnecessarily slows down
+    /// communication.  Defaults to 32436.
     pub fn token_rotation_bits(&mut self, ttr: u32) -> &mut Self {
         assert!(ttr >= 256 && ttr <= 16_777_960);
         self.0.token_rotation_bits = ttr;
         self
     }
 
+    /// Set how many token rotations to wait before restarting the GAP scan.
+    ///
+    /// The GAP scan is used to detect other FDL masters who want to communicate on the bus.
     pub fn gap_wait_rotations(&mut self, gap_wait: u8) -> &mut Self {
         assert!(gap_wait >= 1 && gap_wait <= 100);
         self.0.gap_wait_rotations = gap_wait;
         self
     }
 
+    /// Set the maximum number of retries when communication with a peripheral fails.
+    ///
+    /// After this amount of retries, the peripheral is considered offline and will need to be
+    /// reconfigured once it appears again.
     #[inline]
     pub fn max_retry_limit(&mut self, max_retry_limit: u8) -> &mut Self {
         assert!(max_retry_limit >= 1 && max_retry_limit <= 15);
@@ -160,6 +199,10 @@ impl ParametersBuilder {
         self
     }
 
+    /// Set the minimum response time that peripherals should adhere to.
+    ///
+    /// This value can be increased when peripherals responding after 11 bits is too fast for the
+    /// bus to settle.
     #[inline]
     pub fn min_tsdr(&mut self, min_tsdr_bits: u8) -> &mut Self {
         assert!(min_tsdr_bits >= 11);
@@ -167,6 +210,8 @@ impl ParametersBuilder {
         self
     }
 
+    /// Set the watchdog timeout that peripherals should use to fail-safe after loosing
+    /// communication.
     #[inline]
     pub fn watchdog_timeout(&mut self, wdg: crate::time::Duration) -> &mut Self {
         assert!(wdg >= crate::time::Duration::from_millis(10));
@@ -175,11 +220,16 @@ impl ParametersBuilder {
         self
     }
 
+    /// Build the parameters struct.
     #[inline]
     pub fn build(&self) -> Parameters {
         self.0.clone()
     }
 
+    /// Build the parameters struct and verify it against the given DP master.
+    ///
+    /// This ensures that, for example, the selected T<sub>SL</sub> is greater than the max Tsdr of
+    /// all peripherals currently tracked by the DP master.
     #[inline]
     pub fn build_verified(&self, dp_master: &crate::dp::DpMaster) -> Parameters {
         for (_, peripheral) in dp_master.iter() {

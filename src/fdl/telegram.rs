@@ -742,6 +742,7 @@ mod tests {
         ssap: Option<u8>,
         fc: FunctionCode,
         pdu: &[u8],
+        bit_errors: Option<Vec<(usize, usize)>>,
     ) {
         let mut buffer = [0u8; 256];
 
@@ -756,20 +757,36 @@ mod tests {
 
         let length = header.serialize(&mut buffer, pdu.len(), |buf| buf.copy_from_slice(pdu));
         println!("Telegram: {:?}", &buffer[..length]);
+        println!("Length: {}", length);
 
-        let (res, res_len) = DataTelegram::deserialize(&buffer[..length])
-            .unwrap()
-            .unwrap();
+        if let Some(bit_errors) = bit_errors {
+            // Swap some bits and see what happens :)
+            for (err_index, err_bit) in bit_errors.into_iter() {
+                let err_index = err_index % length;
+                if buffer[err_index] & (1 << err_bit) != 0 {
+                    buffer[err_index] &= !(1 << err_bit);
+                } else {
+                    buffer[err_index] |= 1 << err_bit;
+                }
+            }
 
-        assert_eq!(res.h, header);
-        assert_eq!(res.pdu, pdu);
-        assert_eq!(res_len, length);
+            let _res = DataTelegram::deserialize(&buffer).unwrap();
+        } else {
+            // Normal, non-bit_error testing
+            let (res, res_len) = DataTelegram::deserialize(&buffer[..length])
+                .unwrap()
+                .unwrap();
 
-        // Now attempt parsing the telegram partially to ensure this also always works.
-        for i in 0..length {
-            println!("Trying partial parse at {i}/{length}...");
-            let res = DataTelegram::deserialize(&buffer[..i]);
-            assert_eq!(res, None);
+            assert_eq!(res.h, header);
+            assert_eq!(res.pdu, pdu);
+            assert_eq!(res_len, length);
+
+            // Now attempt parsing the telegram partially to ensure this also always works.
+            for i in 0..length {
+                println!("Trying partial parse at {i}/{length}...");
+                let res = DataTelegram::deserialize(&buffer[..i]);
+                assert_eq!(res, None);
+            }
         }
     }
 
@@ -785,6 +802,7 @@ mod tests {
             None,
             FunctionCode::new_srd_low(FrameCountBit::Inactive),
             &[],
+            None,
         );
     }
 
@@ -800,6 +818,7 @@ mod tests {
             None,
             FunctionCode::new_srd_low(FrameCountBit::Inactive),
             &[42u8; 8],
+            None,
         );
     }
 
@@ -820,7 +839,20 @@ mod tests {
             fc in any::<FunctionCode>(),
             pdu in prop::collection::vec(0..=255u8, 0..245),
         ) {
-            data_telegram_serdes(da, sa, dsap, ssap, fc, &pdu);
+            data_telegram_serdes(da, sa, dsap, ssap, fc, &pdu, None);
+        }
+
+        #[test]
+        fn data_telegram_bit_error_proptest(
+            da in 0..126u8,
+            sa in 0..126u8,
+            dsap in prop::option::of(0u8..=255),
+            ssap in prop::option::of(0u8..=255),
+            fc in any::<FunctionCode>(),
+            pdu in prop::collection::vec(0..=255u8, 0..245),
+            bit_errors in prop::collection::vec((0..256usize, 0..8usize), 1..10),
+        ) {
+            data_telegram_serdes(da, sa, dsap, ssap, fc, &pdu, Some(bit_errors));
         }
     }
 }

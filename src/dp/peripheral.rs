@@ -577,7 +577,12 @@ impl<'a> Peripheral<'a> {
             self.diag = Some(diag);
             self.diag.as_ref()
         } else {
-            todo!()
+            // TODO: How to deal with this properly?
+            log::warn!(
+                "Unexpected diagnostics response for #{}: {telegram:?}",
+                self.address
+            );
+            None
         }
     }
 }

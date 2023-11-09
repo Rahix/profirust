@@ -119,7 +119,7 @@ pub trait ProfibusPhy {
                 // TODO: Only drop telegram length bytes instead of whole buffer.
                 Some(Ok((telegram, length))) => {
                     log::trace!("PHY RX {:?}", telegram);
-                    (buffer.len(), Some(f(telegram)))
+                    (length, Some(f(telegram)))
                 }
                 // Don't drop any bytes yet if the telegram isn't complete.
                 None => (0, None),

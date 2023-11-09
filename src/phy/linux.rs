@@ -306,7 +306,13 @@ impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
                 match drop {
                     0 => (),
                     d if d == *length => *length = 0,
-                    d => todo!("drop partial receive buffer ({} bytes of {})", d, *length),
+                    d => {
+                        assert!(d < *length);
+                        for i in 0..(*length - d) {
+                            buffer[i] = buffer[i + d];
+                        }
+                        *length -= d;
+                    }
                 }
                 res
             }

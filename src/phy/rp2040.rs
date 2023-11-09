@@ -229,7 +229,17 @@ where
                 match drop {
                     0 => (),
                     d if d == *length => *length = 0,
-                    d => todo!("drop partial receive buffer ({} bytes of {})", d, *length),
+                    d => {
+                        // TODO: Properly implement partial buffer drops here as well. It isn't
+                        // that important because this shouldn't really ever happen on a
+                        // microcontroller, but having it may be needed somewhere someday anyway...
+                        log::warn!(
+                            "ignoring partial drop of receive buffer ({} of {})",
+                            d,
+                            *length
+                        );
+                        *length = 0;
+                    }
                 }
                 res
             }

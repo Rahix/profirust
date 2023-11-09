@@ -11,8 +11,8 @@ fn main() {
     println!("PROFIBUS Live List:");
 
     let mut fdl_master = fdl::FdlMaster::new(
-        // Address of this master, i.e. ourselves = 0x02
-        fdl::ParametersBuilder::new(0x02, BAUDRATE)
+        // Address of this master, i.e. ourselves = 0x01
+        fdl::ParametersBuilder::new(0x01, BAUDRATE)
             // We use a rather large T_sl time because USB-RS485 converters can induce large delays at
             // times.
             .slot_bits(1920)

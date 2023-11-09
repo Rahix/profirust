@@ -425,6 +425,10 @@ impl FdlMaster {
     }
 }
 
+/// Error type used internally to mark situations where the token was involuntarily lost to someone
+/// else.
+struct TokenLostError;
+
 impl FdlMaster {
     fn acquire_token(&mut self, now: crate::time::Instant, token: &crate::fdl::TokenTelegram) {
         debug_assert!(token.da == self.p.address);
@@ -510,18 +514,17 @@ impl FdlMaster {
         phy: &mut impl ProfibusPhy,
         app: &mut APP,
         addr: u8,
-    ) -> Option<APP::Events> {
+    ) -> Option<Result<APP::Events, TokenLostError>> {
         phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);
 
             match &telegram {
                 crate::fdl::Telegram::Token(t) => {
+                    // TODO: Maybe when the token telegram hands us the token, we should take it?
                     log::warn!(
                         "Received token telegram {t:?} while waiting for peripheral response"
                     );
-                    // TODO: When we receive a token telegram, we have to release the token because
-                    // it appears other masters are acting on the bus...
-                    return None;
+                    return Some(Err(TokenLostError));
                 }
                 crate::fdl::Telegram::Data(t) => {
                     if t.is_response().is_none() {
@@ -536,7 +539,7 @@ impl FdlMaster {
                 crate::fdl::Telegram::ShortConfirmation(_) => (),
             }
             // TODO: This needs to be revisited.  Always return true?
-            Some(app.receive_reply(now, self, addr, telegram))
+            Some(Ok(app.receive_reply(now, self, addr, telegram)))
         })
         .unwrap_or(None)
     }
@@ -555,33 +558,44 @@ impl FdlMaster {
         now: crate::time::Instant,
         phy: &mut impl ProfibusPhy,
         addr: u8,
-    ) -> bool {
+    ) -> Result<bool, TokenLostError> {
         phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);
 
-            if let crate::fdl::Telegram::Data(telegram) = telegram {
-                if telegram.h.sa != addr {
-                    log::warn!("Expected status response from {addr}, got telegram from someone else: {telegram:?}");
-                    false
-                } else if let crate::fdl::FunctionCode::Response { state, status } = telegram.h.fc {
-                    log::trace!("Got status response from {addr}!");
-                    if state == crate::fdl::ResponseState::MasterWithoutToken
-                        || state == crate::fdl::ResponseState::MasterInRing
-                    {
-                        self.next_master = telegram.h.sa;
-                    }
-                    true
-                } else {
-                    // TODO: When we receive a token telegram, we have to release the token because
-                    // it appears other masters are acting on the bus...
-                    log::warn!("Unexpected telegram while waiting for status response from {addr}: {telegram:?}");
-                    false
+            match telegram {
+                crate::fdl::Telegram::Token(t) => {
+                    // TODO: Maybe when the token telegram hands us the token, we should take it?
+                    log::warn!("Received token telegram {t:?} while waiting for status response");
+                    Err(TokenLostError)
                 }
-            } else {
-                false
+                crate::fdl::Telegram::Data(telegram) => {
+                    if telegram.h.sa != addr {
+                        log::warn!("Expected status from #{addr}, someone else sent: {telegram:?}");
+                        Ok(false)
+                    } else if let crate::fdl::FunctionCode::Response { state, status } =
+                        telegram.h.fc
+                    {
+                        log::trace!("Got status response from #{addr}!");
+                        if state == crate::fdl::ResponseState::MasterWithoutToken
+                            || state == crate::fdl::ResponseState::MasterInRing
+                        {
+                            self.next_master = telegram.h.sa;
+                        }
+                        Ok(true)
+                    } else {
+                        log::warn!(
+                            "Unexpected telegram instead of status from #{addr}: {telegram:?}"
+                        );
+                        Ok(false)
+                    }
+                }
+                t => {
+                    log::warn!("Unexpected telegram instead of status from #{addr}: {t:?}");
+                    Ok(false)
+                }
             }
         })
-        .unwrap_or(false)
+        .unwrap_or(Ok(false))
     }
 
     fn next_gap_poll(&self, addr: u8) -> GapState {
@@ -645,40 +659,62 @@ impl FdlMaster {
         // First check for ongoing message cycles and handle them.
         match *self.communication_state.assert_with_token() {
             StateWithToken::AwaitingResponse { addr, sent_time } => {
-                if let Some(event) = self.app_receive_reply(now, phy, app, addr) {
-                    *self.communication_state.assert_with_token() =
-                        StateWithToken::Idle { first: false };
-                    // Waiting for synchronization pause now
-                    PollDone::waiting_for_delay().with_events(event)
-                } else if self.check_slot_expired(now) {
-                    self.app_handle_timeout(now, app, addr);
-                    *self.communication_state.assert_with_token() =
-                        StateWithToken::Idle { first: false };
-                    // TODO: Will this transmit or wait?
-                    self.handle_with_token_transmission(now, phy, app)
-                } else {
-                    // Still waiting for the response, nothing to do here.
-                    PollDone::waiting_for_bus().into()
+                match self.app_receive_reply(now, phy, app, addr) {
+                    Some(Ok(event)) => {
+                        *self.communication_state.assert_with_token() =
+                            StateWithToken::Idle { first: false };
+                        // Waiting for synchronization pause now
+                        PollDone::waiting_for_delay().with_events(event)
+                    }
+                    Some(Err(TokenLostError)) => {
+                        // It seems we lost the token... Update state accordingly.
+                        self.communication_state =
+                            CommunicationState::WithoutToken(StateWithoutToken::Idle);
+                        PollDone::waiting_for_bus().into()
+                    }
+                    None if self.check_slot_expired(now) => {
+                        self.app_handle_timeout(now, app, addr);
+                        *self.communication_state.assert_with_token() =
+                            StateWithToken::Idle { first: false };
+                        // TODO: Will this transmit or wait?
+                        self.handle_with_token_transmission(now, phy, app)
+                    }
+                    _ => {
+                        // Still waiting for the response, nothing to do here.
+                        PollDone::waiting_for_bus().into()
+                    }
                 }
             }
             StateWithToken::AwaitingFdlStatusResponse { addr, sent_time } => {
-                if self.check_for_status_response(now, phy, addr) {
-                    log::trace!("Address {addr} responded!");
-                    // After the gap response, we pass on the token.
-                    self.update_live_state(addr, true);
-                    *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
-                    // Waiting for synchronization pause now
-                    PollDone::waiting_for_delay().into()
-                } else if self.check_slot_expired(now) {
-                    log::trace!("Address {addr} didn't respond in {}!", self.p.slot_time());
-                    // Mark this address as not alive and pass on the token.
-                    self.update_live_state(addr, false);
-                    *self.communication_state.assert_with_token() = StateWithToken::ForwardToken;
-                    // TODO: Will this transmit or wait?
-                    self.handle_with_token_transmission(now, phy, app)
-                } else {
-                    // Still waiting for the response, nothing to do here.
-                    PollDone::waiting_for_bus().into()
+                match self.check_for_status_response(now, phy, addr) {
+                    Ok(true) => {
+                        log::trace!("Address #{addr} responded!");
+                        // After the gap response, we pass on the token.
+                        self.update_live_state(addr, true);
+                        *self.communication_state.assert_with_token() =
+                            StateWithToken::ForwardToken;
+                        // Waiting for synchronization pause now
+                        PollDone::waiting_for_delay().into()
+                    }
+                    Ok(false) if self.check_slot_expired(now) => {
+                        log::trace!("Address #{addr} didn't respond in {}!", self.p.slot_time());
+                        // Mark this address as not alive and pass on the token.
+                        self.update_live_state(addr, false);
+                        *self.communication_state.assert_with_token() =
+                            StateWithToken::ForwardToken;
+                        // TODO: Will this transmit or wait?
+                        self.handle_with_token_transmission(now, phy, app)
+                    }
+                    Err(TokenLostError) => {
+                        // It seems we lost the token... Update state accordingly.
+                        self.communication_state =
+                            CommunicationState::WithoutToken(StateWithoutToken::Idle);
+                        PollDone::waiting_for_bus().into()
+                    }
+                    _ => {
+                        // Still waiting for the response, nothing to do here.
+                        PollDone::waiting_for_bus().into()
+                    }
                 }
             }
             StateWithToken::Idle { .. } | StateWithToken::ForwardToken => {

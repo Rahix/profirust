@@ -25,6 +25,7 @@ mod time;
 const ENCODER_ADDRESS: u8 = 6;
 
 // Bus Parameters
+const MASTER_ADDRESS: u8 = 2;
 const BAUDRATE: Baudrate = Baudrate::B19200;
 
 #[bsp::entry]
@@ -143,7 +144,7 @@ fn main() -> ! {
     ));
 
     let mut fdl_master = fdl::FdlMaster::new(
-        fdl::ParametersBuilder::new(0x02, BAUDRATE)
+        fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)
             .watchdog_timeout(profirust::time::Duration::from_secs(1))
             .build_verified(&dp_master),
     );

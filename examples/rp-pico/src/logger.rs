@@ -55,6 +55,16 @@ impl core::fmt::Write for RingBuffer {
             for _ in 0..(s.len() - (self.buffer.capacity() - self.buffer.len())) {
                 let _ = self.buffer.pop_front();
             }
+
+            // After making enough space for the incoming log message, continue until we find a
+            // newline to ensure we don't keep a cut-off message at the front of the buffer.
+            loop {
+                match self.buffer.pop_front() {
+                    Some(0x0a) => break,
+                    None => break,
+                    _ => (),
+                }
+            }
         }
         for b in s.as_bytes() {
             let _ = self.buffer.push_back(*b);

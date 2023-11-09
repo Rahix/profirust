@@ -343,6 +343,10 @@ impl<'a> DataTelegram<'a> {
                 let l2 = buffer[2];
                 buffer = &buffer[3..];
                 if l1 != l2 {
+                    log::debug!("Length info mismatch: {} != {}", l1, l2);
+                    return Some(Err(()));
+                } else if l1 < 3 {
+                    log::debug!("Length is too short: {}", l1);
                     return Some(Err(()));
                 }
                 l1 - 3
@@ -384,6 +388,10 @@ impl<'a> DataTelegram<'a> {
 
         let dsap = if has_dsap {
             let dsap = buffer[0];
+            if length < 1 {
+                log::debug!("Length {} but DSAP expected", length);
+                return Some(Err(()));
+            }
             length -= 1;
             buffer = &buffer[1..];
             Some(dsap)
@@ -392,6 +400,10 @@ impl<'a> DataTelegram<'a> {
         };
         let ssap = if has_ssap {
             let ssap = buffer[0];
+            if length < 1 {
+                log::debug!("Length {} but SSAP expected", length);
+                return Some(Err(()));
+            }
             length -= 1;
             buffer = &buffer[1..];
             Some(ssap)

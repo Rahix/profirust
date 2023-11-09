@@ -519,6 +519,8 @@ impl FdlMaster {
                     log::warn!(
                         "Received token telegram {t:?} while waiting for peripheral response"
                     );
+                    // TODO: When we receive a token telegram, we have to release the token because
+                    // it appears other masters are acting on the bus...
                     return None;
                 }
                 crate::fdl::Telegram::Data(t) => {
@@ -570,6 +572,8 @@ impl FdlMaster {
                     }
                     true
                 } else {
+                    // TODO: When we receive a token telegram, we have to release the token because
+                    // it appears other masters are acting on the bus...
                     log::warn!("Unexpected telegram while waiting for status response from {addr}: {telegram:?}");
                     false
                 }

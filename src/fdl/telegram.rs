@@ -352,7 +352,10 @@ impl<'a> DataTelegram<'a> {
                 (l1 - 3, usize::from(l1) + 6)
             }
             crate::consts::SD3 => (8, 14),
-            _ => unreachable!(),
+            s => {
+                log::debug!("Unknown start delimiter 0x{s:02x}");
+                return Some(Err(()));
+            }
         };
         let mut length = usize::from(length);
 

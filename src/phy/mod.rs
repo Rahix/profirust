@@ -117,7 +117,7 @@ pub trait ProfibusPhy {
                 // Discard all received data on error.
                 Some(Err(_)) => (buffer.len(), None),
                 // TODO: Only drop telegram length bytes instead of whole buffer.
-                Some(Ok(telegram)) => {
+                Some(Ok((telegram, length))) => {
                     log::trace!("PHY RX {:?}", telegram);
                     (buffer.len(), Some(f(telegram)))
                 }

@@ -78,7 +78,10 @@ impl SimulatorBus {
             return;
         }
 
-        let sa = if let Some(Ok(decoded)) = crate::fdl::Telegram::deserialize(&data) {
+        let sa = if let Some(Ok((decoded, length))) = crate::fdl::Telegram::deserialize(&data) {
+            if length != data.len() {
+                panic!("Enqueued more than one deserializable telegram? {data:?}");
+            }
             match decoded {
                 crate::fdl::Telegram::Token(crate::fdl::TokenTelegram { da, sa }) => {
                     self.token_master = Some(da);

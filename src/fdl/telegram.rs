@@ -331,13 +331,13 @@ pub struct DataTelegram<'a> {
 }
 
 impl<'a> DataTelegram<'a> {
-    pub fn deserialize(mut buffer: &'a [u8]) -> Option<Result<Self, ()>> {
+    pub fn deserialize(mut buffer: &'a [u8]) -> Option<Result<(Self, usize), ()>> {
         if buffer.len() < 6 {
             return None;
         }
 
-        let length = match buffer[0] {
-            crate::consts::SD1 => 0,
+        let (length, buffer_length) = match buffer[0] {
+            crate::consts::SD1 => (0, 6),
             crate::consts::SD2 => {
                 let l1 = buffer[1];
                 let l2 = buffer[2];
@@ -349,9 +349,9 @@ impl<'a> DataTelegram<'a> {
                     log::debug!("Length is too short: {}", l1);
                     return Some(Err(()));
                 }
-                l1 - 3
+                (l1 - 3, usize::from(l1) + 6)
             }
-            crate::consts::SD3 => 8,
+            crate::consts::SD3 => (8, 14),
             _ => unreachable!(),
         };
         let mut length = usize::from(length);
@@ -429,16 +429,19 @@ impl<'a> DataTelegram<'a> {
             return Some(Err(()));
         }
 
-        Some(Ok(DataTelegram {
-            h: DataTelegramHeader {
-                da,
-                sa,
-                dsap,
-                ssap,
-                fc,
+        Some(Ok((
+            DataTelegram {
+                h: DataTelegramHeader {
+                    da,
+                    sa,
+                    dsap,
+                    ssap,
+                    fc,
+                },
+                pdu,
             },
-            pdu,
-        }))
+            buffer_length,
+        )))
     }
 }
 
@@ -486,7 +489,7 @@ impl TokenTelegram {
         3
     }
 
-    pub fn deserialize(buffer: &[u8]) -> Option<Result<Self, ()>> {
+    pub fn deserialize(buffer: &[u8]) -> Option<Result<(Self, usize), ()>> {
         if buffer.len() < 3 {
             return None;
         }
@@ -496,7 +499,7 @@ impl TokenTelegram {
         let da = buffer[1];
         let sa = buffer[2];
 
-        Some(Ok(Self { da, sa }))
+        Some(Ok((Self { da, sa }, 3)))
     }
 }
 
@@ -547,16 +550,18 @@ impl From<ShortConfirmation> for Telegram<'_> {
 }
 
 impl<'a> Telegram<'a> {
-    pub fn deserialize(buffer: &'a [u8]) -> Option<Result<Self, ()>> {
+    pub fn deserialize(buffer: &'a [u8]) -> Option<Result<(Self, usize), ()>> {
         if buffer.len() == 0 {
             return None;
         }
 
         match buffer[0] {
-            crate::consts::SC => Some(Ok(ShortConfirmation.into())),
-            crate::consts::SD4 => TokenTelegram::deserialize(buffer).map(|v| v.map(|v| v.into())),
+            crate::consts::SC => Some(Ok((ShortConfirmation.into(), 1))),
+            crate::consts::SD4 => {
+                TokenTelegram::deserialize(buffer).map(|v| v.map(|(v, s)| (v.into(), s)))
+            }
             crate::consts::SD1 | crate::consts::SD2 | crate::consts::SD3 => {
-                DataTelegram::deserialize(buffer).map(|v| v.map(|v| v.into()))
+                DataTelegram::deserialize(buffer).map(|v| v.map(|(v, s)| (v.into(), s)))
             }
             _ => Some(Err(())),
         }
@@ -683,7 +688,7 @@ mod tests {
     fn parse_fdl_status_telegram() {
         let _ = env_logger::try_init();
         let msg = &[0x10, 0x22, 0x02, 0x49, 0x6D, 0x16];
-        let telegram = Telegram::deserialize(msg).unwrap().unwrap();
+        let (telegram, length) = Telegram::deserialize(msg).unwrap().unwrap();
         assert_eq!(
             telegram,
             Telegram::Data(DataTelegram {
@@ -700,13 +705,14 @@ mod tests {
                 pdu: &[],
             })
         );
+        assert_eq!(msg.len(), length);
     }
 
     #[test]
     fn parse_fdl_response_telegram() {
         let _ = env_logger::try_init();
         let msg = &[0x10, 0x02, 0x22, 0x00, 0x24, 0x16];
-        let telegram = Telegram::deserialize(msg).unwrap().unwrap();
+        let (telegram, length) = Telegram::deserialize(msg).unwrap().unwrap();
         assert_eq!(
             telegram,
             Telegram::Data(DataTelegram {
@@ -722,7 +728,8 @@ mod tests {
                 },
                 pdu: &[],
             })
-        )
+        );
+        assert_eq!(msg.len(), length);
     }
 
     fn data_telegram_serdes(
@@ -747,12 +754,13 @@ mod tests {
         let length = header.serialize(&mut buffer, pdu.len(), |buf| buf.copy_from_slice(pdu));
         println!("Telegram: {:?}", &buffer[..length]);
 
-        let res = DataTelegram::deserialize(&buffer[..length])
+        let (res, res_len) = DataTelegram::deserialize(&buffer[..length])
             .unwrap()
             .unwrap();
 
         assert_eq!(res.h, header);
         assert_eq!(res.pdu, pdu);
+        assert_eq!(res_len, length);
 
         // Now attempt parsing the telegram partially to ensure this also always works.
         for i in 0..length {

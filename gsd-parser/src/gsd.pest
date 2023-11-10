@@ -63,6 +63,18 @@ unit_diag_type = {
     "EndUnitDiagType"
 }
 
+unit_diag_area = {
+    "Unit_Diag_Area" ~ "=" ~ number ~ "-" ~ number ~ NEWLINE+ ~
+    (!"Unit_Diag_Area_End" ~ ANY)* ~
+    "Unit_Diag_Area_End"
+}
+
+version_dl_definition = {
+    "Version_Firmware_Download" ~ NEWLINE ~
+    (!"End_Version_Firmware_Download" ~ ANY)* ~
+    "End_Version_Firmware_Download"
+}
+
 setting_value = _{
     string_literal |
     (&(number ~ ",") ~ number_list) |
@@ -71,6 +83,15 @@ setting_value = _{
 }
 setting = { identifier ~ ( "(" ~ number ~ ")" )? ~ "=" ~ setting_value }
 
-statement = _{ prm_text | ext_user_prm_data | module | slot_definition | unit_diag_type | setting }
+statement = _{
+      prm_text
+    | ext_user_prm_data
+    | module
+    | slot_definition
+    | unit_diag_type
+    | unit_diag_area
+    | version_dl_definition
+    | setting
+}
 
 gsd = { SOI ~ NEWLINE* ~ start ~ NEWLINE* ~ statement ~ (NEWLINE+ ~ statement)* ~ NEWLINE* ~ EOI }

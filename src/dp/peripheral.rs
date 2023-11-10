@@ -458,50 +458,51 @@ impl<'a> Peripheral<'a> {
                 event
             }
             PeripheralState::DataExchange | PeripheralState::PreDataExchange => {
-                let event = if let crate::fdl::Telegram::Data(t) = telegram {
-                    let data_ok = match t.is_response().unwrap() {
-                        crate::fdl::ResponseStatus::SapNotEnabled => {
-                            log::warn!(
+                let event = match telegram {
+                    crate::fdl::Telegram::Data(t) => {
+                        let data_ok = match t.is_response().unwrap() {
+                            crate::fdl::ResponseStatus::SapNotEnabled => {
+                                log::warn!(
                                 "Got \"SAP not enabled\" response from #{}, revalidating config...",
                                 self.address
                             );
-                            self.state = PeripheralState::ValidateConfig;
-                            false
-                        }
+                                self.state = PeripheralState::ValidateConfig;
+                                false
+                            }
 
-                        crate::fdl::ResponseStatus::Ok => true, // TODO: Is this actually correct?
-                        crate::fdl::ResponseStatus::DataLow => true,
-                        crate::fdl::ResponseStatus::DataHigh => true,
+                            crate::fdl::ResponseStatus::Ok => true, // TODO: Is this actually correct?
+                            crate::fdl::ResponseStatus::DataLow => true,
+                            crate::fdl::ResponseStatus::DataHigh => true,
 
-                        e => {
-                            log::warn!(
-                                "Unhandled response status \"{:?}\" from #{}!",
-                                e,
-                                self.address
-                            );
-                            false
-                        }
-                    };
+                            e => {
+                                log::warn!(
+                                    "Unhandled response status \"{:?}\" from #{}!",
+                                    e,
+                                    self.address
+                                );
+                                false
+                            }
+                        };
 
-                    if data_ok {
-                        if t.pdu.len() == self.pi_i.len() {
-                            self.pi_i.copy_from_slice(&t.pdu);
-                            self.state = PeripheralState::DataExchange;
-                            Some(PeripheralEvent::DataExchanged)
-                        } else {
-                            log::warn!(
+                        if data_ok {
+                            if t.pdu.len() == self.pi_i.len() {
+                                self.pi_i.copy_from_slice(&t.pdu);
+                                self.state = PeripheralState::DataExchange;
+                                Some(PeripheralEvent::DataExchanged)
+                            } else {
+                                log::warn!(
                             "Got response from #{} with unexpected PDU length (got: {}, want: {})!",
                             self.address,
                             t.pdu.len(),
                             self.pi_i.len()
                         );
+                                None
+                            }
+                        } else {
                             None
                         }
-                    } else {
-                        None
                     }
-                } else {
-                    None
+                    _ => None,
                 };
                 self.retry_count = 0;
                 self.fcb.cycle();

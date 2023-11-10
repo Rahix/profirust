@@ -84,17 +84,14 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
             prm.set_prm_from_text(&prm_ref.name, sel_text);
 
             global_parameters.push((prm_ref.name.to_owned(), sel_text.to_string()));
-        } else {
+        } else if let gsd_parser::PrmValueConstraint::MinMax(min, max) = prm_ref.constraint {
             let value = dialoguer::Input::new()
-                .with_prompt(format!(
-                    "{} ({} - {})",
-                    prm_ref.name, prm_ref.min_value, prm_ref.max_value
-                ))
+                .with_prompt(format!("{} ({} - {})", prm_ref.name, min, max))
                 .default(prm_ref.default_value.to_string())
                 .validate_with(|inp: &String| -> Result<(), &str> {
                     str::parse::<i64>(inp)
                         .ok()
-                        .filter(|v| prm_ref.min_value <= *v && *v <= prm_ref.max_value)
+                        .filter(|v| prm_ref.constraint.is_valid(*v))
                         .map(|_| ())
                         .ok_or("not a valid value")
                 })
@@ -105,6 +102,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
             prm.set_prm(&prm_ref.name, value);
 
             global_parameters.push((prm_ref.name.to_owned(), value.to_string()));
+        } else {
+            todo!("PrmValueConstraint::Enum not yet supported");
         }
     }
     println!();
@@ -170,17 +169,15 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                     prm.set_prm_from_text(&prm_ref.name, sel_text);
 
                     module_parameters.push((prm_ref.name.to_owned(), sel_text.to_string()));
-                } else {
+                } else if let gsd_parser::PrmValueConstraint::MinMax(min, max) = prm_ref.constraint
+                {
                     let value = dialoguer::Input::new()
-                        .with_prompt(format!(
-                            "{} ({} - {})",
-                            prm_ref.name, prm_ref.min_value, prm_ref.max_value
-                        ))
+                        .with_prompt(format!("{} ({} - {})", prm_ref.name, min, max))
                         .default(prm_ref.default_value.to_string())
                         .validate_with(|inp: &String| -> Result<(), &str> {
                             str::parse::<i64>(inp)
                                 .ok()
-                                .filter(|v| prm_ref.min_value <= *v && *v <= prm_ref.max_value)
+                                .filter(|v| prm_ref.constraint.is_valid(*v))
                                 .map(|_| ())
                                 .ok_or("not a valid value")
                         })
@@ -191,6 +188,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                     prm.set_prm(&prm_ref.name, value);
 
                     module_parameters.push((prm_ref.name.to_owned(), value.to_string()));
+                } else {
+                    todo!("PrmValueConstraint::Enum not yet supported");
                 }
             }
 

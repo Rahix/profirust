@@ -18,7 +18,11 @@ fn regress_prm(#[files("tests/data/*.[gG][sS][dD]")] gsd_file: PathBuf) {
         if let Some(texts) = prm_ref.text_ref.as_ref() {
             prm.set_prm_from_text(&prm_ref.name, texts.keys().nth(1).unwrap());
         } else {
-            prm.set_prm(&prm_ref.name, prm_ref.max_value);
+            let v = match &prm_ref.constraint {
+                gsd_parser::PrmValueConstraint::MinMax(_, max) => *max,
+                gsd_parser::PrmValueConstraint::Enum(values) => *values.last().unwrap(),
+            };
+            prm.set_prm(&prm_ref.name, v);
         }
     }
 

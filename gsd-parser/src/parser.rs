@@ -105,8 +105,25 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                 };
 
                 let default_value = parse_number(content.next().unwrap()) as i64;
-                let min_value = parse_number(content.next().unwrap()) as i64;
-                let max_value = parse_number(content.next().unwrap()) as i64;
+
+                let value_constraint_rule = content.next().unwrap();
+                let constraint = match value_constraint_rule.as_rule() {
+                    gsd_parser::Rule::prm_data_value_range => {
+                        let mut content = value_constraint_rule.into_inner();
+                        let min_value = parse_number(content.next().unwrap()) as i64;
+                        let max_value = parse_number(content.next().unwrap()) as i64;
+                        crate::PrmValueConstraint::MinMax(min_value, max_value)
+                    }
+                    gsd_parser::Rule::prm_data_value_set => {
+                        let mut values = Vec::new();
+                        for pairs in value_constraint_rule.into_inner() {
+                            let number = parse_number(pairs);
+                            values.push(number as i64);
+                        }
+                        crate::PrmValueConstraint::Enum(values)
+                    }
+                    _ => unreachable!(),
+                };
 
                 let mut text_ref = None;
                 for data_setting in content {
@@ -126,8 +143,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                         data_type,
                         text_ref,
                         default_value,
-                        min_value,
-                        max_value,
+                        constraint,
                     }),
                 );
             }

@@ -193,12 +193,43 @@ impl UserPrmDataType {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+pub enum PrmValueConstraint {
+    MinMax(i64, i64),
+    Enum(Vec<i64>),
+}
+
+impl PrmValueConstraint {
+    pub fn is_valid(&self, value: i64) -> bool {
+        match self {
+            PrmValueConstraint::MinMax(min, max) => *min <= value && value <= *max,
+            PrmValueConstraint::Enum(values) => values.contains(&value),
+        }
+    }
+
+    pub fn assert_valid(&self, value: i64) {
+        match self {
+            PrmValueConstraint::MinMax(min, max) => {
+                assert!(
+                    *min <= value && value <= *max,
+                    "value {value} not in range {min}..={max}",
+                );
+            }
+            PrmValueConstraint::Enum(values) => {
+                assert!(
+                    values.contains(&value),
+                    "value {value} not in set {values:?}",
+                );
+            }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct UserPrmDataDefinition {
     pub name: String,
     pub data_type: UserPrmDataType,
     pub default_value: i64,
-    pub min_value: i64,
-    pub max_value: i64,
+    pub constraint: PrmValueConstraint,
     pub text_ref: Option<Arc<BTreeMap<String, i64>>>,
 }
 
@@ -309,7 +340,7 @@ impl<'a> PrmBuilder<'a> {
             .iter()
             .find(|(_, r)| r.name == prm)
             .unwrap();
-        assert!(data_ref.min_value <= value && value <= data_ref.max_value);
+        data_ref.constraint.assert_valid(value);
         data_ref
             .data_type
             .write_value_to_slice(value, &mut self.prm[(*offset as usize)..]);
@@ -325,7 +356,7 @@ impl<'a> PrmBuilder<'a> {
             .unwrap();
         let text_ref = data_ref.text_ref.as_ref().unwrap();
         let value = *text_ref.get(value).unwrap();
-        assert!(data_ref.min_value <= value && value <= data_ref.max_value);
+        data_ref.constraint.assert_valid(value);
         data_ref
             .data_type
             .write_value_to_slice(value, &mut self.prm[(*offset as usize)..]);

@@ -248,22 +248,22 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                             gsd.supported_speeds |= crate::SupportedSpeeds::B500000;
                         }
                     }
-                    "1.5M_supp" => {
+                    "1.5m_supp" => {
                         if parse_number(value_pair) != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B1500000;
                         }
                     }
-                    "3M_supp" => {
+                    "3m_supp" => {
                         if parse_number(value_pair) != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B3000000;
                         }
                     }
-                    "6M_supp" => {
+                    "6m_supp" => {
                         if parse_number(value_pair) != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B6000000;
                         }
                     }
-                    "12M_supp" => {
+                    "12m_supp" => {
                         if parse_number(value_pair) != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B12000000;
                         }

@@ -502,7 +502,19 @@ impl<'a> Peripheral<'a> {
                             None
                         }
                     }
-                    _ => None,
+                    crate::fdl::Telegram::ShortConfirmation(_) => {
+                        if self.pi_i.len() != 0 {
+                            log::warn!(
+                                "#{} responded with SC but we expected cyclic data?!",
+                                self.address
+                            );
+                            None
+                        } else {
+                            self.state = PeripheralState::DataExchange;
+                            Some(PeripheralEvent::DataExchanged)
+                        }
+                    }
+                    crate::fdl::Telegram::Token(_) => unreachable!(),
                 };
                 self.retry_count = 0;
                 self.fcb.cycle();

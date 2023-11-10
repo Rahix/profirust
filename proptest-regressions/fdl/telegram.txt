@@ -1,0 +1,15 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+
+# length bytes corrupted to increased PDU size (beyond actual PDU)
+cc 259046fea23dfb8f3769773538b14f1b9d48b361f6fb6dbb01b923939e2bfecd # shrinks to da = 0, sa = 0, dsap = None, ssap = None, fc = Request { fcb: First, req: ClockValue }, pdu = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], bit_errors = [(182, 3), (181, 3)]
+
+# address corrupted to indicate DSAP without any DSAP being present
+cc 6bc85eeefd690672e80dd858b1524857a4d9410954e451f75359df018e190113 # shrinks to da = 0, sa = 0, dsap = None, ssap = None, fc = Response { state: Slave, status: Ok }, pdu = [], bit_errors = [(97, 7)]
+
+# length bytes corrupted to zero, which triggered an underflow in the past
+cc 7ab7c17cbcec077bf042691c2c16e1345587652ec1a8b5b0451ccf70d8ec5cca # shrinks to da = 0, sa = 0, dsap = Some(0), ssap = None, fc = Request { fcb: First, req: ClockValue }, pdu = [0, 0, 0, 0], bit_errors = [(127, 3), (128, 3)]

@@ -241,7 +241,7 @@ impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
                 let written = Self::write(self.fd, &buffer[*cursor..*length]).unwrap();
                 debug_assert!(written <= *length - *cursor);
                 *cursor += written;
-                false
+                true
             } else {
                 // Everything was submitted already.
                 let queued = self.get_output_queue().unwrap();

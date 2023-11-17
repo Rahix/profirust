@@ -2,7 +2,8 @@
 ///
 /// These parameters configure the behavior of the FDL master.
 ///
-/// You should use the [`ParametersBuilder`] to build the parameters struct.
+/// You should use the [`ParametersBuilder`] to build the parameters struct.  Check its
+/// documentation for detailed explanations of the individual parameters.
 ///
 /// # Example
 /// ```
@@ -157,6 +158,11 @@ impl ParametersBuilder {
     /// The HSA is used when scanning for other FDL masters who want to participate on the bus.
     ///
     /// The HSA also affects what addresses will appear in the live list recorded by this master.
+    ///
+    /// By default, all addresses are scanned (HSA = 126).  This means all masters will be found
+    /// but it also means that the time until a master can join the token ring is rather long.  It
+    /// is advisable to choose low addresses for all masters and then set the HSA accordingly to
+    /// optimize recovery time after a master drops from the bus.
     #[inline]
     pub fn highest_station_address(&mut self, hsa: u8) -> &mut Self {
         assert!(hsa > self.0.address && hsa <= 126);
@@ -182,6 +188,9 @@ impl ParametersBuilder {
     /// Set how many token rotations to wait before restarting the GAP scan.
     ///
     /// The GAP scan is used to detect other FDL masters who want to communicate on the bus.
+    ///
+    /// This factor is the wait time between scan cycles.  A low value means stations are found
+    /// very quickly but the tradeoff is a higher average cycle time.
     pub fn gap_wait_rotations(&mut self, gap_wait: u8) -> &mut Self {
         assert!(gap_wait >= 1 && gap_wait <= 100);
         self.0.gap_wait_rotations = gap_wait;
@@ -192,6 +201,12 @@ impl ParametersBuilder {
     ///
     /// After this amount of retries, the peripheral is considered offline and will need to be
     /// reconfigured once it appears again.
+    ///
+    /// On a bus that is electrically sound, no retries should ever be necessary.  When you have to
+    /// increase the retry count to keep your bus working, it is recommended to check for
+    /// electrical and/or noise problems.
+    ///
+    /// Default value is 1, meaning a telegram is retried once when no response was received.
     #[inline]
     pub fn max_retry_limit(&mut self, max_retry_limit: u8) -> &mut Self {
         assert!(max_retry_limit >= 1 && max_retry_limit <= 15);

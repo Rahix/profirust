@@ -2,6 +2,7 @@ use profirust::fdl;
 use profirust::phy;
 
 // Bus Parameters
+const MASTER_ADDRESS: u8 = 3;
 const BUS_DEVICE: &'static str = "/dev/ttyUSB0";
 const BAUDRATE: profirust::Baudrate = profirust::Baudrate::B19200;
 
@@ -11,8 +12,7 @@ fn main() {
     println!("PROFIBUS Live List:");
 
     let mut fdl_master = fdl::FdlMaster::new(
-        // Address of this master, i.e. ourselves = 0x01
-        fdl::ParametersBuilder::new(0x01, BAUDRATE)
+        fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)
             // We use a rather large T_sl time because USB-RS485 converters can induce large delays at
             // times.
             .slot_bits(1920)

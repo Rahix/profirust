@@ -21,7 +21,6 @@ embedded-hal = { version = "0.2.5", features = ["unproven"] }
 fugit = "0.3.7"
 heapless = "0.7.16"
 nb = "1.1.0"
-panic-halt = "0.2.0"
 process-image = "0.1.1"
 rp-pico = "0.8"
 usb-device = "0.2.9"
@@ -30,7 +29,7 @@ usbd-serial = "0.1.1"
 [dependencies.log]
 version = "0.4.20"
 # Change this to use a different log level:
-features = ["max_level_info"]
+features = ["max_level_debug"]
 
 [dependencies.profirust]
 path = "../../"

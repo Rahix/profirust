@@ -1,8 +1,6 @@
 #![no_std]
 #![no_main]
 
-use panic_halt as _;
-
 use rp_pico as bsp;
 use bsp::hal::{
     self,
@@ -20,6 +18,7 @@ use profirust::{dp, fdl, phy, Baudrate};
 
 mod logger;
 mod time;
+mod panic_handler;
 
 // Encoder Parameters
 const ENCODER_ADDRESS: u8 = 6;
@@ -146,6 +145,7 @@ fn main() -> ! {
     let mut fdl_master = fdl::FdlMaster::new(
         fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)
             .watchdog_timeout(profirust::time::Duration::from_secs(1))
+            .slot_bits(1920)
             .build_verified(&dp_master),
     );
 

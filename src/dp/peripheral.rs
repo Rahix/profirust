@@ -405,7 +405,8 @@ impl<'a> Peripheral<'a> {
                     self.retry_count = 0;
                     None
                 } else {
-                    todo!()
+                    log::warn!("Unexpected response after sending parameters: {telegram:?}");
+                    None
                 }
             }
             PeripheralState::WaitForConfig => {
@@ -416,7 +417,8 @@ impl<'a> Peripheral<'a> {
                     self.retry_count = 0;
                     None
                 } else {
-                    todo!()
+                    log::warn!("Unexpected response after sending config: {telegram:?}");
+                    None
                 }
             }
             PeripheralState::ValidateConfig => {

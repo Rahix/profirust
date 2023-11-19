@@ -10,9 +10,9 @@ PROFIBUS is an industrial bus protocol used to communicate with field devices
 like remote I/O, transducers, valves, drives, etc.
 
 ## Project Status
-**profirust** is not yet in a state where it should be used in production.  It
-is not yet fully fault tolerant so your applications may crash at the worst
-time if unhandled bus states are entered.
+**profirust** works well for the features it currently supports, however it has
+not proven itself in a real application yet.  There are still some features
+missing which are needed for production use.  Check the roadmap below.
 
 At this time, **profirust** is developed as a spare time project.  If you are
 interested in this project, help is gladly accepted in the following forms:
@@ -21,6 +21,19 @@ interested in this project, help is gladly accepted in the following forms:
 - Donation of PROFIBUS peripherals or other equipment for testing purposes
 - Funding of access to the needed IEC standards for improving compliance
 - Reporting any kinds of issues encountered while using **profirust**
+
+## Roadmap
+- [x] Single-master bus up to 1 Mbaud
+- [x] Cyclic communication with DP-V0 peripherals
+- [ ] Basic Diagnostics
+- [ ] Extended Diagnostics
+- [ ] Multi-master bus
+- [ ] Bus error tracking
+- [ ] Bus discovery utilities
+- [ ] Reliable communication at baudrates >1 Mbaud
+- [ ] Communication with DP-V1 peripherals
+- [ ] Equidistant bus cycle
+- [ ] Isochronous bus cycle
 
 ## Getting Started
 This is a short guide for getting communication up and running with your

@@ -249,6 +249,18 @@ pub struct Module {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct UnitDiagBitInfo {
+    pub text: String,
+    pub help: Option<String>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct UnitDiag {
+    pub bits: BTreeMap<u32, UnitDiagBitInfo>,
+    pub not_bits: BTreeMap<u32, UnitDiagBitInfo>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct GenericStationDescription {
     pub gsd_revision: u8,
     pub vendor: String,
@@ -290,6 +302,8 @@ pub struct GenericStationDescription {
     //
     pub available_modules: Vec<Module>,
     pub user_prm_data: UserPrmData,
+    //
+    pub unit_diag: UnitDiag,
 }
 
 pub struct PrmBuilder<'a> {

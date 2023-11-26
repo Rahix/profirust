@@ -299,6 +299,26 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                         let values: Vec<u8> = parse_number_list(pairs.next().unwrap());
                         gsd.user_prm_data.data_const.push((offset as usize, values));
                     }
+                    "unit_diag_bit" => {
+                        let bit = parse_number(value_pair);
+                        let text = parse_string_literal(pairs.next().unwrap());
+                        gsd.unit_diag.bits.entry(bit).or_default().text = text;
+                    }
+                    "unit_diag_bit_help" => {
+                        let bit = parse_number(value_pair);
+                        let text = parse_string_literal(pairs.next().unwrap());
+                        gsd.unit_diag.bits.entry(bit).or_default().help = Some(text);
+                    }
+                    "unit_diag_not_bit" => {
+                        let bit = parse_number(value_pair);
+                        let text = parse_string_literal(pairs.next().unwrap());
+                        gsd.unit_diag.not_bits.entry(bit).or_default().text = text;
+                    }
+                    "unit_diag_not_bit_help" => {
+                        let bit = parse_number(value_pair);
+                        let text = parse_string_literal(pairs.next().unwrap());
+                        gsd.unit_diag.not_bits.entry(bit).or_default().help = Some(text);
+                    }
                     _ => (),
                 }
             }

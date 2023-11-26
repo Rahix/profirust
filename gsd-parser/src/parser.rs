@@ -275,10 +275,10 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     "maxtsdr_93.75" => gsd.max_tsdr.b93750 = parse_number(value_pair) as u16,
                     "maxtsdr_187.5" => gsd.max_tsdr.b187500 = parse_number(value_pair) as u16,
                     "maxtsdr_500" => gsd.max_tsdr.b500000 = parse_number(value_pair) as u16,
-                    "maxtsdr_1.5M" => gsd.max_tsdr.b1500000 = parse_number(value_pair) as u16,
-                    "maxtsdr_3M" => gsd.max_tsdr.b3000000 = parse_number(value_pair) as u16,
-                    "maxtsdr_6M" => gsd.max_tsdr.b6000000 = parse_number(value_pair) as u16,
-                    "maxtsdr_12M" => gsd.max_tsdr.b12000000 = parse_number(value_pair) as u16,
+                    "maxtsdr_1.5m" => gsd.max_tsdr.b1500000 = parse_number(value_pair) as u16,
+                    "maxtsdr_3m" => gsd.max_tsdr.b3000000 = parse_number(value_pair) as u16,
+                    "maxtsdr_6m" => gsd.max_tsdr.b6000000 = parse_number(value_pair) as u16,
+                    "maxtsdr_12m" => gsd.max_tsdr.b12000000 = parse_number(value_pair) as u16,
                     "implementation_type" => {
                         gsd.implementation_type = parse_string_literal(value_pair)
                     }

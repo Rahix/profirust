@@ -67,9 +67,10 @@ unit_diag_type = {
 
 unit_diag_area = {
     "Unit_Diag_Area" ~ "=" ~ number ~ "-" ~ number ~ NEWLINE+ ~
-    (!"Unit_Diag_Area_End" ~ ANY)* ~
+    (unit_diag_area_value ~ NEWLINE+)+ ~
     "Unit_Diag_Area_End"
 }
+unit_diag_area_value = { "Value" ~ "(" ~ number ~ ")" ~ "=" ~ string_literal }
 
 version_dl_definition = {
     "Version_Firmware_Download" ~ NEWLINE ~

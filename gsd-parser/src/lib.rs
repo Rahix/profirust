@@ -255,9 +255,17 @@ pub struct UnitDiagBitInfo {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct UnitDiagArea {
+    pub first: u16,
+    pub last: u16,
+    pub values: BTreeMap<u16, String>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct UnitDiag {
     pub bits: BTreeMap<u32, UnitDiagBitInfo>,
     pub not_bits: BTreeMap<u32, UnitDiagBitInfo>,
+    pub areas: Vec<UnitDiagArea>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]

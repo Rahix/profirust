@@ -147,6 +147,25 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     }),
                 );
             }
+            gsd_parser::Rule::unit_diag_area => {
+                let mut content = statement.into_inner();
+                let first = parse_number(content.next().unwrap()) as u16;
+                let last = parse_number(content.next().unwrap()) as u16;
+                let mut values = BTreeMap::new();
+                for value_pairs in content {
+                    assert!(value_pairs.as_rule() == gsd_parser::Rule::unit_diag_area_value);
+                    let mut iter = value_pairs.into_inner();
+                    let number = parse_number(iter.next().unwrap());
+                    let value = parse_string_literal(iter.next().unwrap());
+                    assert!(iter.next().is_none());
+                    values.insert(number as u16, value);
+                }
+                gsd.unit_diag.areas.push(crate::UnitDiagArea {
+                    first,
+                    last,
+                    values,
+                });
+            }
             gsd_parser::Rule::module => {
                 let mut content = statement.into_inner();
                 let name = parse_string_literal(content.next().unwrap());

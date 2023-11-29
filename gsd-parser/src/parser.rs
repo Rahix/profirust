@@ -307,6 +307,15 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     "max_input_len" => gsd.max_input_length = parse_number(value_pair) as u8,
                     "max_output_len" => gsd.max_output_length = parse_number(value_pair) as u8,
                     "max_data_len" => gsd.max_data_length = parse_number(value_pair) as u8,
+                    "max_diag_data_len" => {
+                        gsd.max_diag_data_length = parse_number(value_pair) as u8
+                    }
+                    "freeze_mode_supp" => gsd.freeze_mode_supported = parse_number(value_pair) != 0,
+                    "sync_mode_supp" => gsd.sync_mode_supported = parse_number(value_pair) != 0,
+                    "auto_baud_supp" => gsd.auto_baud_supported = parse_number(value_pair) != 0,
+                    "set_slave_add_supp" => {
+                        gsd.set_slave_addr_supported = parse_number(value_pair) != 0
+                    }
                     "ext_user_prm_data_ref" => {
                         let offset = parse_number(value_pair);
                         let data_id = parse_number(pairs.next().unwrap());

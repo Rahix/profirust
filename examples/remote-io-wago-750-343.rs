@@ -80,12 +80,16 @@ fn main() {
     };
     let mut buffer_inputs = [0u8; 10];
     let mut buffer_outputs = [0u8; 7];
-    let io_handle = dp_master.add(dp::Peripheral::new(
-        IO_STATION_ADDRESS,
-        options,
-        &mut buffer_inputs,
-        &mut buffer_outputs,
-    ));
+    let mut buffer_diagnostics = [0u8; 64];
+    let io_handle = dp_master.add(
+        dp::Peripheral::new(
+            IO_STATION_ADDRESS,
+            options,
+            &mut buffer_inputs,
+            &mut buffer_outputs,
+        )
+        .with_diag_buffer(&mut buffer_diagnostics),
+    );
 
     let mut fdl_master = fdl::FdlMaster::new(
         fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)

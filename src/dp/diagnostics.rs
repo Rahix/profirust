@@ -26,6 +26,28 @@ impl<'a> ExtendedDiagnostics<'a> {
             cursor: 0,
         }
     }
+
+    pub(crate) fn from_buffer(buffer: &'a mut [u8]) -> Self {
+        Self { buffer, length: 0 }
+    }
+
+    pub(crate) fn fill(&mut self, buf: &[u8]) -> bool {
+        if self.buffer.len() == 0 {
+            // No buffer for ext. diagnostics so we ignore them entirely.
+            false
+        } else if self.buffer.len() < buf.len() {
+            log::warn!(
+                "Buffer too small for received ext. diagnostics, ignoring. ({} < {})",
+                self.buffer.len(),
+                buf.len()
+            );
+            false
+        } else {
+            self.buffer[..buf.len()].copy_from_slice(buf);
+            self.length = buf.len();
+            true
+        }
+    }
 }
 
 impl<'a> core::fmt::Debug for ExtendedDiagnostics<'a> {

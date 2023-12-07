@@ -11,6 +11,10 @@ mod master;
 mod peripheral;
 mod peripheral_set;
 
+pub use diagnostics::{
+    ChannelDataType, ChannelDiagnostics, ChannelError, ExtDiagBlock, ExtDiagBlockIter,
+    ExtendedDiagnostics,
+};
 pub(crate) use master::DpMasterState;
 pub use master::{DpEvents, DpMaster, OperatingState};
 pub use peripheral::{

@@ -41,8 +41,6 @@ bitflags::bitflags! {
         /// Most likely, the configuration does not match the plugged hardware modules.
         const CONFIGURATION_FAULT =     0b00000100;
         /// Extended diagnostic information is available.
-        ///
-        /// (profirust does not yet support extended diagnostics.)
         const EXT_DIAG =                0b00001000;
         const NOT_SUPPORTED =           0b00010000;
         // const INVALID_RESPONSE =     0b00100000;
@@ -86,7 +84,7 @@ pub enum PeripheralEvent {
 
 /// Diagnostic information reported by the peripheral
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PeripheralDiagnostics {
+pub struct PeripheralDiagnostics<'a> {
     /// Diagnostic flags (see [`DiagnosticFlags`])
     pub flags: DiagnosticFlags,
     /// Ident number reported by this peripheral
@@ -94,6 +92,15 @@ pub struct PeripheralDiagnostics {
     /// This ident number must match the one passed in [`PeripheralOptions`].
     pub ident_number: u16,
     /// Address of the DP master this peripheral is locked to (if any).
+    pub master_address: u8,
+    pub extended_diagnostics: &'a crate::dp::ExtendedDiagnostics<'a>,
+}
+
+/// Internal storage for diagnostics information
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DiagnosticsInfo {
+    pub flags: DiagnosticFlags,
+    pub ident_number: u16,
     pub master_address: u8,
 }
 
@@ -173,7 +180,8 @@ pub struct Peripheral<'a> {
     /// Process Image of Outputs
     pi_q: &'a mut [u8],
     /// Last diagnostics request
-    diag: Option<PeripheralDiagnostics>,
+    diag: Option<DiagnosticsInfo>,
+    ext_diag: crate::dp::ExtendedDiagnostics<'a>,
 
     options: PeripheralOptions<'a>,
 }
@@ -192,6 +200,11 @@ impl<'a> Peripheral<'a> {
             pi_q,
             ..Default::default()
         }
+    }
+
+    pub fn with_diag_buffer(mut self, ext_diag: &'a mut [u8]) -> Self {
+        self.ext_diag = crate::dp::ExtendedDiagnostics::from_buffer(ext_diag);
+        self
     }
 
     /// Address of this peripheral.
@@ -242,8 +255,13 @@ impl<'a> Peripheral<'a> {
 
     /// Get the last diagnostics information received from this peripheral.
     #[inline]
-    pub fn last_diagnostics(&self) -> Option<&PeripheralDiagnostics> {
-        self.diag.as_ref()
+    pub fn last_diagnostics(&self) -> Option<PeripheralDiagnostics> {
+        self.diag.as_ref().map(|diag| PeripheralDiagnostics {
+            flags: diag.flags,
+            ident_number: diag.ident_number,
+            master_address: diag.master_address,
+            extended_diagnostics: &self.ext_diag,
+        })
     }
 }
 
@@ -547,7 +565,7 @@ impl<'a> Peripheral<'a> {
         &mut self,
         master: &crate::fdl::FdlMaster,
         telegram: &crate::fdl::Telegram,
-    ) -> Option<&PeripheralDiagnostics> {
+    ) -> Option<&DiagnosticsInfo> {
         if let crate::fdl::Telegram::Data(t) = telegram {
             if t.h.dsap != crate::consts::SAP_MASTER_MS0 {
                 log::warn!(
@@ -571,7 +589,7 @@ impl<'a> Peripheral<'a> {
                 return None;
             }
 
-            let mut diag = PeripheralDiagnostics {
+            let mut diag = DiagnosticsInfo {
                 flags: DiagnosticFlags::from_bits_retain(u16::from_le_bytes(
                     t.pdu[0..2].try_into().unwrap(),
                 )),
@@ -586,6 +604,16 @@ impl<'a> Peripheral<'a> {
             diag.flags.remove(DiagnosticFlags::PERMANENT_BIT);
 
             log::debug!("Peripheral Diagnostics (#{}): {:?}", self.address, diag);
+
+            if diag.flags.contains(DiagnosticFlags::EXT_DIAG) {
+                if self.ext_diag.fill(&t.pdu[6..]) {
+                    log::debug!(
+                        "Extended Diagnostics (#{}): {:?}",
+                        self.address,
+                        self.ext_diag
+                    );
+                }
+            }
 
             self.fcb.cycle();
 

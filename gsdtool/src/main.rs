@@ -393,6 +393,12 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
         println!("    let mut buffer_inputs = [0u8; {}];", bytes_input);
         println!("    let mut buffer_outputs = [0u8; {}];", bytes_output);
     }
+    if gsd.max_diag_data_length != 0 {
+        println!(
+            "    let mut buffer_diagnostics = [0u8; {}];",
+            gsd.max_diag_data_length
+        );
+    }
     println!();
 }
 

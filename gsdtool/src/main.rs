@@ -15,6 +15,8 @@ enum GsdToolCommand {
     Dump(DumpOptions),
     /// Run the interactive configuration wizard.
     ConfigWizard(ConfigWizardOptions),
+    /// Interpret extended diagnostics device-based blocks.
+    Diagnostics(InterpDiagOptions),
 }
 
 #[derive(Debug, Options)]
@@ -35,6 +37,15 @@ struct ConfigWizardOptions {
     gsd_path: std::path::PathBuf,
 }
 
+#[derive(Debug, Options)]
+struct InterpDiagOptions {
+    help: bool,
+
+    /// Path to the GSD file.
+    #[options(free, required)]
+    gsd_path: std::path::PathBuf,
+}
+
 fn main() {
     let args = GsdToolOptions::parse_args_default_or_exit();
     match args.command {
@@ -45,7 +56,13 @@ fn main() {
         Some(GsdToolCommand::ConfigWizard(args)) => {
             run_config_wizard(&args);
         }
-        None => panic!("No command specified"),
+        Some(GsdToolCommand::Diagnostics(args)) => {
+            run_interp_diag(&args);
+        }
+        None => {
+            eprintln!("No subcommand specified, try --help.");
+            std::process::exit(1);
+        }
     }
 }
 
@@ -377,4 +394,62 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
         println!("    let mut buffer_outputs = [0u8; {}];", bytes_output);
     }
     println!();
+}
+
+fn run_interp_diag(args: &InterpDiagOptions) {
+    let gsd = gsd_parser::parse_from_file(&args.gsd_path);
+
+    fn parse_slice(text: &str) -> Option<Vec<u8>> {
+        let mut buffer = Vec::new();
+        let text = text.trim();
+        let text = text.strip_prefix("[")?;
+        for number_str in text.split(",") {
+            let number_str = number_str.trim().trim_end_matches("]");
+            buffer.push(str::parse::<u8>(number_str).ok()?);
+        }
+        Some(buffer)
+    }
+
+    let value = dialoguer::Input::new()
+        .with_prompt("Diagnostics Data (as fmt::Debug slice)")
+        .validate_with(|inp: &String| -> Result<(), &str> {
+            parse_slice(&inp).map(|_| ()).ok_or("not a valid value")
+        })
+        .interact()
+        .unwrap();
+    let diag = parse_slice(&value).unwrap();
+    let diag_bits = bitvec::slice::BitSlice::<u8>::from_slice(&diag);
+
+    for (bit, info) in gsd.unit_diag.bits.iter() {
+        if diag_bits[*bit as usize] {
+            println!("Bit {bit}: {}", info.text);
+            if let Some(help) = &info.help {
+                println!("  Help: {help}");
+            }
+        }
+    }
+
+    for (bit, info) in gsd.unit_diag.not_bits.iter() {
+        if !diag_bits[*bit as usize] {
+            println!("Not-Bit {bit}: {}", info.text);
+            if let Some(help) = &info.help {
+                println!("  Help: {help}");
+            }
+        }
+    }
+
+    for area in gsd.unit_diag.areas.iter() {
+        let value_slice = &diag_bits[(area.first as usize)..(area.last as usize + 1)];
+        let mut value_store = [0u16];
+        bitvec::slice::BitSlice::<u16>::from_slice_mut(&mut value_store)
+            [..(area.last - area.first + 1) as usize]
+            .clone_from_bitslice(value_slice);
+        let value = value_store[0];
+        if let Some(text) = area.values.get(&value) {
+            println!("Area {}-{}: {} = {}", area.first, area.last, value, text);
+        } else {
+            // TODO: Seems it is better to not print unknown values?
+            // println!("Area {}-{}: {} = Unknown!!", area.first, area.last, value);
+        }
+    }
 }

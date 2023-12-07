@@ -10,6 +10,7 @@ authors = ["Rahix <rahix@rahix.de>"]
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+bitvec = "1.0.1"
 console = { version = "0.15.7", default-features = false }
 dialoguer = { version = "0.10.4", default-features = false, features = ["editor", "fuzzy-select"] }
 gsd-parser = { version = "0.1.0", path = "../gsd-parser/" }

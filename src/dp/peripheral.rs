@@ -525,7 +525,7 @@ impl<'a> Peripheral<'a> {
         }
     }
 
-    pub(crate) fn send_diagnostics_request(
+    fn send_diagnostics_request(
         &mut self,
         master: &crate::fdl::FdlMaster,
         tx: crate::fdl::TelegramTx,
@@ -543,7 +543,7 @@ impl<'a> Peripheral<'a> {
         )
     }
 
-    pub(crate) fn handle_diagnostics_response(
+    fn handle_diagnostics_response(
         &mut self,
         master: &crate::fdl::FdlMaster,
         telegram: &crate::fdl::Telegram,

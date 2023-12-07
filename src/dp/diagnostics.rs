@@ -1,3 +1,7 @@
+/// Container for extended diagnostics data
+///
+/// The [`ExtendedDiagnostics::iter_diag_blocks()`] method can be used to iterate over the
+/// diagnostics blocks contained in this data.
 #[derive(Default, PartialEq, Eq)]
 pub struct ExtendedDiagnostics<'a> {
     buffer: &'a mut [u8],
@@ -13,6 +17,8 @@ impl<'a> ExtendedDiagnostics<'a> {
     }
 
     /// Iterate over diagnostics blocks in the extended diagnostics.
+    ///
+    /// The iterator yields an [`ExtDiagBlock`] for each diagnostics block.
     pub fn iter_diag_blocks(&self) -> ExtDiagBlockIter<'_> {
         // TODO: is_available() guard?
         ExtDiagBlockIter {
@@ -72,6 +78,7 @@ impl<'a> core::fmt::Debug for ExtendedDiagnostics<'a> {
     }
 }
 
+/// Data type for a channel of a module
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum ChannelDataType {
@@ -102,6 +109,7 @@ impl ChannelDataType {
     }
 }
 
+/// Error diagnosed at a channel of a module
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum ChannelError {
@@ -152,20 +160,43 @@ impl ChannelError {
     }
 }
 
+/// Diagnostic information for a module channel
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChannelDiagnostics {
+    /// Module where the problem was reported
+    ///
+    /// Corresponds to the module index from the configuration telegram
     pub module: u8,
+    /// Channel of the module where the problem occurred
     pub channel: u8,
+    /// Whether the channel is an input
     pub input: bool,
+    /// Whether the channel is an output
     pub output: bool,
+    /// Data type of the channel
     pub dtype: ChannelDataType,
+    /// Error diagnosed at this channel
     pub error: ChannelError,
 }
 
+/// One extended diagnostics block
 #[derive(Clone, PartialEq, Eq)]
 pub enum ExtDiagBlock<'a> {
+    /// Identifier-based diagnostics
+    ///
+    /// The bit-slice contains information which modules report problems.  The index of each bit
+    /// that is set in the slice indicates a problem with the corresponding module.  The indices
+    /// match the ones from the configuration telegram.
     Identifier(&'a bitvec::slice::BitSlice<u8>),
+    /// Channel-based diagnostics
+    ///
+    /// See [`ChannelDiagnostics`] for details.
     Channel(ChannelDiagnostics),
+    /// Device-based diagnostics
+    ///
+    /// The diagnostic data needs to be interpreted using device-specific information from the GSD
+    /// file.  `gsdtool` has a `diagnostics` subcommand which can dissect a device-based
+    /// diagnostics buffer and print human-readable information about the diagnostics it encodes.
     Device(&'a [u8]),
 }
 
@@ -194,6 +225,7 @@ impl<'a> core::fmt::Debug for ExtDiagBlock<'a> {
     }
 }
 
+/// Iterator over the [`ExtDiagBlock`]s contained in an [`ExtendedDiagnostics`] data buffer
 pub struct ExtDiagBlockIter<'a> {
     ext_diag: &'a ExtendedDiagnostics<'a>,
     cursor: usize,

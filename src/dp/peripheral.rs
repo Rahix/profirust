@@ -143,13 +143,17 @@ enum PeripheralState {
 /// };
 /// let mut buffer_inputs = [0u8; 8];
 /// let mut buffer_outputs = [0u8; 4];
+/// let mut buffer_diagnostics = [0u8; 64];
 ///
-/// let remoteio_handle = dp_master.add(dp::Peripheral::new(
-///     remoteio_address,
-///     remoteio_options,
-///     &mut buffer_inputs,
-///     &mut buffer_outputs,
-/// ));
+/// let remoteio_handle = dp_master.add(
+///     dp::Peripheral::new(
+///         remoteio_address,
+///         remoteio_options,
+///         &mut buffer_inputs,
+///         &mut buffer_outputs,
+///     )
+///     .with_diag_buffer(&mut buffer_diagnostics)
+/// );
 ///
 /// dp_master.enter_operate();
 ///
@@ -191,6 +195,8 @@ pub struct Peripheral<'a> {
 }
 
 impl<'a> Peripheral<'a> {
+    /// Construct a new peripheral from its address, options, and buffers for the process image of
+    /// inputs (`pi_i`) and process image of outputs (`pi_q`).
     pub fn new(
         address: u8,
         options: PeripheralOptions<'a>,
@@ -206,6 +212,15 @@ impl<'a> Peripheral<'a> {
         }
     }
 
+    /// Attach a buffer for extended diagnostics to this peripheral.
+    ///
+    /// Without this buffer, extended diagnostics information cannot be recorded.  The buffer must
+    /// be large enough to fit all ext. diagnostics data reported by the device.  The maximum size
+    /// of ext. diagnostic should be documented as `Max_Diag_Data_Len` in the peripheral's GSD
+    /// file.
+    ///
+    /// This is kept separate from the `new()` constructor to make ext. diagnostics optional.  This
+    /// may be useful in cases where the diagnostics buffer would eat too much additional memory.
     pub fn with_diag_buffer(mut self, ext_diag: &'a mut [u8]) -> Self {
         self.ext_diag = crate::dp::ExtendedDiagnostics::from_buffer(ext_diag);
         self

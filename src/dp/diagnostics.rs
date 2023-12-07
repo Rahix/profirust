@@ -12,18 +12,27 @@ impl<'a> ExtendedDiagnostics<'a> {
         self.buffer.len() > 0
     }
 
+    /// Iterate over diagnostics blocks in the extended diagnostics.
+    pub fn iter_diag_blocks(&self) -> ExtDiagBlockIter<'_> {
+        // TODO: is_available() guard?
+        ExtDiagBlockIter {
+            ext_diag: self,
+            cursor: 0,
+        }
+    }
+
+    /// Access the raw extended diagnostics buffer.
+    ///
+    /// Returns `None` when no extended diagnostics information is not captured (because no buffer
+    /// was prepared for it, see
+    /// [`Peripheral::with_diag_buffer()`][`crate::dp::Peripheral::with_diag_buffer`]).
+    ///
+    /// Returns `Some([])` when no extended diagnostics information was reported by the peripheral.
     pub fn raw_diag_buffer(&self) -> Option<&[u8]> {
         if !self.is_available() {
             None
         } else {
             Some(&self.buffer[..self.length])
-        }
-    }
-
-    pub fn iter_diag_blocks(&self) -> ExtDiagBlockIter<'_> {
-        ExtDiagBlockIter {
-            ext_diag: self,
-            cursor: 0,
         }
     }
 

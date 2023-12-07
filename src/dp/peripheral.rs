@@ -41,6 +41,9 @@ bitflags::bitflags! {
         /// Most likely, the configuration does not match the plugged hardware modules.
         const CONFIGURATION_FAULT =     0b00000100;
         /// Extended diagnostic information is available.
+        ///
+        /// The extended diagnostics blocks can be accessed via the `extended_diagnostics` field of
+        /// [`PeripheralDiagnostics`].
         const EXT_DIAG =                0b00001000;
         const NOT_SUPPORTED =           0b00010000;
         // const INVALID_RESPONSE =     0b00100000;
@@ -91,8 +94,9 @@ pub struct PeripheralDiagnostics<'a> {
     ///
     /// This ident number must match the one passed in [`PeripheralOptions`].
     pub ident_number: u16,
-    /// Address of the DP master this peripheral is locked to (if any).
+    /// Address of the DP master this peripheral is locked to (if any)
     pub master_address: u8,
+    /// Extended diagnostics blocks
     pub extended_diagnostics: &'a crate::dp::ExtendedDiagnostics<'a>,
 }
 

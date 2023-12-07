@@ -153,11 +153,36 @@ pub struct ChannelDiagnostics {
     pub error: ChannelError,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ExtDiagBlock<'a> {
     Identifier(&'a bitvec::slice::BitSlice<u8>),
     Channel(ChannelDiagnostics),
     Device(&'a [u8]),
+}
+
+struct IdentifierDebug<'a>(&'a bitvec::slice::BitSlice<u8>);
+
+impl<'a> core::fmt::Debug for IdentifierDebug<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut dbg_list = f.debug_list();
+        for i in self.0.iter_ones() {
+            dbg_list.entry(&i);
+        }
+        dbg_list.finish()
+    }
+}
+
+impl<'a> core::fmt::Debug for ExtDiagBlock<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ExtDiagBlock::Identifier(i) => f
+                .debug_tuple("Identifier")
+                .field(&IdentifierDebug(i))
+                .finish(),
+            ExtDiagBlock::Channel(c) => f.debug_tuple("Channel").field(c).finish(),
+            ExtDiagBlock::Device(d) => f.debug_tuple("Device").field(d).finish(),
+        }
+    }
 }
 
 pub struct ExtDiagBlockIter<'a> {

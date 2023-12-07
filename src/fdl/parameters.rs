@@ -50,15 +50,15 @@ impl Default for Parameters {
         Parameters {
             address: 1,
             baudrate: crate::Baudrate::B19200,
-            /// Tied to the baudrate - will usually be adjusted by the ParametersBuilder.
+            // Tied to the baudrate - will usually be adjusted by the ParametersBuilder.
             slot_bits: 100,
             // TTR default value as found elsewhere.
             // TODO: Need to decide how to deal with this value.
             token_rotation_bits: 32436,
-            /// GAP update factor, default 10 as found elsewhere.
+            // GAP update factor, default 10 as found elsewhere.
             gap_wait_rotations: 10,
-            /// 125 is the highest possible address - by default all addresses are included.
-            /// (and HSA is highest address + 1)
+            // 125 is the highest possible address - by default all addresses are included.
+            // (and HSA is highest address + 1)
             highest_station_address: 126,
             // Defaults to 1 byte time (= 11 bits)
             min_tsdr_bits: 11,

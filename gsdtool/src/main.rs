@@ -445,12 +445,15 @@ fn run_interp_diag(args: &InterpDiagOptions) {
     }
 
     for area in gsd.unit_diag.areas.iter() {
+        // Convert the bits from this area to an integer... There must be a cleaner way to do this
+        // using bitvec, please help.
         let value_slice = &diag_bits[(area.first as usize)..(area.last as usize + 1)];
         let mut value_store = [0u16];
         bitvec::slice::BitSlice::<u16>::from_slice_mut(&mut value_store)
             [..(area.last - area.first + 1) as usize]
             .clone_from_bitslice(value_slice);
         let value = value_store[0];
+
         if let Some(text) = area.values.get(&value) {
             println!("Area {}-{}: {} = {}", area.first, area.last, value, text);
         } else {

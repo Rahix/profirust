@@ -514,6 +514,7 @@ impl<'a> Peripheral<'a> {
             PeripheralState::DataExchange | PeripheralState::PreDataExchange => {
                 if self.diag_needed {
                     if self.handle_diagnostics_response(fdl, &telegram).is_some() {
+                        self.retry_count = 0;
                         self.diag_needed = false;
                         Some(PeripheralEvent::Diagnostics)
                     } else {

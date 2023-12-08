@@ -189,7 +189,10 @@ pub struct Peripheral<'a> {
     pi_q: &'a mut [u8],
     /// Last diagnostics request
     diag: Option<DiagnosticsInfo>,
+    /// Storage for extended diagnostics (if available)
     ext_diag: crate::dp::ExtendedDiagnostics<'a>,
+    /// Flag to indicate necessity of polling diagnostics ASAP
+    diag_needed: bool,
 
     options: PeripheralOptions<'a>,
 }
@@ -386,23 +389,27 @@ impl<'a> Peripheral<'a> {
                 Ok(self.send_diagnostics_request(fdl, tx))
             }
             PeripheralState::DataExchange | PeripheralState::PreDataExchange => {
-                Ok(tx.send_data_telegram(
-                    crate::fdl::DataTelegramHeader {
-                        da: self.address,
-                        sa: fdl.parameters().address,
-                        dsap: crate::consts::SAP_SLAVE_DATA_EXCHANGE,
-                        ssap: crate::consts::SAP_MASTER_DATA_EXCHANGE,
-                        fc: crate::fdl::FunctionCode::new_srd_high(self.fcb),
-                    },
-                    self.pi_q.len(),
-                    |buf| {
-                        // Only write output process image in `Operate` state.  In `Clear`
-                        // state, we leave the output process image all zeros.
-                        if dp.operating_state.is_operate() {
-                            buf.copy_from_slice(&self.pi_q);
-                        }
-                    },
-                ))
+                if self.diag_needed {
+                    Ok(self.send_diagnostics_request(fdl, tx))
+                } else {
+                    Ok(tx.send_data_telegram(
+                        crate::fdl::DataTelegramHeader {
+                            da: self.address,
+                            sa: fdl.parameters().address,
+                            dsap: crate::consts::SAP_SLAVE_DATA_EXCHANGE,
+                            ssap: crate::consts::SAP_MASTER_DATA_EXCHANGE,
+                            fc: crate::fdl::FunctionCode::new_srd_high(self.fcb),
+                        },
+                        self.pi_q.len(),
+                        |buf| {
+                            // Only write output process image in `Operate` state.  In `Clear`
+                            // state, we leave the output process image all zeros.
+                            if dp.operating_state.is_operate() {
+                                buf.copy_from_slice(&self.pi_q);
+                            }
+                        },
+                    ))
+                }
             }
         };
 
@@ -497,67 +504,83 @@ impl<'a> Peripheral<'a> {
                 event
             }
             PeripheralState::DataExchange | PeripheralState::PreDataExchange => {
-                let event = match telegram {
-                    crate::fdl::Telegram::Data(t) => {
-                        let data_ok = match t.is_response().unwrap() {
-                            crate::fdl::ResponseStatus::SapNotEnabled => {
-                                log::warn!(
+                if self.diag_needed {
+                    if self.handle_diagnostics_response(fdl, &telegram).is_some() {
+                        self.diag_needed = false;
+                        Some(PeripheralEvent::Diagnostics)
+                    } else {
+                        None
+                    }
+                } else {
+                    let event = match telegram {
+                        crate::fdl::Telegram::Data(t) => {
+                            let data_ok = match t.is_response().unwrap() {
+                                crate::fdl::ResponseStatus::SapNotEnabled => {
+                                    log::warn!(
                                 "Got \"SAP not enabled\" response from #{}, revalidating config...",
                                 self.address
                             );
-                                self.state = PeripheralState::ValidateConfig;
-                                false
-                            }
+                                    self.state = PeripheralState::ValidateConfig;
+                                    false
+                                }
 
-                            crate::fdl::ResponseStatus::Ok => true, // TODO: Is this actually correct?
-                            crate::fdl::ResponseStatus::DataLow => true,
-                            crate::fdl::ResponseStatus::DataHigh => true,
+                                crate::fdl::ResponseStatus::Ok => true, // TODO: Is this actually correct?
+                                crate::fdl::ResponseStatus::DataLow => true,
+                                crate::fdl::ResponseStatus::DataHigh => {
+                                    log::debug!(
+                                        "Peripheral #{} signals diagnostics!",
+                                        self.address
+                                    );
+                                    self.diag_needed = true;
+                                    true
+                                }
 
-                            e => {
-                                log::warn!(
-                                    "Unhandled response status \"{:?}\" from #{}!",
-                                    e,
-                                    self.address
-                                );
-                                false
-                            }
-                        };
+                                e => {
+                                    log::warn!(
+                                        "Unhandled response status \"{:?}\" from #{}!",
+                                        e,
+                                        self.address
+                                    );
+                                    false
+                                }
+                            };
 
-                        if data_ok {
-                            if t.pdu.len() == self.pi_i.len() {
-                                self.pi_i.copy_from_slice(&t.pdu);
-                                self.state = PeripheralState::DataExchange;
-                                Some(PeripheralEvent::DataExchanged)
-                            } else {
-                                log::warn!(
+                            if data_ok {
+                                if t.pdu.len() == self.pi_i.len() {
+                                    self.pi_i.copy_from_slice(&t.pdu);
+                                    self.state = PeripheralState::DataExchange;
+                                    Some(PeripheralEvent::DataExchanged)
+                                } else {
+                                    log::warn!(
                             "Got response from #{} with unexpected PDU length (got: {}, want: {})!",
                             self.address,
                             t.pdu.len(),
                             self.pi_i.len()
                         );
+                                    None
+                                }
+                            } else {
                                 None
                             }
-                        } else {
-                            None
                         }
-                    }
-                    crate::fdl::Telegram::ShortConfirmation(_) => {
-                        if self.pi_i.len() != 0 {
-                            log::warn!(
-                                "#{} responded with SC but we expected cyclic data?!",
-                                self.address
-                            );
-                            None
-                        } else {
-                            self.state = PeripheralState::DataExchange;
-                            Some(PeripheralEvent::DataExchanged)
+                        crate::fdl::Telegram::ShortConfirmation(_) => {
+                            if self.pi_i.len() != 0 {
+                                log::warn!(
+                                    "#{} responded with SC but we expected cyclic data?!",
+                                    self.address
+                                );
+                                None
+                            } else {
+                                self.state = PeripheralState::DataExchange;
+                                Some(PeripheralEvent::DataExchanged)
+                            }
                         }
-                    }
-                    crate::fdl::Telegram::Token(_) => unreachable!(),
-                };
-                self.retry_count = 0;
-                self.fcb.cycle();
-                event
+                        crate::fdl::Telegram::Token(_) => unreachable!(),
+                    };
+                    self.retry_count = 0;
+                    self.fcb.cycle();
+                    event
+                }
             }
         }
     }

@@ -285,6 +285,14 @@ impl<'a> Peripheral<'a> {
             extended_diagnostics: &self.ext_diag,
         })
     }
+
+    /// Request retrieval of diagnostic information at the next possible time.
+    ///
+    /// When new diagnostics are available, a [`PeripheralEvent::Diagnostics`] is emitted.
+    #[inline]
+    pub fn request_diagnostics(&mut self) {
+        self.diag_needed = true;
+    }
 }
 
 impl<'a> Peripheral<'a> {

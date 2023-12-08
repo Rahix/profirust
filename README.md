@@ -25,8 +25,8 @@ interested in this project, help is gladly accepted in the following forms:
 ## Roadmap
 - [x] Single-master bus up to 1 Mbaud
 - [x] Cyclic communication with DP-V0 peripherals
-- [ ] Basic Diagnostics
-- [ ] Extended Diagnostics
+- [x] Basic Diagnostics
+- [x] Extended Diagnostics (DP-V0)
 - [ ] Multi-master bus
 - [ ] Bus error tracking
 - [ ] Bus discovery utilities

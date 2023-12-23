@@ -13,7 +13,7 @@ fn main() {
 
     let mut fdl_master = fdl::FdlMaster::new(
         fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)
-            // We use a rather large T_sl time because USB-RS485 converters can induce large delays at
+            // We use a rather large T_slot time because USB-RS485 converters can induce large delays at
             // times.
             .slot_bits(1920)
             // For generating the live-list as fast as possible, set GAP factor to 1.

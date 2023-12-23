@@ -63,7 +63,7 @@ impl PhyData<'_> {
 ///
 /// let mut fdl_master = fdl::FdlMaster::new(
 ///     fdl::ParametersBuilder::new(0x02, BAUDRATE)
-///         // Increase T_sl (slot time)
+///         // Increase T_slot (slot time)
 ///         .slot_bits(1920)
 ///         .build_verified(&dp_master)
 /// );

@@ -93,7 +93,7 @@ fn main() {
 
     let mut fdl_master = fdl::FdlMaster::new(
         fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)
-            // We use a rather large T_sl time because USB-RS485 converters can induce large delays at
+            // We use a rather large T_slot time because USB-RS485 converters can induce large delays at
             // times.
             .slot_bits(1920)
             .watchdog_timeout(profirust::time::Duration::from_secs(2))

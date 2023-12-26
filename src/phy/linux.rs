@@ -45,15 +45,18 @@ impl PhyData<'_> {
 /// Available with the `phy-linux` feature.
 ///
 /// **Important**: Due to the non-realtime nature of Linux, you must use this PHY implementation
-/// with care.  You may need to decrease the baudrate or lengthen timeouts (T<sub>SL</sub>, TTR) to
+/// with care.  You may need to decrease the baudrate or lengthen timeouts (T<sub>SLOT</sub>) to
 /// get reliable communication.  You should also consider running your pogram at "real-time
 /// priority" if you need higher bus speeds.  It is advisable to run tests with heavy system load
 /// to ensure the bus communication stays reliable in all circumstances.
 ///
 /// **Important 2**: If you plan to use this PHY with a USB-serial device, you have to choose your
-/// bus parameters even more carefully.  Stick to very low baudrates (19.2 kBit worked okay in
-/// tests) and increase T<sub>SL</sub> (slot time) to deal with communication delays (100ms => 1920
-/// t_Bit was reliable at 19.2 kBit in tests).
+/// bus parameters even more carefully.  Stick to very low baudrates (<= 500kbit/s) and increase
+/// T<sub>SL</sub> (slot time) to deal with communication delays.  Tests have shown a slot time of
+/// ~5ms to work reliably (at 500kbit/s, that would be 2500 T_bit).  Additionally, it seems to be
+/// important to give the OS time to deliver received data by sleeping long enough between `poll()`
+/// calls.  A minimum sleep of 2ms was needed in my tests to ensure all received data is delivered
+/// in time.
 ///
 /// # Example
 /// ```no_run

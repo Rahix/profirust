@@ -8,7 +8,7 @@ const IO_STATION_ADDRESS: u8 = 8;
 // Bus Parameters
 const MASTER_ADDRESS: u8 = 3;
 const BUS_DEVICE: &'static str = "/dev/ttyUSB0";
-const BAUDRATE: profirust::Baudrate = profirust::Baudrate::B19200;
+const BAUDRATE: profirust::Baudrate = profirust::Baudrate::B500000;
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
@@ -93,12 +93,14 @@ fn main() {
 
     let mut fdl_master = fdl::FdlMaster::new(
         fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)
-            // We use a rather large T_slot time because USB-RS485 converters can induce large delays at
-            // times.
-            .slot_bits(1920)
+            // We use a rather large T_slot time because USB-RS485 converters
+            // can induce large delays at times.
+            .slot_bits(2500)
             .watchdog_timeout(profirust::time::Duration::from_secs(2))
             .build_verified(&dp_master),
     );
+    // We must not poll() too often or to little. T_slot / 2 seems to be a good compromise.
+    let sleep_time: std::time::Duration = (fdl_master.parameters().slot_time() / 2).into();
 
     println!("Connecting to the bus...");
     let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl_master.parameters().baudrate);
@@ -125,6 +127,6 @@ fn main() {
             pi_q[i / 4] |= 1 << (i % 4);
         }
 
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::thread::sleep(sleep_time);
     }
 }

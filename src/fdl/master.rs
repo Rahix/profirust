@@ -873,6 +873,21 @@ impl FdlMaster {
         }
     }
 
+    /// Main API for driving the communication stack.
+    ///
+    /// You need to cyclically call this `poll()` function to perform bus communication.  The time
+    /// between poll calls should not exceed half **T<sub>SLOT</sub>**, or in code:
+    ///
+    /// ```
+    /// # fn foo(fdl_master: profirust::fdl::FdlMaster) -> profirust::time::Duration {
+    /// fdl_master.parameters().slot_time() / 2
+    /// # }
+    /// ```
+    ///
+    /// In the future, profirust may give an indication about the next time a poll will be
+    /// necessary.
+    ///
+    /// `poll()` returns events from the application layer, if any occurred.
     pub fn poll<'a, PHY: ProfibusPhy, APP: FdlApplication>(
         &mut self,
         now: crate::time::Instant,

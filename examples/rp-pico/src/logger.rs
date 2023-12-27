@@ -52,7 +52,9 @@ impl log::Log for RingBufferLogger {
 impl core::fmt::Write for RingBuffer {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         if self.buffer.len() + s.len() > self.buffer.capacity() {
-            for _ in 0..(s.len() - (self.buffer.capacity() - self.buffer.len())) {
+            let indicator = b"\x1B[0m\r\n[...]\r\n";
+            let needed_length = s.len() + indicator.len();
+            for _ in 0..(needed_length - (self.buffer.capacity() - self.buffer.len())) {
                 let _ = self.buffer.pop_front();
             }
 
@@ -65,7 +67,13 @@ impl core::fmt::Write for RingBuffer {
                     _ => (),
                 }
             }
+
+            // Display an indicator of truncation
+            for b in indicator.into_iter().rev() {
+                let _ = self.buffer.push_front(*b);
+            }
         }
+
         for b in s.as_bytes() {
             let _ = self.buffer.push_back(*b);
         }

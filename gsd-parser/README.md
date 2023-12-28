@@ -1,4 +1,4 @@
-`gsd-parser`
+`gsd-parser` [![crates.io page](https://img.shields.io/crates/v/gsd-parser.svg)](https://crates.io/crates/gsd-parser) [![docs.rs page](https://docs.rs/gsd-parser/badge.svg)](https://docs.rs/gsd-parser)
 ============
 A parser for PROFIBUS GSD (Generic Station Description) files.
 

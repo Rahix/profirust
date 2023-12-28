@@ -30,7 +30,7 @@ interested in this project, help is gladly accepted in the following forms:
 - [ ] Multi-master bus
 - [ ] Bus error tracking
 - [ ] Bus discovery utilities
-- [ ] Reliable communication at baudrates >1 Mbaud
+- [ ] Reliable communication at 12 Mbit/s, so far up to 6 Mbit/s works fine
 - [ ] Communication with DP-V1 peripherals
 - [ ] Equidistant bus cycle
 - [ ] Isochronous bus cycle

@@ -1,6 +1,8 @@
 <p align="center">
-  <img src="img/logo-header.svg" alt="profirust"><br>
-  <br>
+  <img src="img/logo-header.svg" alt="profirust"><br/>
+  <a href="https://crates.io/crates/profirust"><img src="https://img.shields.io/crates/v/profirust.svg" alt="crates.io page" /></a>
+  <a href="https://docs.rs/profirust/latest/profirust/"><img src="https://docs.rs/profirust/badge.svg" alt="docs.rs page" /></a>
+  <br/>
   A PROFIBUS-DP compatible communication stack written in Rust.
 </p>
 
@@ -8,6 +10,12 @@
 **profirust** is a pure-Rust [PROFIBUS-DP] compatible communication stack.
 PROFIBUS is an industrial bus protocol used to communicate with field devices
 like remote I/O, transducers, valves, drives, etc.
+
+If you want to learn more, I suggest reading my blog posts about
+[profirust][blog-post] or my [PROFIBUS Primer][blog-profibus].
+
+[blog-post]: https://blog.rahix.de/profirust/
+[blog-profibus]: https://blog.rahix.de/profibus-primer/
 
 ## Project Status
 **profirust** works well for the features it currently supports, however it has
@@ -23,14 +31,14 @@ interested in this project, help is gladly accepted in the following forms:
 - Reporting any kinds of issues encountered while using **profirust**
 
 ## Roadmap
-- [x] Single-master bus up to 1 Mbaud
+- [x] Single-master bus up to 6 Mbit/s
 - [x] Cyclic communication with DP-V0 peripherals
 - [x] Basic Diagnostics
 - [x] Extended Diagnostics (DP-V0)
 - [ ] Multi-master bus
 - [ ] Bus error tracking
 - [ ] Bus discovery utilities
-- [ ] Reliable communication at 12 Mbit/s, so far up to 6 Mbit/s works fine
+- [ ] Reliable communication at 12 Mbit/s
 - [ ] Communication with DP-V1 peripherals
 - [ ] Equidistant bus cycle
 - [ ] Isochronous bus cycle

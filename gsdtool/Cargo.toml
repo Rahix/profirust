@@ -9,6 +9,9 @@ keywords = ["profibus", "profibus-dp", "fieldbus", "siemens"]
 authors = ["Rahix <rahix@rahix.de>"]
 license = "MIT OR Apache-2.0"
 
+repository = "https://github.com/rahix/profirust"
+homepage = "https://github.com/rahix/profirust/tree/main/gsdtool"
+
 [dependencies]
 bitvec = "1.0.1"
 console = { version = "0.15.7", default-features = false }

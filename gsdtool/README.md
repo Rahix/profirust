@@ -1,4 +1,4 @@
-`gsdtool` - CLI tool for PROFIBUS GSD files
+`gsdtool` - CLI tool for PROFIBUS GSD files [![crates.io page](https://img.shields.io/crates/v/gsdtool.svg)](https://crates.io/crates/gsdtool)
 -------------------------------------------
 `gsdtool` provides utilities for working with GSD files, expecially in the
 context of the `profirust` PROFIBUS communication stack.

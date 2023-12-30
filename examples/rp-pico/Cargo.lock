@@ -322,7 +322,7 @@ checksum = "b907a5683725ae1aa5a28446fd29e513e6dab1a6a5a9543c202d0510d2f29a4f"
 
 [[package]]
 name = "profirust"
-version = "0.0.1"
+version = "0.1.1"
 dependencies = [
  "bitflags",
  "bitvec",

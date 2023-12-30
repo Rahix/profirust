@@ -33,7 +33,7 @@ features = ["max_level_debug"]
 
 [dependencies.profirust]
 path = "../../"
-version = "0.0.1"
+version = "0.1.1"
 default-features = false
 features = ["phy-rp2040"]
 

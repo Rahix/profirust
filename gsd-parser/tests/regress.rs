@@ -16,7 +16,13 @@ fn regress_prm(#[files("tests/data/*.[gG][sS][dD]")] gsd_file: PathBuf) {
     // Try setting all the available parameters to some reasonable values.
     for (_, prm_ref) in gsd.user_prm_data.data_ref.iter() {
         if let Some(texts) = prm_ref.text_ref.as_ref() {
-            prm.set_prm_from_text(&prm_ref.name, texts.keys().nth(1).unwrap());
+            let text = if texts.len() > 1 {
+                texts.keys().nth(1).unwrap()
+            } else {
+                // Fallback when the list only has one text...
+                texts.keys().next().unwrap()
+            };
+            prm.set_prm_from_text(&prm_ref.name, text);
         } else {
             let v = match &prm_ref.constraint {
                 gsd_parser::PrmValueConstraint::MinMax(_, max) => *max,

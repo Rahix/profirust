@@ -78,6 +78,12 @@ version_dl_definition = {
     "End_Version_Firmware_Download"
 }
 
+physical_interface = {
+    "Physical_Interface" ~ "=" ~ number ~ NEWLINE ~
+    (!"End_Physical_Interface" ~ ANY)* ~
+    "End_Physical_Interface"
+}
+
 setting_value = _{
     string_literal |
     (&(number ~ ",") ~ number_list) |
@@ -94,6 +100,7 @@ statement = _{
     | unit_diag_type
     | unit_diag_area
     | version_dl_definition
+    | physical_interface
     | setting
 }
 

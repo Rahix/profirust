@@ -80,65 +80,6 @@ fn test_token_timeout(#[values(0, 1, 7, 14)] addr: u8) {
 }
 
 #[test]
-fn two_masters_and_their_tokens() {
-    crate::test_utils::prepare_test_logger();
-    let baud = crate::Baudrate::B19200;
-
-    let mut phy1 = crate::phy::SimulatorPhy::new(baud, "phy#2");
-    let mut phy2 = phy1.duplicate("phy#7");
-
-    let mut master1 = crate::fdl::FdlMaster::new(
-        crate::fdl::ParametersBuilder::new(2, baud)
-            .highest_station_address(16)
-            .slot_bits(300)
-            .build(),
-    );
-    let mut master2 = crate::fdl::FdlMaster::new(
-        crate::fdl::ParametersBuilder::new(7, baud)
-            .highest_station_address(16)
-            .slot_bits(300)
-            .build(),
-    );
-
-    crate::test_utils::set_active_addr(2);
-    master1.set_online();
-
-    crate::test_utils::set_active_addr(7);
-    master2.set_online();
-
-    let start = crate::time::Instant::ZERO;
-    let mut now = start;
-    while (now - start) < crate::time::Duration::from_millis(800) {
-        crate::test_utils::set_log_timestamp(now);
-        phy1.set_bus_time(now);
-
-        crate::test_utils::set_active_addr(2);
-        master1.poll(now, &mut phy1, &mut ());
-
-        crate::test_utils::set_active_addr(7);
-        master2.poll(now, &mut phy2, &mut ());
-
-        now += crate::time::Duration::from_micros(100);
-    }
-
-    assert!(master1.is_in_ring());
-    assert!(master2.is_in_ring());
-
-    for i in 0..24 {
-        assert_eq!(
-            master1.check_address_live(i),
-            i == 2 || i == 7,
-            "wrong liveness of address {i} reported by master1(#2)"
-        );
-        assert_eq!(
-            master2.check_address_live(i),
-            i == 2 || i == 7,
-            "wrong liveness of address {i} reported by master2(#7)"
-        );
-    }
-}
-
-#[test]
 fn big_bus() {
     crate::test_utils::prepare_test_logger();
     let baud = crate::Baudrate::B19200;

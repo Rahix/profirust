@@ -525,7 +525,6 @@ impl FdlMaster {
 
             match &telegram {
                 crate::fdl::Telegram::Token(t) => {
-                    // TODO: Maybe when the token telegram hands us the token, we should take it?
                     log::warn!(
                         "Received token telegram {t:?} while waiting for peripheral response"
                     );
@@ -534,11 +533,11 @@ impl FdlMaster {
                 crate::fdl::Telegram::Data(t) => {
                     if t.is_response().is_none() {
                         log::warn!("Received non-response telegram: {t:?}");
-                        return None;
+                        return Some(Err(TokenLostError));
                     }
                     if t.h.da != self.p.address {
                         log::warn!("Received telegram with unexpected destination: {t:?}");
-                        return None;
+                        return Some(Err(TokenLostError));
                     }
                 }
                 crate::fdl::Telegram::ShortConfirmation(_) => (),
@@ -569,14 +568,13 @@ impl FdlMaster {
 
             match telegram {
                 crate::fdl::Telegram::Token(t) => {
-                    // TODO: Maybe when the token telegram hands us the token, we should take it?
                     log::warn!("Received token telegram {t:?} while waiting for status response");
                     Err(TokenLostError)
                 }
                 crate::fdl::Telegram::Data(telegram) => {
                     if telegram.h.sa != addr {
                         log::warn!("Expected status from #{addr}, someone else sent: {telegram:?}");
-                        Ok(false)
+                        Err(TokenLostError)
                     } else if let crate::fdl::FunctionCode::Response { state, status } =
                         telegram.h.fc
                     {
@@ -591,12 +589,12 @@ impl FdlMaster {
                         log::warn!(
                             "Unexpected telegram instead of status from #{addr}: {telegram:?}"
                         );
-                        Ok(false)
+                        Err(TokenLostError)
                     }
                 }
                 t => {
                     log::warn!("Unexpected telegram instead of status from #{addr}: {t:?}");
-                    Ok(false)
+                    Err(TokenLostError)
                 }
             }
         })

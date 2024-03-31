@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Made `gsd-parser` parse more GSD files correctly, ignoring a few more
   constructs that it currently does not care about.
+- Improve robustness of the FDL layer against unexpected situations.
 
 
 ## [0.1.1] - 2023-12-28

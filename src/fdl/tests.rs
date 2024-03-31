@@ -138,14 +138,13 @@ fn two_masters_and_their_tokens() {
     }
 }
 
-#[ignore = "full livelist is not yet working"]
 #[test]
 fn big_bus() {
     crate::test_utils::prepare_test_logger();
     let baud = crate::Baudrate::B19200;
 
     let actives_addr = vec![2, 7, 13, 24];
-    let passives_addr = vec![3, 9, 10, 16, 18, 22, 60, 100];
+    let passives_addr = vec![3, 9, 10, 16, 18, 22, 26, 28];
 
     let phy = crate::phy::SimulatorPhy::new(baud, "phy#main");
 
@@ -156,6 +155,7 @@ fn big_bus() {
             let phy = phy.duplicate(format!("phy#{addr}").leak());
             let mut fdl = crate::fdl::FdlMaster::new(
                 crate::fdl::ParametersBuilder::new(addr, baud)
+                    .highest_station_address(30)
                     .slot_bits(300)
                     .build(),
             );
@@ -173,6 +173,7 @@ fn big_bus() {
             #[allow(unused_mut)]
             let mut fdl = crate::fdl::FdlMaster::new(
                 crate::fdl::ParametersBuilder::new(addr, baud)
+                    .highest_station_address(30)
                     .slot_bits(300)
                     .build(),
             );

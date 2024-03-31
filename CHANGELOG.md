@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- The live-list now correctly mirrors the state of _all_ stations on the bus,
+  not just the ones in our own GAP range.
+
 ### Fixed
 - Made `gsd-parser` parse more GSD files correctly, ignoring a few more
   constructs that it currently does not care about.

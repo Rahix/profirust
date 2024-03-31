@@ -137,3 +137,83 @@ fn two_masters_and_their_tokens() {
         );
     }
 }
+
+#[ignore = "full livelist is not yet working"]
+#[test]
+fn big_bus() {
+    crate::test_utils::prepare_test_logger();
+    let baud = crate::Baudrate::B19200;
+
+    let actives_addr = vec![2, 7, 13, 24];
+    let passives_addr = vec![3, 9, 10, 16, 18, 22, 60, 100];
+
+    let phy = crate::phy::SimulatorPhy::new(baud, "phy#main");
+
+    let mut actives: Vec<_> = actives_addr
+        .iter()
+        .copied()
+        .map(|addr| {
+            let phy = phy.duplicate(format!("phy#{addr}").leak());
+            let mut fdl = crate::fdl::FdlMaster::new(
+                crate::fdl::ParametersBuilder::new(addr, baud)
+                    .slot_bits(300)
+                    .build(),
+            );
+            crate::test_utils::set_active_addr(addr);
+            fdl.set_online();
+            (addr, phy, fdl)
+        })
+        .collect();
+
+    let mut passives: Vec<_> = passives_addr
+        .iter()
+        .copied()
+        .map(|addr| {
+            let phy = phy.duplicate(format!("phy#{addr}").leak());
+            #[allow(unused_mut)]
+            let mut fdl = crate::fdl::FdlMaster::new(
+                crate::fdl::ParametersBuilder::new(addr, baud)
+                    .slot_bits(300)
+                    .build(),
+            );
+            crate::test_utils::set_active_addr(addr);
+            // TODO: Once passive mode is supported, enable: fdl.set_passive();
+            (addr, phy, fdl)
+        })
+        .collect();
+
+    let start = crate::time::Instant::ZERO;
+    let mut now = start;
+    while (now - start) < crate::time::Duration::from_millis(3200) {
+        crate::test_utils::set_log_timestamp(now);
+        phy.set_bus_time(now);
+
+        for (addr, phy, fdl) in actives.iter_mut() {
+            crate::test_utils::set_active_addr(*addr);
+            fdl.poll(now, phy, &mut ());
+        }
+
+        for (addr, phy, fdl) in passives.iter_mut() {
+            crate::test_utils::set_active_addr(*addr);
+            fdl.poll(now, phy, &mut ());
+        }
+
+        now += crate::time::Duration::from_micros(100);
+    }
+
+    for (addr, _, fdl) in actives.iter() {
+        assert!(
+            fdl.is_in_ring(),
+            "station #{addr} is not in the token ring!"
+        );
+
+        for i in 0..126 {
+            // TODO: passives are also live
+            assert_eq!(
+                fdl.check_address_live(i),
+                actives_addr.contains(&i),
+                "wrong liveness of address #{i} reported by master #{addr}"
+            );
+        }
+    }
+}

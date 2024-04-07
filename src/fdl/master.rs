@@ -81,6 +81,10 @@ enum StateWithToken {
 enum StateWithoutToken {
     /// Master is idle.
     Idle,
+    /// Master is waiting for the token to be received after forwarding it.
+    ///
+    /// This receival is detected by witnessing the next master sending out telegrams.
+    AwaitingTokenReceived { addr: u8 },
     /// Waiting to respond to an FDL status request.
     PendingFdlStatusResponse {
         destination: u8,
@@ -448,11 +452,15 @@ impl FdlMaster {
 
     #[must_use = "poll done marker"]
     fn forward_token(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) -> PollDone {
-        self.communication_state = CommunicationState::WithoutToken(StateWithoutToken::Idle);
+        self.communication_state =
+            CommunicationState::WithoutToken(StateWithoutToken::AwaitingTokenReceived {
+                addr: self.next_master,
+            });
 
         let token_telegram = crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
+
+        // Special case when the token is forwarded to ourselves.
         if self.next_master == self.p.address {
-            // Special case when the token is also fowarded to ourselves.
             self.acquire_token(now, &token_telegram);
         }
 
@@ -799,10 +807,28 @@ impl FdlMaster {
             RespondWithStatus { da: u8 },
         }
 
+        let slot_expired = self.check_slot_expired(now);
         match *self.communication_state.assert_without_token() {
-            StateWithoutToken::Idle => phy
+            StateWithoutToken::AwaitingTokenReceived { addr } if slot_expired => {
+                // It seems the token was not received.
+                log::warn!("Token was not received by next master (#{addr})!");
+                // TODO: We need to retry here, instead of reacquiring the token ourselves.
+                self.next_master = self.p.address;
+                self.forward_token(now, phy).into()
+            }
+            StateWithoutToken::Idle | StateWithoutToken::AwaitingTokenReceived { .. } => phy
                 .receive_telegram(now, |telegram| {
                     self.mark_rx(now);
+
+                    if let StateWithoutToken::AwaitingTokenReceived { addr } = *self.communication_state.assert_without_token() {
+                        if telegram.source_address() != Some(addr) {
+                            log::warn!(
+                                "Unexpected station active after forwarding token (expected #{addr}): {:?}",
+                                telegram
+                            );
+                        }
+                        *self.communication_state.assert_without_token() = StateWithoutToken::Idle;
+                    }
 
                     match telegram {
                         crate::fdl::Telegram::Token(token_telegram) => {

@@ -72,15 +72,9 @@ enum StateWithToken {
     /// first need to let the synchronization pause pass).
     ForwardToken,
     /// Waiting for the response to a message cycle.
-    AwaitingResponse {
-        addr: u8,
-        sent_time: crate::time::Instant,
-    },
+    AwaitingResponse { addr: u8 },
     /// Waiting for the FDL status response of a potential peripheral.
-    AwaitingFdlStatusResponse {
-        addr: u8,
-        sent_time: crate::time::Instant,
-    },
+    AwaitingFdlStatusResponse { addr: u8 },
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -508,10 +502,8 @@ impl FdlMaster {
             res
         }) {
             if let Some(addr) = tx_res.expects_reply() {
-                *self.communication_state.assert_with_token() = StateWithToken::AwaitingResponse {
-                    addr,
-                    sent_time: now,
-                };
+                *self.communication_state.assert_with_token() =
+                    StateWithToken::AwaitingResponse { addr };
             }
             (Some(self.mark_tx(now, tx_res.bytes_sent())), events)
         } else {
@@ -664,10 +656,7 @@ impl FdlMaster {
             self.gap_state = self.next_gap_poll(addr);
 
             *self.communication_state.assert_with_token() =
-                StateWithToken::AwaitingFdlStatusResponse {
-                    addr,
-                    sent_time: now,
-                };
+                StateWithToken::AwaitingFdlStatusResponse { addr };
 
             let tx_res = phy
                 .transmit_telegram(now, |tx| {
@@ -689,7 +678,7 @@ impl FdlMaster {
     ) -> PollResult<APP::Events> {
         // First check for ongoing message cycles and handle them.
         match *self.communication_state.assert_with_token() {
-            StateWithToken::AwaitingResponse { addr, sent_time } => {
+            StateWithToken::AwaitingResponse { addr } => {
                 match self.app_receive_reply(now, phy, app, addr) {
                     Some(Ok(event)) => {
                         *self.communication_state.assert_with_token() =
@@ -716,7 +705,7 @@ impl FdlMaster {
                     }
                 }
             }
-            StateWithToken::AwaitingFdlStatusResponse { addr, sent_time } => {
+            StateWithToken::AwaitingFdlStatusResponse { addr } => {
                 match self.receive_status_response(now, phy, addr) {
                     Some(Ok(_)) => {
                         // After the result of the GAP scan, pass on the token.

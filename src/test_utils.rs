@@ -25,7 +25,10 @@ pub fn prepare_test_logger() {
                 record.args(),
             )
         })
-        .filter_level(log::LevelFilter::Trace)
+        .filter_level(log::LevelFilter::Debug)
+        .filter_module("profirust::phy::simulator", log::LevelFilter::Trace)
+        .filter_module("profirust::fdl", log::LevelFilter::Trace)
+        .filter_module("profirust::dp", log::LevelFilter::Trace)
         .try_init();
 
     set_log_timestamp(crate::time::Instant::ZERO);

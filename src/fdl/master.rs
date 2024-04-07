@@ -62,8 +62,14 @@ enum CommunicationState {
 enum StateWithToken {
     /// Master is ready to start a message cycle of any kind (unless it is waiting for the
     /// synchronization pause to pass).
+    ///
+    /// The `first` field is used to track the transmission of a single high-priority telegram in
+    /// situations where we are already over the target token rotation time.
     Idle { first: bool },
     /// Master should forward the token at the next possible time.
+    ///
+    /// This is used in situations where we cannot immediately forward the token (e.g. because we
+    /// first need to let the synchronization pause pass).
     ForwardToken,
     /// Waiting for the response to a message cycle.
     AwaitingResponse {

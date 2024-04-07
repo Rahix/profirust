@@ -30,6 +30,23 @@ interested in this project, help is gladly accepted in the following forms:
 - Funding of access to the needed IEC standards for improving compliance
 - Reporting any kinds of issues encountered while using **profirust**
 
+## Supported Hardware
+**profirust** is designed to have as little hardware dependency as possible.
+All you need is a UART interface with an RS-485 transceiver.  You can then
+write a matching implementation of [`ProfibusPhy`].  It is encouraged to submit
+such implementations for inclusion in **profirust**.
+
+At the moment, the following implementations are available:
+
+- [`LinuxRs485Phy`]: Implementation for non-realtime Linux UART devices
+- [`Rp2040Phy`]: Implementation for RP2040 microcontrollers
+- _Planned:_ Generic implementation for [`embedded-hal`]-supported microcontrollers
+
+[`ProfibusPhy`]: https://docs.rs/profirust/latest/profirust/phy/trait.ProfibusPhy.html
+[`LinuxRs485Phy`]: https://docs.rs/profirust/latest/profirust/phy/struct.LinuxRs485Phy.html
+[`Rp2040Phy`]: https://docs.rs/profirust/latest/profirust/phy/struct.Rp2040Phy.html
+[`embedded-hal`]: https://github.com/rust-embedded/embedded-hal
+
 ## Roadmap
 - [x] Single-master bus up to 6 Mbit/s
 - [x] Cyclic communication with DP-V0 peripherals

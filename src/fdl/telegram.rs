@@ -569,6 +569,22 @@ impl<'a> Telegram<'a> {
             _ => Some(Err(())),
         }
     }
+
+    pub fn source_address(&self) -> Option<u8> {
+        match self {
+            Telegram::Data(t) => Some(t.h.sa),
+            Telegram::Token(t) => Some(t.sa),
+            Telegram::ShortConfirmation(_) => None,
+        }
+    }
+
+    pub fn destination_address(&self) -> Option<u8> {
+        match self {
+            Telegram::Data(t) => Some(t.h.da),
+            Telegram::Token(t) => Some(t.da),
+            Telegram::ShortConfirmation(_) => None,
+        }
+    }
 }
 
 #[derive(Debug)]

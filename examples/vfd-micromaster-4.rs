@@ -25,6 +25,7 @@ process_image::process_image! {
         pub cw_inching:             (X, 0, 0),
         pub ccw_inching:            (X, 0, 1),
         pub setpoint_valid:         (X, 0, 2),
+        pub setpoint_invert:        (X, 0, 3),
 
         pub stw1:                   (W, 0),
         pub speed_setpoint:         (W, 2),
@@ -65,9 +66,17 @@ enum VfdCommand {
     AcknowledgeFault,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum VfdDirection {
+    #[default]
+    Cw,
+    Ccw,
+}
+
 #[derive(Default, Debug, Clone, PartialEq)]
 struct VfdParameters {
     pub command: VfdCommand,
+    pub dir: VfdDirection,
     pub status: [u8; 4],
     pub control: [u8; 4],
     pub speed_setpoint: f32,
@@ -184,6 +193,7 @@ fn vfd_controller(param: sync::Arc<sync::Mutex<VfdParameters>>) {
             *control.enable_setpoint() = true;
             *control.acknowledge_fault() = param.command == VfdCommand::AcknowledgeFault;
             *control.setpoint_valid() = true;
+            *control.setpoint_invert() = param.dir == VfdDirection::Ccw;
 
             let speed = ((param.speed_setpoint * 16384.0) as u16).min(16384);
             *control.speed_setpoint() = speed;
@@ -282,6 +292,27 @@ fn main() {
                     eprintln!("Faults acknowledged.");
                     vfd_parameters.lock().unwrap().command = VfdCommand::AcknowledgeFault;
                 }
+                "cw" => {
+                    eprintln!("Direction: Clockwise");
+                    vfd_parameters.lock().unwrap().dir = VfdDirection::Cw;
+                }
+                "ccw" => {
+                    eprintln!("Direction: Counterclockwise");
+                    vfd_parameters.lock().unwrap().dir = VfdDirection::Ccw;
+                }
+                "rev" => {
+                    let dir = &mut vfd_parameters.lock().unwrap().dir;
+                    *dir = match *dir {
+                        VfdDirection::Cw => {
+                            eprintln!("Direction: Counterclockwise");
+                            VfdDirection::Ccw
+                        }
+                        VfdDirection::Ccw => {
+                            eprintln!("Direction: Clockwise");
+                            VfdDirection::Cw
+                        }
+                    };
+                }
                 "dump" => {
                     println!("{:#?}", vfd_parameters.lock().unwrap().control());
                     println!("{:#?}", vfd_parameters.lock().unwrap().status());
@@ -291,6 +322,9 @@ fn main() {
                     eprintln!("  start   - Start motor if possible.");
                     eprintln!("  stop    - Stop motor via OFF1.");
                     eprintln!("  ack     - Acknowledge drive faults.");
+                    eprintln!("  cw      - Set direction clockwise.");
+                    eprintln!("  ccw     - Set direction counterclockwise.");
+                    eprintln!("  rev     - Reverse motor direction.");
                     eprintln!("  dump    - Show all drive control and status information.");
                     eprintln!("  <speed> - Set speed setpoint as a number between 0-100.");
                     eprintln!("  quit    - Exit. Consider using `stop` before exiting.");

@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - The live-list now correctly mirrors the state of _all_ stations on the bus,
   not just the ones in our own GAP range.
+- Added support in `gsd-parser` for the older
+  `User_Prm_Data`/`User_Prm_Data_Len` fields when no `Ext_User_Prm_*` data is
+  present.
 
 ### Fixed
 - Made `gsd-parser` parse more GSD files correctly, ignoring a few more

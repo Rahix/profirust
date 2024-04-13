@@ -15,6 +15,12 @@ repos:
       entry: cargo fmt
       files: ^.*\.rs$
       pass_filenames: false
+    - id: cargo-check
+      name: Check all crates in the workspace
+      language: system
+      entry: cargo check --workspace --examples --tests --bins
+      files: ^(src|tests)/.*\.rs$
+      pass_filenames: false
     - id: cargo-test
       name: Run profirust testsuite
       language: system

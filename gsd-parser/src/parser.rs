@@ -51,6 +51,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
     let mut gsd = crate::GenericStationDescription::default();
     let mut prm_texts = BTreeMap::new();
     let mut user_prm_data_definitions = BTreeMap::new();
+    let mut legacy_prm = Some(crate::UserPrmData::default());
 
     for statement in gsd_pairs.into_inner() {
         match statement.as_rule() {
@@ -321,11 +322,40 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                         let data_id = parse_number(pairs.next().unwrap());
                         let data_ref = user_prm_data_definitions.get(&data_id).unwrap().clone();
                         gsd.user_prm_data.data_ref.push((offset as usize, data_ref));
+                        // The presence of this keywords means `User_Prm_Data` and
+                        // `User_Prm_Data_Len` should be ignored.
+                        legacy_prm = None;
                     }
                     "ext_user_prm_data_const" => {
                         let offset = parse_number(value_pair);
                         let values: Vec<u8> = parse_number_list(pairs.next().unwrap());
                         gsd.user_prm_data.data_const.push((offset as usize, values));
+                        // The presence of this keywords means `User_Prm_Data` and
+                        // `User_Prm_Data_Len` should be ignored.
+                        legacy_prm = None;
+                    }
+                    "max_user_prm_data_len" => {
+                        // TODO: Actually evaluate this value.
+
+                        // The presence of this keywords means `User_Prm_Data` and
+                        // `User_Prm_Data_Len` should be ignored.
+                        legacy_prm = None;
+                    }
+                    "user_prm_data_len" => {
+                        // If legacy_prm is None, Ext_User_Prm is present and this parameter
+                        // should be ignored.
+                        if let Some(prm) = legacy_prm.as_mut() {
+                            prm.length = parse_number(value_pair) as u8;
+                            // TODO: Check if length matches data
+                        }
+                    }
+                    "user_prm_data" => {
+                        // If legacy_prm is None, Ext_User_Prm is present and this parameter
+                        // should be ignored.
+                        if let Some(prm) = legacy_prm.as_mut() {
+                            let values: Vec<u8> = parse_number_list(value_pair);
+                            prm.data_const.push((0, values));
+                        }
                     }
                     "unit_diag_bit" => {
                         let bit = parse_number(value_pair);
@@ -352,6 +382,11 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
             }
             _ => (),
         }
+    }
+
+    // If no `Ext_User_Prm` was present, commit the legacy Prm data into the gsd struct.
+    if let Some(prm) = legacy_prm {
+        gsd.user_prm_data = prm;
     }
 
     gsd

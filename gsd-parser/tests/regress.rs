@@ -27,6 +27,7 @@ fn regress_prm(#[files("tests/data/*.[gG][sS][dD]")] gsd_file: PathBuf) {
             let v = match &prm_ref.constraint {
                 gsd_parser::PrmValueConstraint::MinMax(_, max) => *max,
                 gsd_parser::PrmValueConstraint::Enum(values) => *values.last().unwrap(),
+                gsd_parser::PrmValueConstraint::Unconstrained => 1,
             };
             prm.set_prm(&prm_ref.name, v);
         }

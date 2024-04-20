@@ -27,7 +27,7 @@ prm_text_value = { ^"Text" ~ "(" ~ number ~ ")" ~ "=" ~ string_literal }
 
 ext_user_prm_data = {
     ^"ExtUserPrmData" ~ "=" ~ number ~ string_literal ~ NEWLINE ~
-    prm_data_type_name ~ number ~ (prm_data_value_range | prm_data_value_set) ~ NEWLINE ~
+    prm_data_type_name ~ number ~ (prm_data_value_range | prm_data_value_set)? ~ NEWLINE ~
     prm_text_ref? ~
     ^"EndExtUserPrmData"
 }

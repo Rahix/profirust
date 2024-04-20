@@ -196,6 +196,7 @@ impl UserPrmDataType {
 pub enum PrmValueConstraint {
     MinMax(i64, i64),
     Enum(Vec<i64>),
+    Unconstrained,
 }
 
 impl PrmValueConstraint {
@@ -203,6 +204,7 @@ impl PrmValueConstraint {
         match self {
             PrmValueConstraint::MinMax(min, max) => *min <= value && value <= *max,
             PrmValueConstraint::Enum(values) => values.contains(&value),
+            PrmValueConstraint::Unconstrained => true,
         }
     }
 
@@ -220,6 +222,7 @@ impl PrmValueConstraint {
                     "value {value} not in set {values:?}",
                 );
             }
+            PrmValueConstraint::Unconstrained => (),
         }
     }
 }

@@ -107,33 +107,30 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
 
                 let default_value = parse_number(content.next().unwrap()) as i64;
 
-                let value_constraint_rule = content.next().unwrap();
-                let constraint = match value_constraint_rule.as_rule() {
-                    gsd_parser::Rule::prm_data_value_range => {
-                        let mut content = value_constraint_rule.into_inner();
-                        let min_value = parse_number(content.next().unwrap()) as i64;
-                        let max_value = parse_number(content.next().unwrap()) as i64;
-                        crate::PrmValueConstraint::MinMax(min_value, max_value)
-                    }
-                    gsd_parser::Rule::prm_data_value_set => {
-                        let mut values = Vec::new();
-                        for pairs in value_constraint_rule.into_inner() {
-                            let number = parse_number(pairs);
-                            values.push(number as i64);
-                        }
-                        crate::PrmValueConstraint::Enum(values)
-                    }
-                    _ => unreachable!(),
-                };
-
+                let mut constraint = crate::PrmValueConstraint::Unconstrained;
                 let mut text_ref = None;
-                for data_setting in content {
-                    match data_setting.as_rule() {
+
+                for rule in content {
+                    match rule.as_rule() {
+                        gsd_parser::Rule::prm_data_value_range => {
+                            let mut content = rule.into_inner();
+                            let min_value = parse_number(content.next().unwrap()) as i64;
+                            let max_value = parse_number(content.next().unwrap()) as i64;
+                            constraint = crate::PrmValueConstraint::MinMax(min_value, max_value);
+                        }
+                        gsd_parser::Rule::prm_data_value_set => {
+                            let mut values = Vec::new();
+                            for pairs in rule.into_inner() {
+                                let number = parse_number(pairs);
+                                values.push(number as i64);
+                            }
+                            constraint = crate::PrmValueConstraint::Enum(values);
+                        }
                         gsd_parser::Rule::prm_text_ref => {
-                            let text_id = parse_number(data_setting.into_inner().next().unwrap());
+                            let text_id = parse_number(rule.into_inner().next().unwrap());
                             text_ref = Some(prm_texts.get(&text_id).unwrap().clone());
                         }
-                        rule => todo!("rule {rule:?}"),
+                        rule => unreachable!("unexpected rule {rule:?}"),
                     }
                 }
 

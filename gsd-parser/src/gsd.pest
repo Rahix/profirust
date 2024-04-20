@@ -6,7 +6,7 @@ start = _{ "#" ~ ^"Profibus_DP" ~ NEWLINE }
 
 number = _{ hex_number | dec_number }
 hex_number = @{ "0x" ~ ASCII_HEX_DIGIT+ }
-dec_number = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+dec_number = @{ "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
 
 number_list = { number ~ (("," ~ number) | ("\\" ~ NEWLINE) | ("," ~ "\\" ~ NEWLINE ~ number))* }
 

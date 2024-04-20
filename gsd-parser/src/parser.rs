@@ -17,6 +17,16 @@ fn parse_number(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> u32 {
     }
 }
 
+fn parse_signed_number(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> i64 {
+    match pair.as_rule() {
+        gsd_parser::Rule::dec_number => pair.as_str().parse().unwrap(),
+        gsd_parser::Rule::hex_number => {
+            i64::from_str_radix(pair.as_str().trim_start_matches("0x"), 16).unwrap()
+        }
+        _ => unreachable!("Called parse_number() on a non-number pair: {:?}", pair),
+    }
+}
+
 fn parse_number_list<T: TryFrom<u32>>(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> Vec<T> {
     match pair.as_rule() {
         gsd_parser::Rule::number_list => pair
@@ -105,7 +115,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     _ => unreachable!(),
                 };
 
-                let default_value = parse_number(content.next().unwrap()) as i64;
+                let default_value = parse_signed_number(content.next().unwrap()) as i64;
 
                 let mut constraint = crate::PrmValueConstraint::Unconstrained;
                 let mut text_ref = None;
@@ -114,15 +124,15 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     match rule.as_rule() {
                         gsd_parser::Rule::prm_data_value_range => {
                             let mut content = rule.into_inner();
-                            let min_value = parse_number(content.next().unwrap()) as i64;
-                            let max_value = parse_number(content.next().unwrap()) as i64;
+                            let min_value = parse_signed_number(content.next().unwrap());
+                            let max_value = parse_signed_number(content.next().unwrap());
                             constraint = crate::PrmValueConstraint::MinMax(min_value, max_value);
                         }
                         gsd_parser::Rule::prm_data_value_set => {
                             let mut values = Vec::new();
                             for pairs in rule.into_inner() {
-                                let number = parse_number(pairs);
-                                values.push(number as i64);
+                                let number = parse_signed_number(pairs);
+                                values.push(number);
                             }
                             constraint = crate::PrmValueConstraint::Enum(values);
                         }

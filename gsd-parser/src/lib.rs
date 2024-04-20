@@ -234,6 +234,8 @@ pub struct UserPrmDataDefinition {
     pub default_value: i64,
     pub constraint: PrmValueConstraint,
     pub text_ref: Option<Arc<BTreeMap<String, i64>>>,
+    pub changeable: bool,
+    pub visible: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]

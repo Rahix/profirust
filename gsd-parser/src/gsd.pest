@@ -29,6 +29,8 @@ ext_user_prm_data = {
     ^"ExtUserPrmData" ~ "=" ~ number ~ string_literal ~ NEWLINE ~
     prm_data_type_name ~ number ~ (prm_data_value_range | prm_data_value_set)? ~ NEWLINE ~
     prm_text_ref? ~
+    prm_data_changeable? ~
+    prm_data_visible? ~
     ^"EndExtUserPrmData"
 }
 bit_area = { ^"BitArea" ~ "(" ~ number ~ "-" ~ number ~ ")" }
@@ -37,6 +39,8 @@ prm_data_type_name = { bit | bit_area | identifier }
 prm_data_value_range = { number ~ "-" ~ number }
 prm_data_value_set = { number ~ ("," ~ number)* }
 prm_text_ref = { ^"Prm_Text_Ref" ~ "=" ~ number ~ NEWLINE }
+prm_data_changeable = { ^"Changeable" ~ "=" ~ number ~ NEWLINE }
+prm_data_visible = { ^"Visible" ~ "=" ~ number ~ NEWLINE }
 
 module = {
     ^"Module" ~ "=" ~ string_literal ~ number_list ~ NEWLINE+ ~

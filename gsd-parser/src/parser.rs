@@ -119,6 +119,8 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
 
                 let mut constraint = crate::PrmValueConstraint::Unconstrained;
                 let mut text_ref = None;
+                let mut changeable = true;
+                let mut visible = true;
 
                 for rule in content {
                     match rule.as_rule() {
@@ -140,6 +142,12 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                             let text_id = parse_number(rule.into_inner().next().unwrap());
                             text_ref = Some(prm_texts.get(&text_id).unwrap().clone());
                         }
+                        gsd_parser::Rule::prm_data_changeable => {
+                            changeable = parse_number(rule.into_inner().next().unwrap()) != 0;
+                        }
+                        gsd_parser::Rule::prm_data_visible => {
+                            visible = parse_number(rule.into_inner().next().unwrap()) != 0;
+                        }
                         rule => unreachable!("unexpected rule {rule:?}"),
                     }
                 }
@@ -152,6 +160,8 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                         text_ref,
                         default_value,
                         constraint,
+                        changeable,
+                        visible,
                     }),
                 );
             }

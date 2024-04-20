@@ -81,6 +81,11 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     let mut prm = gsd_parser::PrmBuilder::new(&gsd.user_prm_data);
     let mut global_parameters = vec![];
     for (_, prm_ref) in gsd.user_prm_data.data_ref.iter() {
+        if !prm_ref.visible || !prm_ref.changeable {
+            // Skip invisible or read-only...
+            continue;
+        }
+
         if let Some(texts) = prm_ref.text_ref.as_ref() {
             let texts_list: Vec<_> = texts.keys().collect();
             let default = texts
@@ -166,6 +171,11 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
             let mut prm = gsd_parser::PrmBuilder::new(&module.module_prm_data);
             let mut module_parameters = vec![];
             for (_, prm_ref) in module.module_prm_data.data_ref.iter() {
+                if !prm_ref.visible || !prm_ref.changeable {
+                    // Skip invisible or read-only...
+                    continue;
+                }
+
                 if let Some(texts) = prm_ref.text_ref.as_ref() {
                     let texts_list: Vec<_> = texts.keys().collect();
                     let default = texts

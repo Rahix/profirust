@@ -85,6 +85,12 @@ physical_interface = {
     "End_Physical_Interface"
 }
 
+jokerblock_type = {
+    "Jokerblock_Type" ~ "=" ~ number ~ NEWLINE ~
+    (!"End_Jokerblock_Type" ~ ANY)* ~
+    "End_Jokerblock_Type"
+}
+
 setting_value = _{
     string_literal |
     (&(number ~ ",") ~ number_list) |
@@ -102,6 +108,7 @@ statement = _{
     | unit_diag_area
     | version_dl_definition
     | physical_interface
+    | jokerblock_type
     | setting
 }
 

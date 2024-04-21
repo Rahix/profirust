@@ -124,8 +124,44 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
             prm.set_prm(&prm_ref.name, value);
 
             global_parameters.push((prm_ref.name.to_owned(), value.to_string()));
+        } else if let gsd_parser::PrmValueConstraint::Enum(values) = &prm_ref.constraint {
+            let texts_list: Vec<_> = values.iter().map(|i| i.to_string()).collect();
+            let default = values
+                .iter()
+                .enumerate()
+                .find(|(_, v)| **v == prm_ref.default_value)
+                .unwrap()
+                .0;
+            let selection = dialoguer::Select::new()
+                .with_prompt(&prm_ref.name)
+                .items(&texts_list)
+                .default(default)
+                .max_length(16)
+                .interact()
+                .unwrap();
+
+            let value: i64 = values[selection];
+            prm.set_prm(&prm_ref.name, value);
+
+            global_parameters.push((prm_ref.name.to_owned(), value.to_string()));
         } else {
-            todo!("PrmValueConstraint::Enum not yet supported");
+            let value_str: String = dialoguer::Input::new()
+                .with_prompt(format!("{}", prm_ref.name))
+                .default(prm_ref.default_value.to_string())
+                .validate_with(|inp: &String| -> Result<(), &str> {
+                    str::parse::<i64>(inp)
+                        .ok()
+                        .filter(|v| prm_ref.constraint.is_valid(*v))
+                        .map(|_| ())
+                        .ok_or("not a valid value")
+                })
+                .interact()
+                .unwrap();
+
+            let value: i64 = str::parse(&value_str).unwrap();
+            prm.set_prm(&prm_ref.name, value);
+
+            global_parameters.push((prm_ref.name.to_owned(), value_str));
         }
     }
     println!();
@@ -215,8 +251,44 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                     prm.set_prm(&prm_ref.name, value);
 
                     module_parameters.push((prm_ref.name.to_owned(), value.to_string()));
+                } else if let gsd_parser::PrmValueConstraint::Enum(values) = &prm_ref.constraint {
+                    let texts_list: Vec<_> = values.iter().map(|i| i.to_string()).collect();
+                    let default = values
+                        .iter()
+                        .enumerate()
+                        .find(|(_, v)| **v == prm_ref.default_value)
+                        .unwrap()
+                        .0;
+                    let selection = dialoguer::Select::new()
+                        .with_prompt(&prm_ref.name)
+                        .items(&texts_list)
+                        .default(default)
+                        .max_length(16)
+                        .interact()
+                        .unwrap();
+
+                    let value: i64 = values[selection];
+                    prm.set_prm(&prm_ref.name, value);
+
+                    module_parameters.push((prm_ref.name.to_owned(), value.to_string()));
                 } else {
-                    todo!("PrmValueConstraint::Enum not yet supported");
+                    let value_str: String = dialoguer::Input::new()
+                        .with_prompt(format!("{}", prm_ref.name))
+                        .default(prm_ref.default_value.to_string())
+                        .validate_with(|inp: &String| -> Result<(), &str> {
+                            str::parse::<i64>(inp)
+                                .ok()
+                                .filter(|v| prm_ref.constraint.is_valid(*v))
+                                .map(|_| ())
+                                .ok_or("not a valid value")
+                        })
+                        .interact()
+                        .unwrap();
+
+                    let value: i64 = str::parse(&value_str).unwrap();
+                    prm.set_prm(&prm_ref.name, value);
+
+                    module_parameters.push((prm_ref.name.to_owned(), value_str));
                 }
             }
 

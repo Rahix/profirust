@@ -11,10 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added support in `gsd-parser` for the older
   `User_Prm_Data`/`User_Prm_Data_Len` fields when no `Ext_User_Prm_*` data is
   present.
+- `gsd-parser` now supports the `Changeable` and `Visible` settings for
+  ExtUserPrmData.  `gsdtool` also honors these settings now.
+- Added more prompting variants to `gsdtool` to prompt for even more possible
+  settings.
 
 ### Fixed
 - Made `gsd-parser` parse more GSD files correctly, ignoring a few more
   constructs that it currently does not care about.
+- Fixed `gsd-parser` not being case-insensitive for some keywords.
+- Fixed `gsd-parser` not parsing negative numbers correctly.
 - Improve robustness of the FDL layer against unexpected situations.
 
 

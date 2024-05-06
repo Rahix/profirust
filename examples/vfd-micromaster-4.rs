@@ -4,7 +4,7 @@ use profirust::dp;
 use profirust::fdl;
 use profirust::phy;
 
-// Encoder Parameters
+// VFD Parameters
 const VFD_ADDRESS: u8 = 17;
 
 // Bus Parameters
@@ -12,8 +12,22 @@ const MASTER_ADDRESS: u8 = 4;
 const BUS_DEVICE: &'static str = "/dev/ttyUSB0";
 const BAUDRATE: profirust::Baudrate = profirust::Baudrate::B500000;
 
+// PROFIdrive Telegram 1
+// +--------+------+---------+
+// |        |    0 |       1 |
+// +--------+------+---------+
+// | Output | STW1 | NSOLL_A |
+// +--------+------+---------+
+// | Input  | ZSW1 | NIST_A  |
+// +--------+------+---------+
+//
+// - STW1: Control Word 1
+// - ZSW1: Status Word 1
+// - NSOLL_A: Speed Setpoint
+// - NIST_A: Speed Actual Value
 process_image::process_image! {
     pub struct PiDriveControl, mut PiDriveControlMut: 4 {
+        // STW1 (Control Word 1) Bits
         pub on:                     (X, 1, 0),
         pub not_off2:               (X, 1, 1),
         pub not_off3:               (X, 1, 2),
@@ -34,6 +48,7 @@ process_image::process_image! {
 
 process_image::process_image! {
     pub struct PiDriveStatus: 4 {
+        // ZSW1 (Status Word 1) Bits
         pub ready_for_on:           (X, 1, 0),
         pub ready_to_run:           (X, 1, 1),
         pub op_enabled:             (X, 1, 2),

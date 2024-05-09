@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+
+## [0.2.1] - 2024-05-09
 ### `gsdtool`
 #### Fixed
 - Fixed `gsdtool` not using the correct dependency version of `gsd-parser`.
@@ -43,7 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Initial Release.
 
 
-[Unreleased]: https://github.com/rahix/profirust/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/rahix/profirust/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/rahix/profirust/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/rahix/profirust/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/rahix/profirust/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/rahix/profirust/releases/tag/v0.1.0

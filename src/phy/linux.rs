@@ -94,7 +94,7 @@ impl LinuxRs485Phy<'_> {
         let path = std::ffi::CString::new(serial_port.as_os_str().as_bytes()).unwrap();
         let fd = unsafe {
             libc::open(
-                path.as_ptr() as *const i8,
+                path.as_ptr() as *const libc::c_char,
                 libc::O_RDWR | libc::O_NONBLOCK | libc::O_NOCTTY,
             )
         };

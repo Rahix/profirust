@@ -309,7 +309,7 @@ pub struct GenericStationDescription {
     pub max_modules: u8,
     pub max_input_length: u8,
     pub max_output_length: u8,
-    pub max_data_length: u8,
+    pub max_data_length: u16,
     pub supported_speeds: SupportedSpeeds,
     pub max_tsdr: MaxTsdr,
     //

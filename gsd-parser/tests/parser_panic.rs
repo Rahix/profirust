@@ -45,3 +45,17 @@ maxtsdr_9.6 = 4242424
     let path = std::path::PathBuf::from(format!("{}", file!()));
     println!("{}", gsd_parser::parser::parse(&path, source).unwrap_err());
 }
+
+#[test]
+fn parse_unknown_text_ref() {
+    let source = r#"
+#Profibus_DP
+ExtUserPrmData=1 "Test Data"
+Bit(0) 0 0-1
+Prm_Text_Ref=1337
+EndExtUserPrmData
+"#;
+
+    let path = std::path::PathBuf::from(format!("{}", file!()));
+    println!("{}", gsd_parser::parser::parse(&path, source).unwrap_err());
+}

@@ -103,6 +103,7 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
     let mut legacy_prm = Some(crate::UserPrmData::default());
 
     for statement in gsd_pairs.into_inner() {
+        let statement_span = statement.as_span();
         match statement.as_rule() {
             gsd_parser::Rule::prm_text => {
                 let mut content = statement.into_inner();
@@ -193,7 +194,17 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                             let text_id = parse_number(
                                 rule.into_inner().next().expect("pest grammar wrong?"),
                             )?;
-                            text_ref = Some(prm_texts.get(&text_id).unwrap().clone());
+                            text_ref = Some(
+                                prm_texts
+                                    .get(&text_id)
+                                    .ok_or_else(|| {
+                                        parse_error(
+                                            format!("PrmText {} was not found", text_id),
+                                            statement_span,
+                                        )
+                                    })?
+                                    .clone(),
+                            );
                         }
                         gsd_parser::Rule::prm_data_changeable => {
                             changeable = parse_bool(rule.into_inner().next().unwrap())?;

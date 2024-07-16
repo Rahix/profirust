@@ -25,6 +25,17 @@ EndPrmText
 }
 
 #[test]
+fn parse_invalid_number_list() {
+    let source = r#"
+#Profibus_DP
+Ext_User_Prm_Data_Const(0) = 40, 40, 40.2, 42
+"#;
+
+    let path = std::path::PathBuf::from(format!("{}", file!()));
+    println!("{}", gsd_parser::parser::parse(&path, source).unwrap_err());
+}
+
+#[test]
 fn parse_number_overflow() {
     let source = r#"
 #Profibus_DP

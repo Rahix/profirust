@@ -58,12 +58,10 @@ where
         gsd_parser::Rule::number_list => pair
             .into_inner()
             .into_iter()
-            // TODO: Get rid of the unwrap here
-            .map(|p| parse_number::<T>(p).unwrap())
-            .collect(),
+            .map(|p| parse_number::<T>(p))
+            .collect::<ParseResult<Vec<T>>>()?,
         gsd_parser::Rule::dec_number | gsd_parser::Rule::hex_number => {
-            // TODO: Get rid of the unwrap here
-            vec![parse_number(pair).unwrap()]
+            vec![parse_number(pair)?]
         }
         _ => panic!(
             "Called parse_number_list() on a pair that cannot be a number list: {:?}",

@@ -1,5 +1,5 @@
 #[test]
-fn parse_invalid_prm_text1() {
+fn parse_invalid_number() {
     let source = r#"
 #Profibus_DP
 PrmText = 1
@@ -8,18 +8,29 @@ EndPrmText
 "#;
 
     let path = std::path::PathBuf::from(format!("{}", file!()));
-    gsd_parser::parser::parse(&path, source);
+    println!("{}", gsd_parser::parser::parse(&path, source).unwrap_err());
 }
 
 #[test]
-fn parse_invalid_prm_text2() {
+fn parse_invalid_number2() {
     let source = r#"
 #Profibus_DP
 PrmText = 4.2
-Text(1) = "float index ;)"
+Text(0x1) = "float index ;)"
 EndPrmText
 "#;
 
     let path = std::path::PathBuf::from(format!("{}", file!()));
-    gsd_parser::parser::parse(&path, source);
+    println!("{}", gsd_parser::parser::parse(&path, source).unwrap_err());
+}
+
+#[test]
+fn parse_number_overflow() {
+    let source = r#"
+#Profibus_DP
+maxtsdr_9.6 = 4242424
+"#;
+
+    let path = std::path::PathBuf::from(format!("{}", file!()));
+    println!("{}", gsd_parser::parser::parse(&path, source).unwrap_err());
 }

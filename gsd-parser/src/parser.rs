@@ -7,41 +7,53 @@ mod gsd_parser {
     pub struct GsdParser;
 }
 
-fn parse_number(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> u32 {
+pub type ParseError = pest::error::Error<gsd_parser::Rule>;
+pub type ParseResult<T> = Result<T, ParseError>;
+
+fn parse_error(e: impl std::fmt::Display, span: pest::Span<'_>) -> ParseError {
+    let message = format!("{}", e);
+    pest::error::Error::new_from_span(pest::error::ErrorVariant::CustomError { message }, span)
+}
+
+fn parse_number(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> ParseResult<u32> {
     match pair.as_rule() {
-        gsd_parser::Rule::dec_number => pair.as_str().parse().unwrap(),
+        gsd_parser::Rule::dec_number => pair.as_str().parse(),
         gsd_parser::Rule::hex_number => {
-            u32::from_str_radix(pair.as_str().trim_start_matches("0x"), 16).unwrap()
+            u32::from_str_radix(pair.as_str().trim_start_matches("0x"), 16)
         }
         _ => panic!("Called parse_number() on a non-number pair: {:?}", pair),
     }
+    .map_err(|e| parse_error(e, pair.as_span()))
 }
 
-fn parse_signed_number(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> i64 {
+fn parse_signed_number(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> ParseResult<i64> {
     match pair.as_rule() {
-        gsd_parser::Rule::dec_number => pair.as_str().parse().unwrap(),
+        gsd_parser::Rule::dec_number => pair.as_str().parse(),
         gsd_parser::Rule::hex_number => {
-            i64::from_str_radix(pair.as_str().trim_start_matches("0x"), 16).unwrap()
+            i64::from_str_radix(pair.as_str().trim_start_matches("0x"), 16)
         }
         _ => panic!("Called parse_number() on a non-number pair: {:?}", pair),
     }
+    .map_err(|e| parse_error(e, pair.as_span()))
 }
 
-fn parse_number_list<T: TryFrom<u32>>(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> Vec<T> {
-    match pair.as_rule() {
+fn parse_number_list<T: TryFrom<u32>>(
+    pair: pest::iterators::Pair<'_, gsd_parser::Rule>,
+) -> ParseResult<Vec<T>> {
+    Ok(match pair.as_rule() {
         gsd_parser::Rule::number_list => pair
             .into_inner()
             .into_iter()
-            .map(|p| parse_number(p).try_into().ok().unwrap())
+            .map(|p| parse_number(p).unwrap().try_into().ok().unwrap())
             .collect(),
         gsd_parser::Rule::dec_number | gsd_parser::Rule::hex_number => {
-            vec![parse_number(pair).try_into().ok().unwrap()]
+            vec![parse_number(pair).unwrap().try_into().ok().unwrap()]
         }
         _ => panic!(
             "Called parse_number_list() on a pair that cannot be a number list: {:?}",
             pair
         ),
-    }
+    })
 }
 
 fn parse_string_literal(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> String {
@@ -53,13 +65,19 @@ fn parse_string_literal(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> St
     chars.as_str().to_owned()
 }
 
-pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescription {
+pub fn parse(
+    file: &std::path::Path,
+    source: &str,
+) -> ParseResult<crate::GenericStationDescription> {
+    parse_inner(source).map_err(|e| e.with_path(&file.to_string_lossy()))
+}
+
+fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
     use pest::Parser;
 
-    let gsd_pairs = match gsd_parser::GsdParser::parse(gsd_parser::Rule::gsd, &source) {
-        Ok(mut res) => res.next().unwrap(),
-        Err(e) => panic!("{}", e.with_path(&file.to_string_lossy())),
-    };
+    let gsd_pairs = gsd_parser::GsdParser::parse(gsd_parser::Rule::gsd, &source)?
+        .next()
+        .unwrap();
 
     let mut gsd = crate::GenericStationDescription::default();
     let mut prm_texts = BTreeMap::new();
@@ -70,12 +88,12 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
         match statement.as_rule() {
             gsd_parser::Rule::prm_text => {
                 let mut content = statement.into_inner();
-                let id = parse_number(content.next().unwrap());
+                let id = parse_number(content.next().unwrap())?;
                 let mut values = BTreeMap::new();
                 for value_pairs in content {
                     assert!(value_pairs.as_rule() == gsd_parser::Rule::prm_text_value);
                     let mut iter = value_pairs.into_inner();
-                    let number = parse_number(iter.next().unwrap());
+                    let number = parse_number(iter.next().unwrap())?;
                     let value = parse_string_literal(iter.next().unwrap());
                     assert!(iter.next().is_none());
                     values.insert(value, number as i64);
@@ -84,7 +102,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
             }
             gsd_parser::Rule::ext_user_prm_data => {
                 let mut content = statement.into_inner();
-                let id = parse_number(content.next().unwrap());
+                let id = parse_number(content.next().unwrap())?;
                 let name = parse_string_literal(content.next().unwrap());
 
                 let data_type_pair = content.next().unwrap();
@@ -106,19 +124,19 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                         }
                     }
                     gsd_parser::Rule::bit => {
-                        let bit = parse_number(data_type_rule.into_inner().next().unwrap());
+                        let bit = parse_number(data_type_rule.into_inner().next().unwrap())?;
                         crate::UserPrmDataType::Bit(bit as u8)
                     }
                     gsd_parser::Rule::bit_area => {
                         let mut content = data_type_rule.into_inner();
-                        let first_bit = parse_number(content.next().unwrap());
-                        let last_bit = parse_number(content.next().unwrap());
+                        let first_bit = parse_number(content.next().unwrap())?;
+                        let last_bit = parse_number(content.next().unwrap())?;
                         crate::UserPrmDataType::BitArea(first_bit as u8, last_bit as u8)
                     }
                     _ => unreachable!(),
                 };
 
-                let default_value = parse_signed_number(content.next().unwrap()) as i64;
+                let default_value = parse_signed_number(content.next().unwrap())?;
 
                 let mut constraint = crate::PrmValueConstraint::Unconstrained;
                 let mut text_ref = None;
@@ -129,27 +147,27 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     match rule.as_rule() {
                         gsd_parser::Rule::prm_data_value_range => {
                             let mut content = rule.into_inner();
-                            let min_value = parse_signed_number(content.next().unwrap());
-                            let max_value = parse_signed_number(content.next().unwrap());
+                            let min_value = parse_signed_number(content.next().unwrap())?;
+                            let max_value = parse_signed_number(content.next().unwrap())?;
                             constraint = crate::PrmValueConstraint::MinMax(min_value, max_value);
                         }
                         gsd_parser::Rule::prm_data_value_set => {
                             let mut values = Vec::new();
                             for pairs in rule.into_inner() {
-                                let number = parse_signed_number(pairs);
+                                let number = parse_signed_number(pairs)?;
                                 values.push(number);
                             }
                             constraint = crate::PrmValueConstraint::Enum(values);
                         }
                         gsd_parser::Rule::prm_text_ref => {
-                            let text_id = parse_number(rule.into_inner().next().unwrap());
+                            let text_id = parse_number(rule.into_inner().next().unwrap())?;
                             text_ref = Some(prm_texts.get(&text_id).unwrap().clone());
                         }
                         gsd_parser::Rule::prm_data_changeable => {
-                            changeable = parse_number(rule.into_inner().next().unwrap()) != 0;
+                            changeable = parse_number(rule.into_inner().next().unwrap())? != 0;
                         }
                         gsd_parser::Rule::prm_data_visible => {
-                            visible = parse_number(rule.into_inner().next().unwrap()) != 0;
+                            visible = parse_number(rule.into_inner().next().unwrap())? != 0;
                         }
                         rule => unreachable!("unexpected rule {rule:?}"),
                     }
@@ -170,13 +188,13 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
             }
             gsd_parser::Rule::unit_diag_area => {
                 let mut content = statement.into_inner();
-                let first = parse_number(content.next().unwrap()) as u16;
-                let last = parse_number(content.next().unwrap()) as u16;
+                let first = parse_number(content.next().unwrap())? as u16;
+                let last = parse_number(content.next().unwrap())? as u16;
                 let mut values = BTreeMap::new();
                 for value_pairs in content {
                     assert!(value_pairs.as_rule() == gsd_parser::Rule::unit_diag_area_value);
                     let mut iter = value_pairs.into_inner();
-                    let number = parse_number(iter.next().unwrap());
+                    let number = parse_number(iter.next().unwrap())?;
                     let value = parse_string_literal(iter.next().unwrap());
                     assert!(iter.next().is_none());
                     values.insert(number as u16, value);
@@ -190,7 +208,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
             gsd_parser::Rule::module => {
                 let mut content = statement.into_inner();
                 let name = parse_string_literal(content.next().unwrap());
-                let module_config: Vec<u8> = parse_number_list(content.next().unwrap());
+                let module_config: Vec<u8> = parse_number_list(content.next().unwrap())?;
                 let mut module_reference = None;
                 let mut module_prm_data = crate::UserPrmData::default();
 
@@ -198,7 +216,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                     match rule.as_rule() {
                         gsd_parser::Rule::module_reference => {
                             module_reference =
-                                Some(parse_number(rule.into_inner().next().unwrap()));
+                                Some(parse_number(rule.into_inner().next().unwrap())?);
                         }
                         gsd_parser::Rule::setting => {
                             let mut pairs = rule.into_inner();
@@ -206,18 +224,18 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                             let value_pair = pairs.next().unwrap();
                             match key.to_lowercase().as_str() {
                                 "ext_module_prm_data_len" => {
-                                    module_prm_data.length = parse_number(value_pair) as u8;
+                                    module_prm_data.length = parse_number(value_pair)? as u8;
                                 }
                                 "ext_user_prm_data_ref" => {
-                                    let offset = parse_number(value_pair);
-                                    let data_id = parse_number(pairs.next().unwrap());
+                                    let offset = parse_number(value_pair)?;
+                                    let data_id = parse_number(pairs.next().unwrap())?;
                                     let data_ref =
                                         user_prm_data_definitions.get(&data_id).unwrap().clone();
                                     module_prm_data.data_ref.push((offset as usize, data_ref));
                                 }
                                 "ext_user_prm_data_const" => {
-                                    let offset = parse_number(value_pair);
-                                    let values: Vec<u8> = parse_number_list(pairs.next().unwrap());
+                                    let offset = parse_number(value_pair)?;
+                                    let values: Vec<u8> = parse_number_list(pairs.next().unwrap())?;
                                     module_prm_data.data_const.push((offset as usize, values));
                                 }
                                 _ => (),
@@ -241,105 +259,107 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                 let key = pairs.next().unwrap().as_str();
                 let value_pair = pairs.next().unwrap();
                 match key.to_lowercase().as_str() {
-                    "gsd_revision" => gsd.gsd_revision = parse_number(value_pair) as u8,
+                    "gsd_revision" => gsd.gsd_revision = parse_number(value_pair)? as u8,
                     "vendor_name" => gsd.vendor = parse_string_literal(value_pair),
                     "model_name" => gsd.model = parse_string_literal(value_pair),
                     "revision" => gsd.revision = parse_string_literal(value_pair),
-                    "revision_number" => gsd.revision_number = parse_number(value_pair) as u8,
-                    "ident_number" => gsd.ident_number = parse_number(value_pair) as u16,
+                    "revision_number" => gsd.revision_number = parse_number(value_pair)? as u8,
+                    "ident_number" => gsd.ident_number = parse_number(value_pair)? as u16,
                     //
                     "hardware_release" => gsd.hardware_release = parse_string_literal(value_pair),
                     "software_release" => gsd.software_release = parse_string_literal(value_pair),
                     //
-                    "fail_safe" => gsd.fail_safe = parse_number(value_pair) != 0,
+                    "fail_safe" => gsd.fail_safe = parse_number(value_pair)? != 0,
                     //
                     "9.6_supp" => {
-                        if parse_number(value_pair) != 0 {
+                        if parse_number(value_pair)? != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B9600;
                         }
                     }
                     "19.2_supp" => {
-                        if parse_number(value_pair) != 0 {
+                        if parse_number(value_pair)? != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B19200;
                         }
                     }
                     "31.25_supp" => {
-                        if parse_number(value_pair) != 0 {
+                        if parse_number(value_pair)? != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B31250;
                         }
                     }
                     "45.45_supp" => {
-                        if parse_number(value_pair) != 0 {
+                        if parse_number(value_pair)? != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B45450;
                         }
                     }
                     "93.75_supp" => {
-                        if parse_number(value_pair) != 0 {
+                        if parse_number(value_pair)? != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B93750;
                         }
                     }
                     "187.5_supp" => {
-                        if parse_number(value_pair) != 0 {
+                        if parse_number(value_pair)? != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B187500;
                         }
                     }
                     "500_supp" => {
-                        if parse_number(value_pair) != 0 {
+                        if parse_number(value_pair)? != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B500000;
                         }
                     }
                     "1.5m_supp" => {
-                        if parse_number(value_pair) != 0 {
+                        if parse_number(value_pair)? != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B1500000;
                         }
                     }
                     "3m_supp" => {
-                        if parse_number(value_pair) != 0 {
+                        if parse_number(value_pair)? != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B3000000;
                         }
                     }
                     "6m_supp" => {
-                        if parse_number(value_pair) != 0 {
+                        if parse_number(value_pair)? != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B6000000;
                         }
                     }
                     "12m_supp" => {
-                        if parse_number(value_pair) != 0 {
+                        if parse_number(value_pair)? != 0 {
                             gsd.supported_speeds |= crate::SupportedSpeeds::B12000000;
                         }
                     }
-                    "maxtsdr_9.6" => gsd.max_tsdr.b9600 = parse_number(value_pair) as u16,
-                    "maxtsdr_19.2" => gsd.max_tsdr.b19200 = parse_number(value_pair) as u16,
-                    "maxtsdr_31.25" => gsd.max_tsdr.b31250 = parse_number(value_pair) as u16,
-                    "maxtsdr_45.45" => gsd.max_tsdr.b45450 = parse_number(value_pair) as u16,
-                    "maxtsdr_93.75" => gsd.max_tsdr.b93750 = parse_number(value_pair) as u16,
-                    "maxtsdr_187.5" => gsd.max_tsdr.b187500 = parse_number(value_pair) as u16,
-                    "maxtsdr_500" => gsd.max_tsdr.b500000 = parse_number(value_pair) as u16,
-                    "maxtsdr_1.5m" => gsd.max_tsdr.b1500000 = parse_number(value_pair) as u16,
-                    "maxtsdr_3m" => gsd.max_tsdr.b3000000 = parse_number(value_pair) as u16,
-                    "maxtsdr_6m" => gsd.max_tsdr.b6000000 = parse_number(value_pair) as u16,
-                    "maxtsdr_12m" => gsd.max_tsdr.b12000000 = parse_number(value_pair) as u16,
+                    "maxtsdr_9.6" => gsd.max_tsdr.b9600 = parse_number(value_pair)? as u16,
+                    "maxtsdr_19.2" => gsd.max_tsdr.b19200 = parse_number(value_pair)? as u16,
+                    "maxtsdr_31.25" => gsd.max_tsdr.b31250 = parse_number(value_pair)? as u16,
+                    "maxtsdr_45.45" => gsd.max_tsdr.b45450 = parse_number(value_pair)? as u16,
+                    "maxtsdr_93.75" => gsd.max_tsdr.b93750 = parse_number(value_pair)? as u16,
+                    "maxtsdr_187.5" => gsd.max_tsdr.b187500 = parse_number(value_pair)? as u16,
+                    "maxtsdr_500" => gsd.max_tsdr.b500000 = parse_number(value_pair)? as u16,
+                    "maxtsdr_1.5m" => gsd.max_tsdr.b1500000 = parse_number(value_pair)? as u16,
+                    "maxtsdr_3m" => gsd.max_tsdr.b3000000 = parse_number(value_pair)? as u16,
+                    "maxtsdr_6m" => gsd.max_tsdr.b6000000 = parse_number(value_pair)? as u16,
+                    "maxtsdr_12m" => gsd.max_tsdr.b12000000 = parse_number(value_pair)? as u16,
                     "implementation_type" => {
                         gsd.implementation_type = parse_string_literal(value_pair)
                     }
                     //
-                    "modular_station" => gsd.modular_station = parse_number(value_pair) != 0,
-                    "max_module" => gsd.max_modules = parse_number(value_pair) as u8,
-                    "max_input_len" => gsd.max_input_length = parse_number(value_pair) as u8,
-                    "max_output_len" => gsd.max_output_length = parse_number(value_pair) as u8,
-                    "max_data_len" => gsd.max_data_length = parse_number(value_pair) as u8,
+                    "modular_station" => gsd.modular_station = parse_number(value_pair)? != 0,
+                    "max_module" => gsd.max_modules = parse_number(value_pair)? as u8,
+                    "max_input_len" => gsd.max_input_length = parse_number(value_pair)? as u8,
+                    "max_output_len" => gsd.max_output_length = parse_number(value_pair)? as u8,
+                    "max_data_len" => gsd.max_data_length = parse_number(value_pair)? as u8,
                     "max_diag_data_len" => {
-                        gsd.max_diag_data_length = parse_number(value_pair) as u8
+                        gsd.max_diag_data_length = parse_number(value_pair)? as u8
                     }
-                    "freeze_mode_supp" => gsd.freeze_mode_supported = parse_number(value_pair) != 0,
-                    "sync_mode_supp" => gsd.sync_mode_supported = parse_number(value_pair) != 0,
-                    "auto_baud_supp" => gsd.auto_baud_supported = parse_number(value_pair) != 0,
+                    "freeze_mode_supp" => {
+                        gsd.freeze_mode_supported = parse_number(value_pair)? != 0
+                    }
+                    "sync_mode_supp" => gsd.sync_mode_supported = parse_number(value_pair)? != 0,
+                    "auto_baud_supp" => gsd.auto_baud_supported = parse_number(value_pair)? != 0,
                     "set_slave_add_supp" => {
-                        gsd.set_slave_addr_supported = parse_number(value_pair) != 0
+                        gsd.set_slave_addr_supported = parse_number(value_pair)? != 0
                     }
                     "ext_user_prm_data_ref" => {
-                        let offset = parse_number(value_pair);
-                        let data_id = parse_number(pairs.next().unwrap());
+                        let offset = parse_number(value_pair)?;
+                        let data_id = parse_number(pairs.next().unwrap())?;
                         let data_ref = user_prm_data_definitions.get(&data_id).unwrap().clone();
                         gsd.user_prm_data.data_ref.push((offset as usize, data_ref));
                         // The presence of this keywords means `User_Prm_Data` and
@@ -347,8 +367,8 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                         legacy_prm = None;
                     }
                     "ext_user_prm_data_const" => {
-                        let offset = parse_number(value_pair);
-                        let values: Vec<u8> = parse_number_list(pairs.next().unwrap());
+                        let offset = parse_number(value_pair)?;
+                        let values: Vec<u8> = parse_number_list(pairs.next().unwrap())?;
                         gsd.user_prm_data.data_const.push((offset as usize, values));
                         // The presence of this keywords means `User_Prm_Data` and
                         // `User_Prm_Data_Len` should be ignored.
@@ -365,7 +385,7 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                         // If legacy_prm is None, Ext_User_Prm is present and this parameter
                         // should be ignored.
                         if let Some(prm) = legacy_prm.as_mut() {
-                            prm.length = parse_number(value_pair) as u8;
+                            prm.length = parse_number(value_pair)? as u8;
                             // TODO: Check if length matches data
                         }
                     }
@@ -373,27 +393,27 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
                         // If legacy_prm is None, Ext_User_Prm is present and this parameter
                         // should be ignored.
                         if let Some(prm) = legacy_prm.as_mut() {
-                            let values: Vec<u8> = parse_number_list(value_pair);
+                            let values: Vec<u8> = parse_number_list(value_pair)?;
                             prm.data_const.push((0, values));
                         }
                     }
                     "unit_diag_bit" => {
-                        let bit = parse_number(value_pair);
+                        let bit = parse_number(value_pair)?;
                         let text = parse_string_literal(pairs.next().unwrap());
                         gsd.unit_diag.bits.entry(bit).or_default().text = text;
                     }
                     "unit_diag_bit_help" => {
-                        let bit = parse_number(value_pair);
+                        let bit = parse_number(value_pair)?;
                         let text = parse_string_literal(pairs.next().unwrap());
                         gsd.unit_diag.bits.entry(bit).or_default().help = Some(text);
                     }
                     "unit_diag_not_bit" => {
-                        let bit = parse_number(value_pair);
+                        let bit = parse_number(value_pair)?;
                         let text = parse_string_literal(pairs.next().unwrap());
                         gsd.unit_diag.not_bits.entry(bit).or_default().text = text;
                     }
                     "unit_diag_not_bit_help" => {
-                        let bit = parse_number(value_pair);
+                        let bit = parse_number(value_pair)?;
                         let text = parse_string_literal(pairs.next().unwrap());
                         gsd.unit_diag.not_bits.entry(bit).or_default().help = Some(text);
                     }
@@ -409,5 +429,5 @@ pub fn parse(file: &std::path::Path, source: &str) -> crate::GenericStationDescr
         gsd.user_prm_data = prm;
     }
 
-    gsd
+    Ok(gsd)
 }

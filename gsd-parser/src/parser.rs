@@ -95,7 +95,7 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
 
     let gsd_pairs = gsd_parser::GsdParser::parse(gsd_parser::Rule::gsd, &source)?
         .next()
-        .unwrap();
+        .expect("pest grammar wrong?");
 
     let mut gsd = crate::GenericStationDescription::default();
     let mut prm_texts = BTreeMap::new();
@@ -106,15 +106,13 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
         match statement.as_rule() {
             gsd_parser::Rule::prm_text => {
                 let mut content = statement.into_inner();
-                // TODO: Actually u32?
-                let id: u32 = parse_number(content.next().unwrap())?;
+                let id: u16 = parse_number(content.next().expect("pest grammar wrong?"))?;
                 let mut values = BTreeMap::new();
                 for value_pairs in content {
                     assert!(value_pairs.as_rule() == gsd_parser::Rule::prm_text_value);
                     let mut iter = value_pairs.into_inner();
-                    // TODO: signed?
-                    let number: i64 = parse_number(iter.next().unwrap())?;
-                    let value = parse_string_literal(iter.next().unwrap());
+                    let number = parse_signed_number(iter.next().expect("pest grammar wrong?"))?;
+                    let value = parse_string_literal(iter.next().expect("pest grammar wrong?"));
                     assert!(iter.next().is_none());
                     values.insert(value, number);
                 }
@@ -122,15 +120,19 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
             }
             gsd_parser::Rule::ext_user_prm_data => {
                 let mut content = statement.into_inner();
-                let id: u32 = parse_number(content.next().unwrap())?;
-                let name = parse_string_literal(content.next().unwrap());
+                // TODO: actually u32?
+                let id: u32 = parse_number(content.next().expect("pest grammar wrong?"))?;
+                let name = parse_string_literal(content.next().expect("pest grammar wrong?"));
 
-                let data_type_pair = content.next().unwrap();
+                let data_type_pair = content.next().expect("pest grammar wrong?");
                 assert_eq!(
                     data_type_pair.as_rule(),
                     gsd_parser::Rule::prm_data_type_name
                 );
-                let data_type_rule = data_type_pair.into_inner().next().unwrap();
+                let data_type_rule = data_type_pair
+                    .into_inner()
+                    .next()
+                    .expect("pest grammar wrong?");
                 let data_type = match data_type_rule.as_rule() {
                     gsd_parser::Rule::identifier => {
                         match data_type_rule.as_str().to_lowercase().as_str() {
@@ -144,19 +146,25 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                         }
                     }
                     gsd_parser::Rule::bit => {
-                        let bit = parse_number(data_type_rule.into_inner().next().unwrap())?;
+                        let bit = parse_number(
+                            data_type_rule
+                                .into_inner()
+                                .next()
+                                .expect("pest grammar wrong?"),
+                        )?;
                         crate::UserPrmDataType::Bit(bit)
                     }
                     gsd_parser::Rule::bit_area => {
                         let mut content = data_type_rule.into_inner();
-                        let first_bit = parse_number(content.next().unwrap())?;
-                        let last_bit = parse_number(content.next().unwrap())?;
+                        let first_bit = parse_number(content.next().expect("pest grammar wrong?"))?;
+                        let last_bit = parse_number(content.next().expect("pest grammar wrong?"))?;
                         crate::UserPrmDataType::BitArea(first_bit, last_bit)
                     }
                     _ => unreachable!(),
                 };
 
-                let default_value = parse_signed_number(content.next().unwrap())?;
+                let default_value =
+                    parse_signed_number(content.next().expect("pest grammar wrong?"))?;
 
                 let mut constraint = crate::PrmValueConstraint::Unconstrained;
                 let mut text_ref = None;
@@ -167,8 +175,10 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                     match rule.as_rule() {
                         gsd_parser::Rule::prm_data_value_range => {
                             let mut content = rule.into_inner();
-                            let min_value = parse_signed_number(content.next().unwrap())?;
-                            let max_value = parse_signed_number(content.next().unwrap())?;
+                            let min_value =
+                                parse_signed_number(content.next().expect("pest grammar wrong?"))?;
+                            let max_value =
+                                parse_signed_number(content.next().expect("pest grammar wrong?"))?;
                             constraint = crate::PrmValueConstraint::MinMax(min_value, max_value);
                         }
                         gsd_parser::Rule::prm_data_value_set => {
@@ -180,7 +190,9 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                             constraint = crate::PrmValueConstraint::Enum(values);
                         }
                         gsd_parser::Rule::prm_text_ref => {
-                            let text_id = parse_number(rule.into_inner().next().unwrap())?;
+                            let text_id = parse_number(
+                                rule.into_inner().next().expect("pest grammar wrong?"),
+                            )?;
                             text_ref = Some(prm_texts.get(&text_id).unwrap().clone());
                         }
                         gsd_parser::Rule::prm_data_changeable => {

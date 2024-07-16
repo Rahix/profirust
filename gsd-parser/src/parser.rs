@@ -13,7 +13,7 @@ fn parse_number(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> u32 {
         gsd_parser::Rule::hex_number => {
             u32::from_str_radix(pair.as_str().trim_start_matches("0x"), 16).unwrap()
         }
-        _ => unreachable!("Called parse_number() on a non-number pair: {:?}", pair),
+        _ => panic!("Called parse_number() on a non-number pair: {:?}", pair),
     }
 }
 
@@ -23,7 +23,7 @@ fn parse_signed_number(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> i64
         gsd_parser::Rule::hex_number => {
             i64::from_str_radix(pair.as_str().trim_start_matches("0x"), 16).unwrap()
         }
-        _ => unreachable!("Called parse_number() on a non-number pair: {:?}", pair),
+        _ => panic!("Called parse_number() on a non-number pair: {:?}", pair),
     }
 }
 
@@ -37,7 +37,10 @@ fn parse_number_list<T: TryFrom<u32>>(pair: pest::iterators::Pair<'_, gsd_parser
         gsd_parser::Rule::dec_number | gsd_parser::Rule::hex_number => {
             vec![parse_number(pair).try_into().ok().unwrap()]
         }
-        _ => unreachable!(),
+        _ => panic!(
+            "Called parse_number_list() on a pair that cannot be a number list: {:?}",
+            pair
+        ),
     }
 }
 

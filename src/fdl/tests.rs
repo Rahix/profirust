@@ -39,7 +39,24 @@ impl FdlMasterUnderTest {
         }
     }
 
-    pub fn wait_for_matching<F: FnMut(fdl::Telegram) -> bool>(&mut self, f: F) {
+    pub fn do_master_cycle(&mut self) {
+        crate::test_utils::set_active_addr(self.master.parameters().address);
+        self.master
+            .poll(self.phy_control.bus_time(), &mut self.phy_master, &mut ());
+        crate::test_utils::set_active_addr(self.control_addr);
+    }
+
+    pub fn do_timestep(&mut self) {
+        self.phy_control.advance_bus_time(self.timestep);
+        crate::test_utils::set_log_timestamp(self.phy_control.bus_time());
+        self.do_master_cycle();
+    }
+
+    pub fn wait_for_matching<F: FnMut(fdl::Telegram) -> bool>(
+        &mut self,
+        f: F,
+    ) -> crate::time::Duration {
+        let start = self.phy_control.bus_time();
         crate::test_utils::set_active_addr(self.control_addr);
         for now in self.phy_control.iter_until_matching(self.timestep, f) {
             crate::test_utils::set_log_timestamp(now);
@@ -47,10 +64,24 @@ impl FdlMasterUnderTest {
             self.master.poll(now, &mut self.phy_master, &mut ());
             crate::test_utils::set_active_addr(self.control_addr);
         }
+        self.phy_control.bus_time() - start
     }
 
     pub fn advance_bus_time_min_tsdr(&mut self) {
         self.phy_control.advance_bus_time_min_tsdr();
+        self.do_master_cycle();
+    }
+
+    pub fn advance_bus_time_bits(&mut self, bits: u32) {
+        self.phy_control.advance_bus_time(self.bits_to_time(bits));
+    }
+
+    pub fn bits_to_time(&self, bits: u32) -> crate::time::Duration {
+        self.master.parameters().bits_to_time(bits)
+    }
+
+    pub fn time_to_bits(&self, time: crate::time::Duration) -> u64 {
+        self.master.parameters().baudrate.time_to_bits(time)
     }
 
     pub fn transmit_telegram<F>(&mut self, f: F) -> Option<fdl::TelegramTxResponse>
@@ -59,6 +90,33 @@ impl FdlMasterUnderTest {
     {
         let now = self.phy_control.bus_time();
         self.phy_control.transmit_telegram(now, f)
+    }
+
+    pub fn wait_transmission(&mut self) {
+        while self
+            .phy_control
+            .poll_transmission(self.phy_control.bus_time())
+        {
+            self.do_timestep();
+        }
+    }
+
+    pub fn assert_idle_time(&mut self, time: crate::time::Duration) {
+        let timeout = self.phy_control.bus_time() + time;
+        while self.phy_control.bus_time() < timeout {
+            self.do_timestep();
+            if self
+                .phy_control
+                .poll_pending_received_bytes(self.phy_control.bus_time())
+                != 0
+            {
+                panic!("Idle time assertion failed!");
+            }
+        }
+    }
+
+    pub fn assert_idle_bits(&mut self, bits: u32) {
+        self.assert_idle_time(self.bits_to_time(bits));
     }
 }
 
@@ -332,4 +390,58 @@ fn test_token_not_received() {
     // And then, after still not receiving an answer, it should go to the next master which it is
     // itself in this case.
     fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 7, sa: 7 }));
+}
+
+#[ignore = "currently failing"]
+#[test]
+fn test_token_not_accepted_from_random() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlMasterUnderTest::new();
+
+    fdl_ut.wait_for_matching(|t| {
+        matches!(
+            t,
+            fdl::Telegram::Data(fdl::DataTelegram {
+                h: fdl::DataTelegramHeader {
+                    da: 15,
+                    sa: 7,
+                    dsap: None,
+                    ssap: None,
+                    fc: fdl::FunctionCode::Request {
+                        req: fdl::RequestType::FdlStatus,
+                        ..
+                    },
+                },
+                pdu: &[],
+            })
+        )
+    });
+
+    fdl_ut.advance_bus_time_min_tsdr();
+    fdl_ut.transmit_telegram(|tx| {
+        Some(tx.send_fdl_status_response(
+            7,
+            15,
+            fdl::ResponseState::MasterWithoutToken,
+            fdl::ResponseStatus::Ok,
+        ))
+    });
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    fdl_ut.advance_bus_time_min_tsdr();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(4, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_min_tsdr();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 4)));
+    fdl_ut.wait_transmission();
+
+    // FdlMaster must not accept the token the first time
+    fdl_ut.assert_idle_bits(66);
+
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 4)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 }

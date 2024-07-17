@@ -445,3 +445,26 @@ fn test_token_not_accepted_from_random() {
 
     fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 }
+
+#[ignore = "currently failing"]
+#[test]
+fn test_new_token_is_sent_twice() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlMasterUnderTest::new();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 7, sa: 7 }));
+
+    let mut got_second_token = false;
+    fdl_ut.wait_for_matching(|t| {
+        if !got_second_token {
+            if t == fdl::Telegram::Token(fdl::TokenTelegram { da: 7, sa: 7 }) {
+                got_second_token = true;
+            } else {
+                panic!("Got an unexpected telegram instead of second token: {t:?}");
+            }
+            false
+        } else {
+            true
+        }
+    });
+}

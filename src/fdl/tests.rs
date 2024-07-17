@@ -246,9 +246,6 @@ fn test_token_not_received() {
             .build(),
     );
 
-    let start = crate::time::Instant::ZERO;
-    let mut now = start;
-
     crate::test_utils::set_active_addr(addr);
     master7.set_online();
 
@@ -279,7 +276,7 @@ fn test_token_not_received() {
     }
 
     phy0.advance_bus_time_min_tsdr();
-    phy0.transmit_telegram(now, |tx| {
+    phy0.transmit_telegram(phy0.bus_time(), |tx| {
         Some(tx.send_fdl_status_response(
             7,
             15,

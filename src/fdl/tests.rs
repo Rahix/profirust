@@ -5,9 +5,9 @@ use crate::phy::ProfibusPhy;
 struct FdlMasterUnderTest {
     control_addr: u8,
     timestep: crate::time::Duration,
-    phy_control: phy::SimulatorPhy,
+    pub phy_control: phy::SimulatorPhy,
     phy_master: phy::SimulatorPhy,
-    master: fdl::FdlMaster,
+    pub master: fdl::FdlMaster,
 }
 
 impl FdlMasterUnderTest {
@@ -69,6 +69,11 @@ impl FdlMasterUnderTest {
 
     pub fn advance_bus_time_min_tsdr(&mut self) {
         self.phy_control.advance_bus_time_min_tsdr();
+        self.do_master_cycle();
+    }
+
+    pub fn advance_bus_time_sync_pause(&mut self) {
+        self.advance_bus_time_bits(33);
         self.do_master_cycle();
     }
 
@@ -466,4 +471,116 @@ fn test_new_token_is_sent_twice() {
             true
         }
     });
+}
+
+#[ignore = "currently failing"]
+#[test]
+fn test_two_rotations_before_ready() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlMasterUnderTest::new();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(4, 2)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(7, 4)));
+    fdl_ut.wait_transmission();
+
+    // Master must answer at this point that it is not yet ready
+    fdl_ut.wait_for_matching(|t| {
+        matches!(
+            t,
+            fdl::Telegram::Data(fdl::DataTelegram {
+                h: fdl::DataTelegramHeader {
+                    da: 4,
+                    sa: 7,
+                    dsap: None,
+                    ssap: None,
+                    fc: fdl::FunctionCode::Response {
+                        state: fdl::ResponseState::MasterNotReady,
+                        status: fdl::ResponseStatus::Ok
+                    },
+                },
+                pdu: &[],
+            })
+        )
+    });
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 4)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(2, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(4, 2)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(7, 4)));
+    fdl_ut.wait_transmission();
+
+    // Master must still answer at this point that it is not yet ready
+    fdl_ut.wait_for_matching(|t| {
+        matches!(
+            t,
+            fdl::Telegram::Data(fdl::DataTelegram {
+                h: fdl::DataTelegramHeader {
+                    da: 4,
+                    sa: 7,
+                    dsap: None,
+                    ssap: None,
+                    fc: fdl::FunctionCode::Response {
+                        state: fdl::ResponseState::MasterNotReady,
+                        status: fdl::ResponseStatus::Ok
+                    },
+                },
+                pdu: &[],
+            })
+        )
+    });
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 4)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(2, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(4, 2)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(7, 4)));
+    fdl_ut.wait_transmission();
+
+    // Now the master shall respond that it is ready to receive a token
+    fdl_ut.wait_for_matching(|t| {
+        matches!(
+            t,
+            fdl::Telegram::Data(fdl::DataTelegram {
+                h: fdl::DataTelegramHeader {
+                    da: 4,
+                    sa: 7,
+                    dsap: None,
+                    ssap: None,
+                    fc: fdl::FunctionCode::Response {
+                        state: fdl::ResponseState::MasterWithoutToken,
+                        status: fdl::ResponseStatus::Ok
+                    },
+                },
+                pdu: &[],
+            })
+        )
+    });
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 4)));
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 }

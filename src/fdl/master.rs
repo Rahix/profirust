@@ -52,6 +52,44 @@ impl GapState {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum RingState {
+    /// The starting state before any token passings were witnessed
+    NotReady,
+    /// FdlMaster is listening to the first token rotation to build the list of active stations (LAS)
+    ListenFirstRotation { first_addr: u8 },
+    /// FdlMaster is listening to the second token rotation to verify the list of active stations (LAS)
+    ListenSecondRotation { first_addr: u8 },
+    /// FdlMaster has successfully listened to two full token rotations and is ready to enter the ring
+    ReadyNoRing,
+    /// FdlMaster is actively part of the token ring, to the best of its knowledge
+    InRing,
+}
+
+impl RingState {
+    #[inline(always)]
+    pub fn is_in_ring(self) -> bool {
+        self == RingState::InRing
+    }
+
+    #[inline(always)]
+    pub fn is_ready(self) -> bool {
+        matches!(self, RingState::ReadyNoRing | RingState::InRing)
+    }
+
+    pub fn enter_ring(&mut self, token: &crate::fdl::TokenTelegram) {
+        // We must be ready to enter the ring unless we generated the token ourselves.
+        if token.sa != token.da {
+            debug_assert!(matches!(self, RingState::InRing | RingState::ReadyNoRing));
+        }
+        *self = RingState::InRing;
+    }
+
+    pub fn reset(&mut self) {
+        *self = RingState::NotReady;
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 enum CommunicationState {
     WithToken(StateWithToken),
@@ -172,7 +210,7 @@ pub struct FdlMaster {
     pending_bytes: usize,
 
     /// Whether we believe to be a part of the token ring.
-    in_ring: bool,
+    ring_state: RingState,
 
     /// Timestamp of last token acquisition.
     last_token_time: Option<crate::time::Instant>,
@@ -210,7 +248,7 @@ impl FdlMaster {
             gap_state: GapState::NextPoll(param.address.wrapping_add(1)),
             live_list,
             communication_state: CommunicationState::WithoutToken(StateWithoutToken::Idle),
-            in_ring: false,
+            ring_state: RingState::NotReady,
             connectivity_state: ConnectivityState::Offline,
 
             p: param,
@@ -226,7 +264,7 @@ impl FdlMaster {
     /// Returns `true` when this FDL master believes to be in the token ring.
     #[inline(always)]
     pub fn is_in_ring(&self) -> bool {
-        self.in_ring
+        self.ring_state.is_in_ring()
     }
 
     fn update_live_state(&mut self, addr: u8, live: bool) {
@@ -450,7 +488,7 @@ impl FdlMaster {
         self.previous_token_time = self.last_token_time;
         self.last_token_time = Some(now);
         self.gap_state.increment_wait();
-        self.in_ring = true;
+        self.ring_state.enter_ring(token);
         log::trace!("{} acquired the token!", self.p.address);
     }
 
@@ -521,7 +559,7 @@ impl FdlMaster {
         // activity was just now and start counting from here...
         let last_bus_activity = *self.last_bus_activity.get_or_insert(now);
         if (now - last_bus_activity) >= self.p.token_lost_timeout() {
-            if self.in_ring {
+            if self.is_in_ring() {
                 log::warn!("Token lost! Generating a new one.");
             } else {
                 log::info!("Generating new token due to silent bus.");
@@ -833,6 +871,64 @@ impl FdlMaster {
         self.forward_token(now, phy).with_events(events)
     }
 
+    fn handle_token_telegram(
+        &mut self,
+        now: crate::time::Instant,
+        token_telegram: crate::fdl::TokenTelegram,
+    ) -> PollDone {
+        if token_telegram.da != self.p.address || !self.ring_state.is_ready() {
+            log::trace!(
+                "Witnessed token passing: {} => {}",
+                token_telegram.sa,
+                token_telegram.da,
+            );
+            if token_telegram.sa == token_telegram.da {
+                if self.is_in_ring() {
+                    log::info!(
+                        "Left the token ring due to self-passing by addr {}.",
+                        token_telegram.sa
+                    );
+                    self.ring_state.reset();
+                }
+            }
+        }
+
+        // LAS update handling
+        match self.ring_state {
+            RingState::NotReady => {
+                self.ring_state = RingState::ListenFirstRotation {
+                    first_addr: token_telegram.sa,
+                };
+                PollDone::waiting_for_bus()
+            }
+            RingState::ListenFirstRotation { first_addr } => {
+                if token_telegram.sa == first_addr {
+                    log::trace!("Finished listening to one token rotation (back at #{first_addr})");
+                    self.ring_state = RingState::ListenSecondRotation { first_addr };
+                }
+                PollDone::waiting_for_bus()
+            }
+            RingState::ListenSecondRotation { first_addr } => {
+                if token_telegram.sa == first_addr {
+                    log::trace!(
+                        "Finished listening to second token rotation (back at #{first_addr})"
+                    );
+                    self.ring_state = RingState::ReadyNoRing;
+                }
+                PollDone::waiting_for_bus()
+            }
+            RingState::ReadyNoRing | RingState::InRing => {
+                if token_telegram.da == self.p.address {
+                    // Heyy, we got the token!
+                    self.acquire_token(now, &token_telegram);
+                    PollDone::waiting_for_delay()
+                } else {
+                    PollDone::waiting_for_bus()
+                }
+            }
+        }
+    }
+
     #[must_use = "poll done marker"]
     fn handle_without_token(
         &mut self,
@@ -871,27 +967,7 @@ impl FdlMaster {
 
                     match telegram {
                         crate::fdl::Telegram::Token(token_telegram) => {
-                            if token_telegram.da == self.p.address {
-                                // Heyy, we got the token!
-                                self.acquire_token(now, &token_telegram);
-                                PollDone::waiting_for_delay()
-                            } else {
-                                log::trace!(
-                                    "Witnessed token passing: {} => {}",
-                                    token_telegram.sa,
-                                    token_telegram.da,
-                                );
-                                if token_telegram.sa == token_telegram.da {
-                                    if self.in_ring {
-                                        log::info!(
-                                            "Left the token ring due to self-passing by addr {}.",
-                                            token_telegram.sa
-                                        );
-                                    }
-                                    self.in_ring = false;
-                                }
-                                PollDone::waiting_for_bus()
-                            }
+                            self.handle_token_telegram(now, token_telegram)
                         }
                         crate::fdl::Telegram::Data(telegram) => {
                             if let Some(_) = telegram.is_fdl_status_request() {
@@ -935,10 +1011,12 @@ impl FdlMaster {
             } if (now - recv_time) >= self.p.min_tsdr_time() => {
                 *self.communication_state.assert_without_token() = StateWithoutToken::Idle;
 
-                let state = if self.in_ring {
-                    crate::fdl::ResponseState::MasterInRing
-                } else {
-                    crate::fdl::ResponseState::MasterWithoutToken
+                let state = match self.ring_state {
+                    RingState::NotReady => crate::fdl::ResponseState::MasterNotReady,
+                    RingState::ListenFirstRotation { .. } =>  crate::fdl::ResponseState::MasterNotReady,
+                    RingState::ListenSecondRotation { .. } =>  crate::fdl::ResponseState::MasterNotReady,
+                    RingState::ReadyNoRing => crate::fdl::ResponseState::MasterWithoutToken,
+                    RingState::InRing => crate::fdl::ResponseState::MasterInRing,
                 };
 
                 let tx_res = phy

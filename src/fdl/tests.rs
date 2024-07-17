@@ -446,7 +446,6 @@ fn test_token_not_accepted_from_random() {
     fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 }
 
-#[ignore = "currently failing"]
 #[test]
 fn test_new_token_is_sent_twice() {
     crate::test_utils::prepare_test_logger();

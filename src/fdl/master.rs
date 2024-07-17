@@ -95,6 +95,11 @@ enum StateWithoutToken {
         addr: u8,
         request_time: crate::time::Instant,
     },
+    /// We are in the process of generating a new token.
+    ///
+    /// The first token telegram was already issued and we still need to transmit the second one (a
+    /// new token must always be sent twice).
+    PendingNewToken,
 }
 
 impl CommunicationState {
@@ -377,7 +382,6 @@ impl FdlMaster {
     ///
     /// This synchronization pause is required before every transmission.
     fn wait_synchronization_pause(&mut self, now: crate::time::Instant) -> Option<PollDone> {
-        debug_assert!(self.communication_state.have_token());
         if now <= (*self.last_bus_activity.get_or_insert(now) + self.p.bits_to_time(33)) {
             Some(PollDone::waiting_for_delay())
         } else {
@@ -473,6 +477,41 @@ impl FdlMaster {
     }
 
     #[must_use = "poll done marker"]
+    fn generate_new_token(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+    ) -> PollDone {
+        match self.communication_state {
+            CommunicationState::WithoutToken(StateWithoutToken::PendingNewToken) => {
+                // Send the second token telegram and enter active state.
+                return_if_done!(self.wait_synchronization_pause(now));
+
+                self.next_master = self.p.address;
+                self.forward_token(now, phy)
+            }
+            _ => {
+                // Send the first token telegram to announce that we are taking over token
+                // recovery.
+                self.next_master = self.p.address;
+                let token_telegram =
+                    crate::fdl::TokenTelegram::new(self.next_master, self.p.address);
+
+                let tx_res = phy
+                    .transmit_telegram(now, |tx| {
+                        Some(tx.send_token_telegram(self.next_master, self.p.address))
+                    })
+                    .unwrap();
+
+                self.communication_state =
+                    CommunicationState::WithoutToken(StateWithoutToken::PendingNewToken);
+
+                self.mark_tx(now, tx_res.bytes_sent())
+            }
+        }
+    }
+
+    #[must_use = "poll done marker"]
     fn handle_lost_token(
         &mut self,
         now: crate::time::Instant,
@@ -487,8 +526,7 @@ impl FdlMaster {
             } else {
                 log::info!("Generating new token due to silent bus.");
             }
-            self.next_master = self.p.address;
-            Some(self.forward_token(now, phy))
+            Some(self.generate_new_token(now, phy))
         } else {
             None
         }
@@ -809,6 +847,7 @@ impl FdlMaster {
 
         let slot_expired = self.check_slot_expired(now);
         match *self.communication_state.assert_without_token() {
+            StateWithoutToken::PendingNewToken => self.generate_new_token(now, phy),
             StateWithoutToken::AwaitingTokenReceived { addr } if slot_expired => {
                 // It seems the token was not received.
                 log::warn!("Token was not received by next master (#{addr})!");

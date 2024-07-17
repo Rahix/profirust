@@ -423,7 +423,25 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                         // should be ignored.
                         if let Some(prm) = legacy_prm.as_mut() {
                             prm.length = parse_number(value_pair)?;
-                            // TODO: Check if length matches data
+
+                            // Check if length matches data
+                            let current_max_length = prm
+                                .data_const
+                                .iter()
+                                .map(|(offset, values)| offset + values.len())
+                                .max()
+                                .unwrap_or(0);
+
+                            if usize::from(prm.length) < current_max_length {
+                                return Err(parse_error(
+                                    format!(
+                                        "User_Prm_Data has maximum length of {} while User_Prm_Data_Len only permits {}",
+                                        current_max_length,
+                                        prm.length,
+                                    ),
+                                    statement_span,
+                                ));
+                            }
                         }
                     }
                     "user_prm_data" => {
@@ -431,6 +449,19 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                         // should be ignored.
                         if let Some(prm) = legacy_prm.as_mut() {
                             let values: Vec<u8> = parse_number_list(value_pair)?;
+
+                            // Only check length when it was already defined
+                            if prm.length != 0 && usize::from(prm.length) < values.len() {
+                                return Err(parse_error(
+                                    format!(
+                                        "User_Prm_Data has maximum length of {} while User_Prm_Data_Len only permits {}",
+                                        values.len(),
+                                        prm.length,
+                                    ),
+                                    statement_span,
+                                ));
+                            }
+
                             prm.data_const.push((0, values));
                         }
                     }

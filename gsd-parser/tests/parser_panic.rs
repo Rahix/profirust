@@ -59,3 +59,15 @@ EndExtUserPrmData
     let path = std::path::PathBuf::from(format!("{}", file!()));
     println!("{}", gsd_parser::parser::parse(&path, source).unwrap_err());
 }
+
+#[test]
+fn parse_overflowing_user_prm_data() {
+    let source = r#"
+#Profibus_DP
+User_Prm_Data = 0x00, 0x01, 0x03, 0x04, 0x05
+User_Prm_Data_Len = 3
+"#;
+
+    let path = std::path::PathBuf::from(format!("{}", file!()));
+    println!("{}", gsd_parser::parser::parse(&path, source).unwrap_err());
+}

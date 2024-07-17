@@ -1,5 +1,66 @@
 use crate::fdl;
+use crate::phy;
 use crate::phy::ProfibusPhy;
+
+struct FdlMasterUnderTest {
+    control_addr: u8,
+    timestep: crate::time::Duration,
+    phy_control: phy::SimulatorPhy,
+    phy_master: phy::SimulatorPhy,
+    master: fdl::FdlMaster,
+}
+
+impl FdlMasterUnderTest {
+    pub fn new() -> Self {
+        let baud = crate::Baudrate::B19200;
+        let addr = 7;
+        let control_addr = 15;
+        let timestep = crate::time::Duration::from_micros(100);
+
+        let phy_control = phy::SimulatorPhy::new(baud, "phy#control");
+        let phy_master = phy_control.duplicate("phy#ut");
+
+        let mut master = fdl::FdlMaster::new(
+            crate::fdl::ParametersBuilder::new(addr, baud)
+                .highest_station_address(16)
+                .slot_bits(300)
+                .build(),
+        );
+
+        crate::test_utils::set_active_addr(master.parameters().address);
+        master.set_online();
+
+        Self {
+            control_addr,
+            timestep,
+            phy_control,
+            phy_master,
+            master,
+        }
+    }
+
+    pub fn wait_for_matching<F: FnMut(fdl::Telegram) -> bool>(&mut self, f: F) {
+        crate::test_utils::set_active_addr(self.control_addr);
+        for now in self.phy_control.iter_until_matching(self.timestep, f) {
+            crate::test_utils::set_log_timestamp(now);
+            crate::test_utils::set_active_addr(self.master.parameters().address);
+            self.master.poll(now, &mut self.phy_master, &mut ());
+            crate::test_utils::set_active_addr(self.control_addr);
+        }
+    }
+
+    pub fn advance_bus_time_min_tsdr(&mut self) {
+        self.phy_control.advance_bus_time_min_tsdr();
+    }
+
+    pub fn transmit_telegram<F>(&mut self, f: F) -> Option<fdl::TelegramTxResponse>
+    where
+        F: FnOnce(crate::fdl::TelegramTx) -> Option<fdl::TelegramTxResponse>,
+    {
+        let now = self.phy_control.bus_time();
+        self.phy_control.transmit_telegram(now, f)
+    }
+}
 
 /// Ensure proper token timeout.
 #[rstest::rstest]
@@ -228,30 +289,13 @@ fn master_dropping_from_bus() {
 /// Test that the FDL master detects when the token was not received.
 ///
 /// In this case it should resend the token a second time before assuming the master is dead.
-#[ignore = "Currently failing"]
+#[ignore = "currently failing"]
 #[test]
 fn test_token_not_received() {
-    let addr = 7;
-    let timestep = crate::time::Duration::from_micros(100);
-
     crate::test_utils::prepare_test_logger();
-    let baud = crate::Baudrate::B19200;
-    let mut phy0 = crate::phy::SimulatorPhy::new(baud, "phy#0");
-    let mut phy7 = phy0.duplicate("phy#7");
+    let mut fdl_ut = FdlMasterUnderTest::new();
 
-    let mut master7 = crate::fdl::FdlMaster::new(
-        crate::fdl::ParametersBuilder::new(addr, baud)
-            .highest_station_address(16)
-            .slot_bits(300)
-            .build(),
-    );
-
-    crate::test_utils::set_active_addr(addr);
-    master7.set_online();
-
-    // Wait for request
-    crate::test_utils::set_active_addr(15);
-    for now in phy0.iter_until_matching(timestep, |t| {
+    fdl_ut.wait_for_matching(|t| {
         matches!(
             t,
             fdl::Telegram::Data(fdl::DataTelegram {
@@ -268,15 +312,10 @@ fn test_token_not_received() {
                 pdu: &[],
             })
         )
-    }) {
-        crate::test_utils::set_log_timestamp(now);
-        crate::test_utils::set_active_addr(addr);
-        master7.poll(now, &mut phy7, &mut ());
-        crate::test_utils::set_active_addr(15);
-    }
+    });
 
-    phy0.advance_bus_time_min_tsdr();
-    phy0.transmit_telegram(phy0.bus_time(), |tx| {
+    fdl_ut.advance_bus_time_min_tsdr();
+    fdl_ut.transmit_telegram(|tx| {
         Some(tx.send_fdl_status_response(
             7,
             15,
@@ -285,42 +324,12 @@ fn test_token_not_received() {
         ))
     });
 
-    for now in phy0.iter_until_matching(timestep, |t| {
-        matches!(
-            t,
-            fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 })
-        )
-    }) {
-        crate::test_utils::set_log_timestamp(now);
-        crate::test_utils::set_active_addr(addr);
-        master7.poll(now, &mut phy7, &mut ());
-        crate::test_utils::set_active_addr(15);
-    }
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 
     // The master should retry sending the token again
-    for now in phy0.iter_until_matching(timestep, |t| {
-        matches!(
-            t,
-            fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 })
-        )
-    }) {
-        crate::test_utils::set_log_timestamp(now);
-        crate::test_utils::set_active_addr(addr);
-        master7.poll(now, &mut phy7, &mut ());
-        crate::test_utils::set_active_addr(15);
-    }
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 
     // And then, after still not receiving an answer, it should go to the next master which it is
     // itself in this case.
-    for now in phy0.iter_until_matching(timestep, |t| {
-        matches!(
-            t,
-            fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 })
-        )
-    }) {
-        crate::test_utils::set_log_timestamp(now);
-        crate::test_utils::set_active_addr(addr);
-        master7.poll(now, &mut phy7, &mut ());
-        crate::test_utils::set_active_addr(15);
-    }
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 7, sa: 7 }));
 }

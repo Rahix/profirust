@@ -419,8 +419,8 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                         legacy_prm = None;
                     }
                     "user_prm_data_len" => {
-                        // If legacy_prm is None, Ext_User_Prm is present and this parameter
-                        // should be ignored.
+                        // If legacy_prm is not None, we didn't encounter new-style Ext_User_Prm
+                        // yet, so legacy User_Prm_Data should be evaluated.
                         if let Some(prm) = legacy_prm.as_mut() {
                             prm.length = parse_number(value_pair)?;
 
@@ -445,8 +445,8 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                         }
                     }
                     "user_prm_data" => {
-                        // If legacy_prm is None, Ext_User_Prm is present and this parameter
-                        // should be ignored.
+                        // If legacy_prm is not None, we didn't encounter new-style Ext_User_Prm
+                        // yet, so legacy User_Prm_Data should be evaluated.
                         if let Some(prm) = legacy_prm.as_mut() {
                             let values: Vec<u8> = parse_number_list(value_pair)?;
 

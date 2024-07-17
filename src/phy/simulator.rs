@@ -195,8 +195,34 @@ impl SimulatorPhy {
         self.bus.lock().unwrap().bus_time += dur;
     }
 
+    pub fn bus_time(&self) -> crate::time::Instant {
+        self.bus.lock().unwrap().bus_time
+    }
+
     pub fn print_bus_log(&self) {
         self.bus.lock().unwrap().print_log();
+    }
+
+    pub fn iter_until_matching<'a, F>(
+        &'a mut self,
+        timestep: crate::time::Duration,
+        f: F,
+    ) -> SimulationIterator<'a, F>
+    where
+        F: FnMut(crate::fdl::Telegram) -> bool,
+    {
+        SimulationIterator {
+            timeout: self.bus_time() + crate::time::Duration::from_secs(10),
+            phy: self,
+            timestep,
+            matcher: f,
+        }
+    }
+
+    pub fn advance_bus_time_min_tsdr(&self) {
+        let mut bus = self.bus.lock().unwrap();
+        let min_tsdr = bus.baudrate.bits_to_time(11);
+        bus.bus_time += min_tsdr;
     }
 }
 
@@ -245,6 +271,40 @@ impl crate::phy::ProfibusPhy for SimulatorPhy {
         self.cursor += drop;
 
         res
+    }
+}
+
+pub struct SimulationIterator<'a, F> {
+    phy: &'a mut SimulatorPhy,
+    timestep: crate::time::Duration,
+    timeout: crate::time::Instant,
+    matcher: F,
+}
+
+impl<'a, F> Iterator for SimulationIterator<'a, F>
+where
+    F: FnMut(crate::fdl::Telegram) -> bool,
+{
+    type Item = crate::time::Instant;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        use crate::phy::ProfibusPhy;
+
+        self.phy.advance_bus_time(self.timestep);
+        let now = self.phy.bus_time();
+        if now >= self.timeout {
+            panic!("Timeout while waiting for a certain telegram to show up!");
+        }
+        if !self.phy.poll_transmission(now) {
+            let is_matching = self
+                .phy
+                .receive_telegram(now, |t| (self.matcher)(t))
+                .unwrap_or(false);
+            if is_matching {
+                return None;
+            }
+        }
+        Some(now)
     }
 }
 

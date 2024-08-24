@@ -148,6 +148,17 @@ impl Baudrate {
     }
 }
 
+pub type Address = u8;
+
+#[inline(always)]
+#[track_caller]
+pub(crate) fn debug_assert_address(addr: Address) {
+    debug_assert!(
+        addr <= 127,
+        "PROFIBUS address cannot be bigger than 127, got {addr}!"
+    );
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

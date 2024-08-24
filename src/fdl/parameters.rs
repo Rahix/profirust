@@ -25,17 +25,15 @@ pub struct Parameters {
     pub baudrate: crate::Baudrate,
     /// T<sub>SL</sub>: Slot time in bits
     pub slot_bits: u16,
-    /// Time until the token should have rotated through all masters once.
+    /// T<sub>TR</sub>: Target rotation time for the token
     pub token_rotation_bits: u32,
     /// GAP: update factor (how many token rotations to wait before polling the gap again)
     pub gap_wait_rotations: u8,
     /// HSA: Highest station address
     ///
-    /// The HSA is only relevant for finding other masters who want to become part of the token
-    /// ring.  Peripherals are allows to have addresses higher than HSA.  Masters must have an
-    /// address less than HSA.
-    ///
-    /// **Important**: The live-list service will only detect stations below the HSA as well.
+    /// The HSA is only relevant for finding other active stations who want to become part of the
+    /// token ring.  Passive stations are allows to have addresses higher than HSA.  Active
+    /// stations must have an address less than HSA.
     pub highest_station_address: u8,
     /// Maximum number of retries when no answer was received
     pub max_retry_limit: u8,

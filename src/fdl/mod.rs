@@ -4,15 +4,18 @@
 //! master.  It is configured using the [`ParametersBuilder`].
 //!
 //! You can also find the representations of PROFIBUS telegrams and related data structures here.
+mod active;
 mod master;
 mod parameters;
 mod telegram;
+mod token_ring;
 
 #[cfg(test)]
 mod tests;
 
 pub use master::{ConnectivityState, FdlMaster};
 pub use parameters::{Parameters, ParametersBuilder};
+pub(crate) use token_ring::TokenRing;
 
 // Hide these for now until they get a cleaner interface
 #[doc(hidden)]

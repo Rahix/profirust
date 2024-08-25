@@ -72,6 +72,14 @@ impl Default for Parameters {
     }
 }
 
+impl Parameters {
+    #[inline(always)]
+    pub fn debug_assert_consistency(&self) {
+        crate::debug_assert_address(self.address);
+        debug_assert!(self.highest_station_address <= 126);
+    }
+}
+
 #[inline]
 fn min_slot_bits(baudrate: crate::Baudrate) -> u16 {
     match baudrate {

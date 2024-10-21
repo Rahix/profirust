@@ -52,16 +52,16 @@ enum State {
 impl State {
     pub fn have_token(&self) -> bool {
         match self {
-            State::Offline
-            | State::PassiveIdle
-            | State::ListenToken
-            | State::ActiveIdle
-            | State::PassToken
-            | State::CheckTokenPass => false,
+            State::Offline { .. }
+            | State::PassiveIdle { .. }
+            | State::ListenToken { .. }
+            | State::ActiveIdle { .. }
+            | State::PassToken { .. }
+            | State::CheckTokenPass { .. } => false,
             State::ClaimToken { .. }
-            | State::UseToken
-            | State::AwaitDataResponse
-            | State::AwaitStatusResponse => true,
+            | State::UseToken { .. }
+            | State::AwaitDataResponse { .. }
+            | State::AwaitStatusResponse { .. } => true,
         }
     }
 }
@@ -297,6 +297,17 @@ impl FdlActiveStation {
     }
 }
 
+macro_rules! debug_assert_state {
+    ($state:expr, $expected:pat) => {
+        debug_assert!(
+            matches!($state, $expected),
+            "Wrong state for '{}': '{:?}'",
+            stringify!($expected),
+            $state
+        )
+    };
+}
+
 /// State Machine of the FDL active station
 impl FdlActiveStation {
     #[must_use = "poll done marker"]
@@ -305,7 +316,7 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
-        debug_assert_eq!(self.state, State::ListenToken);
+        debug_assert_state!(self.state, State::ListenToken { .. });
 
         return_if_done!(self.handle_lost_token(now, phy));
 
@@ -315,7 +326,18 @@ impl FdlActiveStation {
         phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);
 
-            log::warn!("TODO: Need to implement ListenToken state handler");
+            match telegram {
+                crate::fdl::Telegram::Token(token_telegram) => {
+                    log::warn!("TODO: Handle rx token telegram in ListenToken state");
+                }
+                crate::fdl::Telegram::Data(data_telegram)
+                    if data_telegram.is_fdl_status_request().is_some()
+                        && data_telegram.h.da == self.p.address =>
+                {
+                    log::warn!("TODO: Handle status request in ListenToken state");
+                }
+                _ => (),
+            }
         });
 
         PollDone::waiting_for_bus()
@@ -327,7 +349,7 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
-        debug_assert_eq!(self.state, State::ActiveIdle);
+        debug_assert_state!(self.state, State::ActiveIdle);
 
         // Check for token lost timeout
         todo!("do_active_idle")
@@ -339,11 +361,7 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
-        debug_assert!(
-            matches!(self.state, State::ClaimToken { .. }),
-            "Wrong state for do_claim_token: {:?}",
-            self.state
-        );
+        debug_assert_state!(self.state, State::ClaimToken { .. });
 
         // The token is claimed by sending a telegram to ourselves twice.
         return_if_done!(self.wait_synchronization_pause(now));
@@ -374,11 +392,7 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
-        debug_assert!(
-            matches!(self.state, State::UseToken),
-            "Wrong state for do_use_token: {:?}",
-            self.state
-        );
+        debug_assert_state!(self.state, State::UseToken);
 
         // TODO: Rotation timer
         // TODO: Message exchange cycles
@@ -393,11 +407,7 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
-        debug_assert!(
-            matches!(self.state, State::PassToken),
-            "Wrong state for do_pass_token: {:?}",
-            self.state
-        );
+        debug_assert_state!(self.state, State::PassToken);
 
         // TODO: GAPL update
 
@@ -423,11 +433,7 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
-        debug_assert!(
-            matches!(self.state, State::CheckTokenPass),
-            "Wrong state for do_check_token_pass: {:?}",
-            self.state
-        );
+        debug_assert_state!(self.state, State::CheckTokenPass);
 
         // TODO: Actually check the token pass
         log::trace!("Ignoring whether the token was received (TODO)!");
@@ -463,7 +469,7 @@ impl FdlActiveStation {
                 // TODO: Check if these are all the states from which we can transition to passive
                 // idle
                 match &self.state {
-                    State::ActiveIdle | State::ListenToken | State::Offline => {
+                    State::ActiveIdle | State::ListenToken { .. } | State::Offline => {
                         self.state = State::PassiveIdle;
                     }
                     State::PassiveIdle => (),
@@ -485,7 +491,7 @@ impl FdlActiveStation {
 
         match &self.state {
             State::Offline => unreachable!(),
-            State::ListenToken => self.do_listen_token(now, phy).into(),
+            State::ListenToken { .. } => self.do_listen_token(now, phy).into(),
             State::ClaimToken { .. } => self.do_claim_token(now, phy).into(),
             State::UseToken => self.do_use_token(now, phy).into(),
             State::PassToken => self.do_pass_token(now, phy).into(),

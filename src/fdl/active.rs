@@ -49,6 +49,16 @@ enum State {
     AwaitStatusResponse,
 }
 
+macro_rules! debug_assert_state {
+    ($state:expr, $expected:pat) => {
+        debug_assert!(
+            matches!($state, $expected),
+            "unexpected state: {:?}",
+            $state
+        )
+    };
+}
+
 impl State {
     pub fn have_token(&self) -> bool {
         match self {
@@ -63,6 +73,96 @@ impl State {
             | State::AwaitDataResponse { .. }
             | State::AwaitStatusResponse { .. } => true,
         }
+    }
+
+    fn transition_offline(&mut self) {
+        debug_assert_state!(
+            self,
+            State::Offline { .. }
+                | State::PassiveIdle { .. }
+                | State::ListenToken { .. }
+                | State::PassToken { .. }
+        );
+        *self = State::Offline
+    }
+
+    fn transition_passive_idle(&mut self) {
+        debug_assert_state!(self, State::Offline { .. } | State::PassiveIdle { .. });
+        *self = State::PassiveIdle;
+    }
+
+    fn transition_listen_token(&mut self) {
+        debug_assert_state!(
+            self,
+            State::ListenToken { .. } | State::Offline { .. } | State::ActiveIdle { .. }
+        );
+        *self = State::ListenToken;
+    }
+
+    fn transition_active_idle(&mut self) {
+        debug_assert_state!(
+            self,
+            State::ActiveIdle { .. }
+                | State::ListenToken { .. }
+                | State::UseToken { .. }
+                | State::AwaitDataResponse { .. }
+                | State::CheckTokenPass { .. }
+                | State::AwaitStatusResponse { .. }
+        );
+        *self = State::ActiveIdle;
+    }
+
+    fn transition_use_token(&mut self) {
+        debug_assert_state!(
+            self,
+            State::UseToken { .. }
+                | State::ClaimToken { .. }
+                | State::PassToken { .. }
+                | State::AwaitDataResponse { .. }
+                | State::ActiveIdle { .. }
+        );
+        *self = State::UseToken;
+    }
+
+    fn transition_claim_token(&mut self) {
+        debug_assert_state!(
+            self,
+            State::ClaimToken { .. } | State::ListenToken { .. } | State::ActiveIdle { .. }
+        );
+        *self = State::ClaimToken { first: true };
+    }
+
+    fn transition_await_data_response(&mut self) {
+        debug_assert_state!(
+            self,
+            State::AwaitDataResponse { .. } | State::UseToken { .. }
+        );
+        *self = State::AwaitDataResponse;
+    }
+
+    fn transition_pass_token(&mut self) {
+        debug_assert_state!(
+            self,
+            State::PassToken { .. }
+                | State::UseToken { .. }
+                | State::ClaimToken { .. }
+                | State::CheckTokenPass { .. }
+                | State::AwaitStatusResponse { .. }
+        );
+        *self = State::PassToken;
+    }
+
+    fn transition_check_token_pass(&mut self) {
+        debug_assert_state!(self, State::CheckTokenPass { .. } | State::PassToken { .. });
+        *self = State::CheckTokenPass;
+    }
+
+    fn transition_await_status_response(&mut self) {
+        debug_assert_state!(
+            self,
+            State::AwaitStatusResponse { .. } | State::PassToken { .. }
+        );
+        *self = State::AwaitStatusResponse;
     }
 }
 
@@ -289,23 +389,12 @@ impl FdlActiveStation {
                 log::info!("Generating new token due to silent bus.");
             }
 
-            self.state = State::ClaimToken { first: true };
+            self.state.transition_claim_token();
             Some(self.do_claim_token(now, phy))
         } else {
             None
         }
     }
-}
-
-macro_rules! debug_assert_state {
-    ($state:expr, $expected:pat) => {
-        debug_assert!(
-            matches!($state, $expected),
-            "Wrong state for '{}': '{:?}'",
-            stringify!($expected),
-            $state
-        )
-    };
 }
 
 /// State Machine of the FDL active station
@@ -378,7 +467,7 @@ impl FdlActiveStation {
             }
             State::ClaimToken { first: false } => {
                 // Now we have claimed the token and can proceed to use it.
-                self.state = State::UseToken;
+                self.state.transition_use_token();
             }
             _ => unreachable!(),
         }
@@ -397,7 +486,7 @@ impl FdlActiveStation {
         // TODO: Rotation timer
         // TODO: Message exchange cycles
 
-        self.state = State::PassToken;
+        self.state.transition_pass_token();
         PollDone::waiting_for_delay()
     }
 
@@ -419,9 +508,9 @@ impl FdlActiveStation {
             .unwrap();
 
         if self.token_ring.next_station() == self.p.address {
-            self.state = State::UseToken;
+            self.state.transition_use_token();
         } else {
-            self.state = State::CheckTokenPass;
+            self.state.transition_check_token_pass();
         }
 
         self.mark_tx(now, tx_res.bytes_sent())
@@ -438,7 +527,7 @@ impl FdlActiveStation {
         // TODO: Actually check the token pass
         log::trace!("Ignoring whether the token was received (TODO)!");
 
-        self.state = State::ActiveIdle;
+        self.state.transition_active_idle();
         PollDone::waiting_for_bus()
     }
 
@@ -470,7 +559,7 @@ impl FdlActiveStation {
                 // idle
                 match &self.state {
                     State::ActiveIdle | State::ListenToken { .. } | State::Offline => {
-                        self.state = State::PassiveIdle;
+                        self.state.transition_passive_idle();
                     }
                     State::PassiveIdle => (),
                     s => {
@@ -480,7 +569,7 @@ impl FdlActiveStation {
             }
             ConnectivityState::Online => {
                 if matches!(self.state, State::Offline | State::PassiveIdle) {
-                    self.state = State::ListenToken;
+                    self.state.transition_listen_token();
                 }
             }
         }

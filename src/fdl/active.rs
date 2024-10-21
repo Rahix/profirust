@@ -65,6 +65,12 @@ pub struct FdlActiveStation {
 
     /// Timestamp of the last time we found the bus to be active (= someone transmitting)
     last_bus_activity: Option<crate::time::Instant>,
+
+    /// Amount of bytes pending in the receive buffer.
+    ///
+    /// This known value is compared to the latest one reported by the PHY to find out whether new
+    /// data was received since the last poll.
+    pending_bytes: usize,
 }
 
 impl FdlActiveStation {
@@ -77,6 +83,7 @@ impl FdlActiveStation {
             connectivity_state: ConnectivityState::Offline,
             state: State::Offline,
             last_bus_activity: None,
+            pending_bytes: 0,
             p: param,
         }
     }
@@ -210,14 +217,76 @@ impl FdlActiveStation {
             None
         }
     }
+
+    /// Marks transmission starting `now` and continuing for `bytes` length.
+    fn mark_tx(&mut self, now: crate::time::Instant, bytes: usize) -> PollDone {
+        self.last_bus_activity = Some(
+            now + self
+                .p
+                .baudrate
+                .bits_to_time(11 * u32::try_from(bytes).unwrap()),
+        );
+        PollDone::waiting_for_transmission()
+    }
+
+    fn check_for_bus_activity(&mut self, now: crate::time::Instant, phy: &mut impl ProfibusPhy) {
+        let pending_bytes = phy.poll_pending_received_bytes(now);
+        if pending_bytes > self.pending_bytes {
+            self.mark_bus_activity(now);
+            self.pending_bytes = pending_bytes;
+        }
+    }
+
+    /// Mark receival of a telegram.
+    fn mark_rx(&mut self, now: crate::time::Instant) {
+        self.pending_bytes = 0;
+        self.mark_bus_activity(now);
+    }
 }
 
 impl FdlActiveStation {
+    #[must_use = "poll done marker"]
+    fn handle_lost_token(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut impl ProfibusPhy,
+    ) -> Option<PollDone> {
+        // If we do not know of any previous bus activity, conservatively assume that the last
+        // activity was just now and start counting from here...
+        let last_bus_activity = *self.last_bus_activity.get_or_insert(now);
+        if (now - last_bus_activity) >= self.p.token_lost_timeout() {
+            if self.token_ring.ready_for_ring() {
+                log::warn!("Token lost! Generating a new one.");
+            } else {
+                log::info!("Generating new token due to silent bus.");
+            }
+            // Some(self.generate_new_token(now, phy))
+            todo!("Generate new token")
+        } else {
+            None
+        }
+    }
+}
+
+/// State Machine of the FDL active station
+impl FdlActiveStation {
+    #[must_use = "poll done marker"]
     fn do_listen_token<'a, PHY: ProfibusPhy>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
+        // Check for token lost timeout
+        todo!()
+    }
+
+    #[must_use = "poll done marker"]
+    fn do_active_idle<'a, PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+    ) -> PollDone {
+        // Check for token lost timeout
         todo!()
     }
 
@@ -247,11 +316,14 @@ impl FdlActiveStation {
             ConnectivityState::Passive => {
                 // TODO: Check if these are all the states from which we can transition to passive
                 // idle
-                if matches!(
-                    self.state,
-                    State::ActiveIdle | State::ListenToken | State::Offline
-                ) {
-                    self.state = State::PassiveIdle;
+                match &self.state {
+                    State::ActiveIdle | State::ListenToken | State::Offline => {
+                        self.state = State::PassiveIdle;
+                    }
+                    State::PassiveIdle => (),
+                    s => {
+                        log::debug!("Can't transition from \"{s:?}\" to PassiveIdle");
+                    }
                 }
             }
             ConnectivityState::Online => {

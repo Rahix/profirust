@@ -203,3 +203,33 @@ fn test_token_timeout(#[values(0, 1, 2, 7, 14)] addr: crate::Address) {
     assert!(timeout_measured >= expected_timeout);
     assert!(timeout_measured <= expected_timeout_max);
 }
+
+/// Test active station FDL status response before initialization
+#[test]
+fn test_active_station_early_fdl_status() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::default();
+    let addr = fdl_ut.fdl_param().address;
+
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(addr, 15)));
+
+    fdl_ut.wait_for_matching(|t| {
+        assert_eq!(
+            t,
+            fdl::Telegram::Data(fdl::DataTelegram {
+                h: fdl::DataTelegramHeader {
+                    da: 15,
+                    sa: addr,
+                    dsap: None,
+                    ssap: None,
+                    fc: fdl::FunctionCode::Response {
+                        state: fdl::ResponseState::MasterNotReady,
+                        status: fdl::ResponseStatus::Ok
+                    },
+                },
+                pdu: &[],
+            })
+        );
+        true
+    });
+}

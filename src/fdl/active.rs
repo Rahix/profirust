@@ -39,10 +39,16 @@ impl ConnectivityState {
 enum State {
     Offline,
     PassiveIdle,
-    ListenToken,
-    ActiveIdle,
+    ListenToken {
+        status_request: Option<crate::Address>,
+    },
+    ActiveIdle {
+        status_request: Option<crate::Address>,
+    },
     UseToken,
-    ClaimToken { first: bool },
+    ClaimToken {
+        first: bool,
+    },
     AwaitDataResponse,
     PassToken,
     CheckTokenPass,
@@ -96,7 +102,9 @@ impl State {
             self,
             State::ListenToken { .. } | State::Offline { .. } | State::ActiveIdle { .. }
         );
-        *self = State::ListenToken;
+        *self = State::ListenToken {
+            status_request: None,
+        };
     }
 
     fn transition_active_idle(&mut self) {
@@ -109,7 +117,9 @@ impl State {
                 | State::CheckTokenPass { .. }
                 | State::AwaitStatusResponse { .. }
         );
-        *self = State::ActiveIdle;
+        *self = State::ActiveIdle {
+            status_request: None,
+        };
     }
 
     fn transition_use_token(&mut self) {
@@ -409,6 +419,27 @@ impl FdlActiveStation {
 
         return_if_done!(self.handle_lost_token(now, phy));
 
+        let State::ListenToken { status_request } = &mut self.state else {
+            unreachable!()
+        };
+        if let Some(status_request_source) = *status_request {
+            return_if_done!(self.wait_synchronization_pause(now));
+            let tx_res = phy
+                .transmit_telegram(now, |tx| {
+                    Some(tx.send_fdl_status_response(
+                        status_request_source,
+                        self.p.address,
+                        crate::fdl::ResponseState::MasterNotReady,
+                        crate::fdl::ResponseStatus::Ok,
+                    ))
+                })
+                .unwrap();
+            self.state = State::ListenToken {
+                status_request: None,
+            };
+            return self.mark_tx(now, tx_res.bytes_sent());
+        }
+
         // TODO: Respond to status requests
         // TODO: Fill LAS
         // TODO: Detect address collision
@@ -423,7 +454,10 @@ impl FdlActiveStation {
                     if data_telegram.is_fdl_status_request().is_some()
                         && data_telegram.h.da == self.p.address =>
                 {
-                    log::warn!("TODO: Handle status request in ListenToken state");
+                    let State::ListenToken { status_request } = &mut self.state else {
+                        unreachable!()
+                    };
+                    *status_request = Some(data_telegram.h.sa);
                 }
                 _ => (),
             }
@@ -438,10 +472,28 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
-        debug_assert_state!(self.state, State::ActiveIdle);
+        debug_assert_state!(self.state, State::ActiveIdle { .. });
 
-        // Check for token lost timeout
-        todo!("do_active_idle")
+        return_if_done!(self.handle_lost_token(now, phy));
+
+        phy.receive_telegram(now, |telegram| {
+            self.mark_rx(now);
+
+            match telegram {
+                crate::fdl::Telegram::Token(token_telegram) => {
+                    log::warn!("TODO: Handle rx token telegram in ActiveIdle state");
+                }
+                crate::fdl::Telegram::Data(data_telegram)
+                    if data_telegram.is_fdl_status_request().is_some()
+                        && data_telegram.h.da == self.p.address =>
+                {
+                    log::warn!("TODO: Handle status request in ActiveIdle state");
+                }
+                _ => (),
+            }
+        });
+
+        PollDone::waiting_for_bus()
     }
 
     #[must_use = "poll done marker"]
@@ -558,7 +610,7 @@ impl FdlActiveStation {
                 // TODO: Check if these are all the states from which we can transition to passive
                 // idle
                 match &self.state {
-                    State::ActiveIdle | State::ListenToken { .. } | State::Offline => {
+                    State::ActiveIdle { .. } | State::ListenToken { .. } | State::Offline => {
                         self.state.transition_passive_idle();
                     }
                     State::PassiveIdle => (),

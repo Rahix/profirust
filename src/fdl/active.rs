@@ -315,7 +315,7 @@ impl FdlActiveStation {
         phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);
 
-            todo!("Need to implement ListenToken state handler")
+            log::warn!("TODO: Need to implement ListenToken state handler");
         });
 
         PollDone::waiting_for_bus()

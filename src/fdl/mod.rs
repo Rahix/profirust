@@ -11,8 +11,11 @@ mod telegram;
 mod token_ring;
 
 #[cfg(test)]
+mod test_active;
+#[cfg(test)]
 mod tests;
 
+pub use active::FdlActiveStation;
 pub use master::{ConnectivityState, FdlMaster};
 pub use parameters::{Parameters, ParametersBuilder};
 pub(crate) use token_ring::TokenRing;

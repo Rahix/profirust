@@ -49,6 +49,23 @@ enum State {
     AwaitStatusResponse,
 }
 
+impl State {
+    pub fn have_token(&self) -> bool {
+        match self {
+            State::Offline
+            | State::PassiveIdle
+            | State::ListenToken
+            | State::ActiveIdle
+            | State::PassToken
+            | State::CheckTokenPass => false,
+            State::ClaimToken { .. }
+            | State::UseToken
+            | State::AwaitDataResponse
+            | State::AwaitStatusResponse => true,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct FdlActiveStation {
     /// Parameters for the connected bus and this station
@@ -382,6 +399,8 @@ impl FdlActiveStation {
             self.state
         );
 
+        // TODO: GAPL update
+
         return_if_done!(self.wait_synchronization_pause(now));
         let tx_res = phy
             .transmit_telegram(now, |tx| {
@@ -396,6 +415,25 @@ impl FdlActiveStation {
         }
 
         self.mark_tx(now, tx_res.bytes_sent())
+    }
+
+    #[must_use = "poll done marker"]
+    fn do_check_token_pass<'a, PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+    ) -> PollDone {
+        debug_assert!(
+            matches!(self.state, State::CheckTokenPass),
+            "Wrong state for do_check_token_pass: {:?}",
+            self.state
+        );
+
+        // TODO: Actually check the token pass
+        log::trace!("Ignoring whether the token was received (TODO)!");
+
+        self.state = State::ActiveIdle;
+        PollDone::waiting_for_bus()
     }
 
     pub fn poll<'a, PHY: ProfibusPhy, APP: FdlApplication>(
@@ -451,6 +489,7 @@ impl FdlActiveStation {
             State::ClaimToken { .. } => self.do_claim_token(now, phy).into(),
             State::UseToken => self.do_use_token(now, phy).into(),
             State::PassToken => self.do_pass_token(now, phy).into(),
+            State::CheckTokenPass => self.do_check_token_pass(now, phy).into(),
             s => todo!("Active station state {s:?} not implemented yet!"),
         }
     }
@@ -482,7 +521,7 @@ mod tests {
         fdl.set_online();
 
         let mut now = crate::time::Instant::ZERO;
-        while now.total_millis() < 1000 {
+        while now.total_millis() < 200 {
             fdl.poll(now, &mut phy, &mut ());
 
             now += crate::time::Duration::from_micros(100);

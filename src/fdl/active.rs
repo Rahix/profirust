@@ -218,6 +218,17 @@ impl FdlActiveStation {
         }
     }
 
+    /// Wait for 33 bit times since last bus activity.
+    ///
+    /// This synchronization pause is required before every transmission.
+    fn wait_synchronization_pause(&mut self, now: crate::time::Instant) -> Option<PollDone> {
+        if now <= (*self.last_bus_activity.get_or_insert(now) + self.p.bits_to_time(33)) {
+            Some(PollDone::waiting_for_delay())
+        } else {
+            None
+        }
+    }
+
     /// Marks transmission starting `now` and continuing for `bytes` length.
     fn mark_tx(&mut self, now: crate::time::Instant, bytes: usize) -> PollDone {
         self.last_bus_activity = Some(
@@ -318,8 +329,7 @@ impl FdlActiveStation {
         );
 
         // The token is claimed by sending a telegram to ourselves twice.
-        let token_telegram = crate::fdl::TokenTelegram::new(self.p.address, self.p.address);
-
+        return_if_done!(self.wait_synchronization_pause(now));
         let tx_res = phy
             .transmit_telegram(now, |tx| {
                 Some(tx.send_token_telegram(self.p.address, self.p.address))
@@ -333,9 +343,56 @@ impl FdlActiveStation {
             }
             State::ClaimToken { first: false } => {
                 // Now we have claimed the token and can proceed to use it.
-                todo!()
+                self.state = State::UseToken;
             }
             _ => unreachable!(),
+        }
+
+        self.mark_tx(now, tx_res.bytes_sent())
+    }
+
+    #[must_use = "poll done marker"]
+    fn do_use_token<'a, PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+    ) -> PollDone {
+        debug_assert!(
+            matches!(self.state, State::UseToken),
+            "Wrong state for do_use_token: {:?}",
+            self.state
+        );
+
+        // TODO: Rotation timer
+        // TODO: Message exchange cycles
+
+        self.state = State::PassToken;
+        PollDone::waiting_for_delay()
+    }
+
+    #[must_use = "poll done marker"]
+    fn do_pass_token<'a, PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+    ) -> PollDone {
+        debug_assert!(
+            matches!(self.state, State::PassToken),
+            "Wrong state for do_pass_token: {:?}",
+            self.state
+        );
+
+        return_if_done!(self.wait_synchronization_pause(now));
+        let tx_res = phy
+            .transmit_telegram(now, |tx| {
+                Some(tx.send_token_telegram(self.token_ring.next_station(), self.p.address))
+            })
+            .unwrap();
+
+        if self.token_ring.next_station() == self.p.address {
+            self.state = State::UseToken;
+        } else {
+            self.state = State::CheckTokenPass;
         }
 
         self.mark_tx(now, tx_res.bytes_sent())
@@ -391,6 +448,9 @@ impl FdlActiveStation {
         match &self.state {
             State::Offline => unreachable!(),
             State::ListenToken => self.do_listen_token(now, phy).into(),
+            State::ClaimToken { .. } => self.do_claim_token(now, phy).into(),
+            State::UseToken => self.do_use_token(now, phy).into(),
+            State::PassToken => self.do_pass_token(now, phy).into(),
             s => todo!("Active station state {s:?} not implemented yet!"),
         }
     }
@@ -422,10 +482,11 @@ mod tests {
         fdl.set_online();
 
         let mut now = crate::time::Instant::ZERO;
-        while now.total_millis() < 100000 {
+        while now.total_millis() < 1000 {
             fdl.poll(now, &mut phy, &mut ());
 
             now += crate::time::Duration::from_micros(100);
+            phy.set_bus_time(now);
             crate::test_utils::set_log_timestamp(now);
         }
     }

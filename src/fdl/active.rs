@@ -35,14 +35,14 @@ impl ConnectivityState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum State {
     Offline,
     PassiveIdle,
     ListenToken,
     ActiveIdle,
     UseToken,
-    ClaimToken,
+    ClaimToken { first: bool },
     AwaitDataResponse,
     PassToken,
     CheckTokenPass,
@@ -260,8 +260,9 @@ impl FdlActiveStation {
             } else {
                 log::info!("Generating new token due to silent bus.");
             }
-            // Some(self.generate_new_token(now, phy))
-            todo!("Generate new token")
+
+            self.state = State::ClaimToken { first: true };
+            Some(self.do_claim_token(now, phy))
         } else {
             None
         }
@@ -276,8 +277,20 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
-        // Check for token lost timeout
-        todo!()
+        debug_assert_eq!(self.state, State::ListenToken);
+
+        return_if_done!(self.handle_lost_token(now, phy));
+
+        // TODO: Respond to status requests
+        // TODO: Fill LAS
+        // TODO: Detect address collision
+        phy.receive_telegram(now, |telegram| {
+            self.mark_rx(now);
+
+            todo!("Need to implement ListenToken state handler")
+        });
+
+        PollDone::waiting_for_bus()
     }
 
     #[must_use = "poll done marker"]
@@ -286,8 +299,46 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
+        debug_assert_eq!(self.state, State::ActiveIdle);
+
         // Check for token lost timeout
-        todo!()
+        todo!("do_active_idle")
+    }
+
+    #[must_use = "poll done marker"]
+    fn do_claim_token<'a, PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+    ) -> PollDone {
+        debug_assert!(
+            matches!(self.state, State::ClaimToken { .. }),
+            "Wrong state for do_claim_token: {:?}",
+            self.state
+        );
+
+        // The token is claimed by sending a telegram to ourselves twice.
+        let token_telegram = crate::fdl::TokenTelegram::new(self.p.address, self.p.address);
+
+        let tx_res = phy
+            .transmit_telegram(now, |tx| {
+                Some(tx.send_token_telegram(self.p.address, self.p.address))
+            })
+            .unwrap();
+
+        match self.state {
+            State::ClaimToken { first: true } => {
+                // This will lead to sending the claim token telegram again
+                self.state = State::ClaimToken { first: false };
+            }
+            State::ClaimToken { first: false } => {
+                // Now we have claimed the token and can proceed to use it.
+                todo!()
+            }
+            _ => unreachable!(),
+        }
+
+        self.mark_tx(now, tx_res.bytes_sent())
     }
 
     pub fn poll<'a, PHY: ProfibusPhy, APP: FdlApplication>(
@@ -371,10 +422,11 @@ mod tests {
         fdl.set_online();
 
         let mut now = crate::time::Instant::ZERO;
-        while now.total_millis() < 2000 {
+        while now.total_millis() < 100000 {
             fdl.poll(now, &mut phy, &mut ());
 
             now += crate::time::Duration::from_micros(100);
+            crate::test_utils::set_log_timestamp(now);
         }
     }
 }

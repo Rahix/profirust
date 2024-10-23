@@ -424,31 +424,44 @@ impl FdlActiveStation {
         };
         if let Some(status_request_source) = *status_request {
             return_if_done!(self.wait_synchronization_pause(now));
+
+            let state = if self.token_ring.ready_for_ring() {
+                crate::fdl::ResponseState::MasterWithoutToken
+            } else {
+                crate::fdl::ResponseState::MasterNotReady
+            };
+
             let tx_res = phy
                 .transmit_telegram(now, |tx| {
                     Some(tx.send_fdl_status_response(
                         status_request_source,
                         self.p.address,
-                        crate::fdl::ResponseState::MasterNotReady,
+                        state,
                         crate::fdl::ResponseStatus::Ok,
                     ))
                 })
                 .unwrap();
-            self.state = State::ListenToken {
-                status_request: None,
-            };
+
+            if self.token_ring.ready_for_ring() {
+                self.state.transition_active_idle();
+            } else {
+                self.state = State::ListenToken {
+                    status_request: None,
+                };
+            }
             return self.mark_tx(now, tx_res.bytes_sent());
         }
 
-        // TODO: Respond to status requests
-        // TODO: Fill LAS
-        // TODO: Detect address collision
         phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);
 
+            if telegram.source_address() == Some(self.p.address) {
+                log::warn!("TODO: Properly deal with the address collision we just detected!");
+            }
+
             match telegram {
                 crate::fdl::Telegram::Token(token_telegram) => {
-                    log::warn!("TODO: Handle rx token telegram in ListenToken state");
+                    log::warn!("TODO: Handle rx token telegram in ListenToken state (Fill LAS)");
                 }
                 crate::fdl::Telegram::Data(data_telegram)
                     if data_telegram.is_fdl_status_request().is_some()

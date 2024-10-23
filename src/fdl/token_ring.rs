@@ -1,6 +1,6 @@
 /// Status of the `LAS` (List of Active Stations)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LasState {
+enum LasState {
     /// We are listening to the first token rotation to discover all active stations.
     Discovery,
     /// We are listening to the second token rotation to verify correctness of the LAS.

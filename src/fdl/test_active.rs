@@ -162,6 +162,42 @@ impl FdlActiveUnderTest {
     pub fn assert_idle_bits(&mut self, bits: u32) {
         self.assert_idle_time(self.bits_to_time(bits));
     }
+
+    pub fn prepare_two_station_ring(&mut self) {
+        self.advance_bus_time_sync_pause();
+        self.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
+        self.wait_transmission();
+
+        self.advance_bus_time_sync_pause();
+        self.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
+        self.wait_transmission();
+
+        self.advance_bus_time_sync_pause();
+        self.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
+        self.wait_transmission();
+
+        self.advance_bus_time_sync_pause();
+        self.transmit_telegram(|tx| Some(tx.send_fdl_status_request(7, 15)));
+        self.wait_transmission();
+
+        self.assert_next_telegram(fdl::Telegram::Data(fdl::DataTelegram {
+            h: fdl::DataTelegramHeader {
+                da: 15,
+                sa: 7,
+                dsap: None,
+                ssap: None,
+                fc: fdl::FunctionCode::Response {
+                    state: fdl::ResponseState::MasterWithoutToken,
+                    status: fdl::ResponseStatus::Ok,
+                },
+            },
+            pdu: &[],
+        }));
+
+        self.advance_bus_time_sync_pause();
+        self.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
+        self.wait_transmission();
+    }
 }
 
 /// Test that an active station sends a claimed token twice before doing anything else.
@@ -420,39 +456,7 @@ fn test_active_station_resends_token() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::new(7);
 
-    fdl_ut.advance_bus_time_sync_pause();
-    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
-    fdl_ut.wait_transmission();
-
-    fdl_ut.advance_bus_time_sync_pause();
-    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
-    fdl_ut.wait_transmission();
-
-    fdl_ut.advance_bus_time_sync_pause();
-    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
-    fdl_ut.wait_transmission();
-
-    fdl_ut.advance_bus_time_sync_pause();
-    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(7, 15)));
-    fdl_ut.wait_transmission();
-
-    fdl_ut.assert_next_telegram(fdl::Telegram::Data(fdl::DataTelegram {
-        h: fdl::DataTelegramHeader {
-            da: 15,
-            sa: 7,
-            dsap: None,
-            ssap: None,
-            fc: fdl::FunctionCode::Response {
-                state: fdl::ResponseState::MasterWithoutToken,
-                status: fdl::ResponseStatus::Ok,
-            },
-        },
-        pdu: &[],
-    }));
-
-    fdl_ut.advance_bus_time_sync_pause();
-    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
-    fdl_ut.wait_transmission();
+    fdl_ut.prepare_two_station_ring();
 
     fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 
@@ -495,39 +499,7 @@ fn test_active_station_replies_after_token_pass() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::new(7);
 
-    fdl_ut.advance_bus_time_sync_pause();
-    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
-    fdl_ut.wait_transmission();
-
-    fdl_ut.advance_bus_time_sync_pause();
-    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
-    fdl_ut.wait_transmission();
-
-    fdl_ut.advance_bus_time_sync_pause();
-    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
-    fdl_ut.wait_transmission();
-
-    fdl_ut.advance_bus_time_sync_pause();
-    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(7, 15)));
-    fdl_ut.wait_transmission();
-
-    fdl_ut.assert_next_telegram(fdl::Telegram::Data(fdl::DataTelegram {
-        h: fdl::DataTelegramHeader {
-            da: 15,
-            sa: 7,
-            dsap: None,
-            ssap: None,
-            fc: fdl::FunctionCode::Response {
-                state: fdl::ResponseState::MasterWithoutToken,
-                status: fdl::ResponseStatus::Ok,
-            },
-        },
-        pdu: &[],
-    }));
-
-    fdl_ut.advance_bus_time_sync_pause();
-    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
-    fdl_ut.wait_transmission();
+    fdl_ut.prepare_two_station_ring();
 
     fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 

@@ -41,6 +41,7 @@ enum State {
     PassiveIdle,
     ListenToken {
         status_request: Option<crate::Address>,
+        collision_count: u8,
     },
     ActiveIdle {
         status_request: Option<crate::Address>,
@@ -104,6 +105,7 @@ impl State {
         );
         *self = State::ListenToken {
             status_request: None,
+            collision_count: 0,
         };
     }
 
@@ -419,10 +421,12 @@ impl FdlActiveStation {
 
         return_if_done!(self.handle_lost_token(now, phy));
 
-        let State::ListenToken { status_request } = &mut self.state else {
-            unreachable!()
-        };
-        if let Some(status_request_source) = *status_request {
+        // Handle pending response to a telegram request we received
+        if let State::ListenToken {
+            status_request: Some(status_request_source),
+            collision_count,
+        } = self.state
+        {
             return_if_done!(self.wait_synchronization_pause(now));
 
             let state = if self.token_ring.ready_for_ring() {
@@ -447,27 +451,49 @@ impl FdlActiveStation {
             } else {
                 self.state = State::ListenToken {
                     status_request: None,
+                    collision_count,
                 };
             }
             return self.mark_tx(now, tx_res.bytes_sent());
         }
 
+        // Handle received telegrams
         phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);
 
+            // Handle address collision detection
             if telegram.source_address() == Some(self.p.address) {
-                log::warn!("TODO: Properly deal with the address collision we just detected!");
+                let State::ListenToken { collision_count, .. } = &mut self.state else {
+                    unreachable!()
+                };
+
+                *collision_count += 1;
+
+                match *collision_count {
+                    1 => {
+                        log::warn!("Witnessed collision of another active station with own address (#{})!", self.p.address);
+                    }
+                    2 | _ => {
+                        log::warn!("Witnessed second collision of another active station with own address (#{}), going offline.", self.p.address);
+                        self.set_offline();
+                    }
+                }
+                return;
             }
 
             match telegram {
+                // Handle witnessing a token telegram
                 crate::fdl::Telegram::Token(token_telegram) => {
                     log::warn!("TODO: Handle rx token telegram in ListenToken state (Fill LAS)");
                 }
+
+                // Handle FDL requests sent to us
                 crate::fdl::Telegram::Data(data_telegram)
                     if data_telegram.is_fdl_status_request().is_some()
                         && data_telegram.h.da == self.p.address =>
                 {
-                    let State::ListenToken { status_request } = &mut self.state else {
+
+                    let State::ListenToken { status_request, .. } = &mut self.state else {
                         unreachable!()
                     };
                     *status_request = Some(data_telegram.h.sa);

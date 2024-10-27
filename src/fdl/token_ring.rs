@@ -67,7 +67,9 @@ impl TokenRing {
         }
     }
 
-    pub fn iter_active_stations(&self) -> impl Iterator<Item = crate::Address> + '_ {
+    pub fn iter_active_stations(
+        &self,
+    ) -> impl Iterator<Item = crate::Address> + DoubleEndedIterator + '_ {
         self.active_stations
             .iter_ones()
             .map(|a| u8::try_from(a).unwrap())
@@ -131,6 +133,30 @@ impl TokenRing {
         // the LAS.  The destination will be added later, when it actively forwards the token
         // itself.
         self.active_stations.set(usize::from(sa), true);
+
+        let next_station =
+            if let Some(next) = self.iter_active_stations().find(|a| *a > self.this_station) {
+                next
+            } else if let Some(first) = self.iter_active_stations().next() {
+                first
+            } else {
+                self.this_station
+            };
+
+        let previous_station = if let Some(previous) = self
+            .iter_active_stations()
+            .rev()
+            .find(|a| *a < self.this_station)
+        {
+            previous
+        } else if let Some(last) = self.iter_active_stations().rev().next() {
+            last
+        } else {
+            self.this_station
+        };
+
+        self.next_station = next_station;
+        self.previous_station = previous_station;
     }
 
     pub fn witness_token_pass(&mut self, sa: crate::Address, da: crate::Address) {
@@ -241,6 +267,8 @@ mod tests {
 
         assert_eq!(token_ring.las_state, LasState::Valid);
         assert!(token_ring.ready_for_ring());
+        assert_eq!(token_ring.next_station(), 15);
+        assert_eq!(token_ring.previous_station(), 3);
     }
 
     proptest! {
@@ -326,6 +354,12 @@ mod tests {
 
             let known_stations = token_ring.iter_active_stations().collect::<Vec<_>>();
             assert_eq!(active_stations, known_stations);
+
+            let next = active_stations.iter().copied().find(|a| *a > 7).or_else(|| active_stations.iter().copied().next()).unwrap();
+            assert_eq!(token_ring.next_station(), next);
+
+            let previous = active_stations.iter().rev().copied().find(|a| *a < 7).or_else(|| active_stations.iter().rev().copied().next()).unwrap();
+            assert_eq!(token_ring.previous_station(), previous);
         }
     }
 }

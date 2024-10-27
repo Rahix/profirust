@@ -484,7 +484,7 @@ impl FdlActiveStation {
             match telegram {
                 // Handle witnessing a token telegram
                 crate::fdl::Telegram::Token(token_telegram) => {
-                    log::warn!("TODO: Handle rx token telegram in ListenToken state (Fill LAS)");
+                    self.token_ring.witness_token_pass(token_telegram.sa, token_telegram.da);
                 }
 
                 // Handle FDL requests sent to us
@@ -676,6 +676,7 @@ impl FdlActiveStation {
             State::UseToken => self.do_use_token(now, phy).into(),
             State::PassToken => self.do_pass_token(now, phy).into(),
             State::CheckTokenPass => self.do_check_token_pass(now, phy).into(),
+            State::ActiveIdle { .. } => self.do_active_idle(now, phy).into(),
             s => todo!("Active station state {s:?} not implemented yet!"),
         }
     }

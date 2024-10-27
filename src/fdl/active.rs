@@ -813,10 +813,31 @@ impl FdlActiveStation {
     ) -> PollDone {
         debug_assert_state!(self.state, State::CheckTokenPass);
 
-        // TODO: Actually check the token pass
-        log::trace!("Ignoring whether the token was received (TODO)!");
+        if self.check_slot_expired(now) {
+            log::warn!(
+                "Token was apparently not received by #{}, resending...",
+                self.token_ring.next_station()
+            );
+            self.state.transition_pass_token(false);
+            return PollDone::waiting_for_delay();
+        }
 
-        self.state.transition_active_idle();
+        phy.receive_telegram(now, |telegram| {
+            self.mark_rx(now);
+
+            if telegram.source_address() != Some(self.token_ring.next_station()) {
+                log::warn!(
+                    "Unexpected station #{} transmitting after token pass to #{}",
+                    telegram.source_address().unwrap(),
+                    self.token_ring.next_station()
+                );
+            }
+
+            // TODO: Handle telegrams directed at us (token or status request)
+
+            self.state.transition_active_idle();
+        });
+
         PollDone::waiting_for_bus()
     }
 

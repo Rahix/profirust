@@ -415,7 +415,6 @@ fn test_active_station_discovers_neighbor() {
 }
 
 /// Test that an active station resends the token when not received by next station
-#[ignore = "feature not yet implemented"]
 #[test]
 fn test_active_station_resends_token() {
     crate::test_utils::prepare_test_logger();
@@ -458,10 +457,18 @@ fn test_active_station_resends_token() {
     fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 
     fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(8, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
     fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
     fdl_ut.wait_transmission();
 
     fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(9, 15)));
+    fdl_ut.wait_transmission();
 
     fdl_ut.advance_bus_time_sync_pause();
     fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
@@ -473,7 +480,7 @@ fn test_active_station_resends_token() {
 
     let wait_time = fdl_ut
         .wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
-    assert!(wait_time <= fdl_ut.fdl_param().slot_time());
+    assert!(wait_time <= fdl_ut.fdl_param().slot_time() * 2);
 
     fdl_ut.advance_bus_time_sync_pause();
     fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));

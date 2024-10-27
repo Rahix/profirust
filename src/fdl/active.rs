@@ -35,6 +35,28 @@ impl ConnectivityState {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum GapState {
+    /// Waiting for some time until the next gap polling cycle is performed.
+    ///
+    /// The `rotation_count` value is the number of token rotations since the last polling cycle.
+    Waiting { rotation_count: u8 },
+
+    /// A poll of the given address is scheduled next.
+    NextPoll { next_addr: crate::Address },
+}
+
+impl GapState {
+    pub fn increment_wait(&mut self) {
+        match self {
+            GapState::Waiting {
+                ref mut rotation_count,
+            } => *rotation_count += 1,
+            _ => (),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum State {
     Offline,
@@ -51,9 +73,13 @@ enum State {
         first: bool,
     },
     AwaitDataResponse,
-    PassToken,
+    PassToken {
+        do_gap: bool,
+    },
     CheckTokenPass,
-    AwaitStatusResponse,
+    AwaitStatusResponse {
+        address: crate::Address,
+    },
 }
 
 macro_rules! debug_assert_state {
@@ -152,7 +178,7 @@ impl State {
         *self = State::AwaitDataResponse;
     }
 
-    fn transition_pass_token(&mut self) {
+    fn transition_pass_token(&mut self, do_gap: bool) {
         debug_assert_state!(
             self,
             State::PassToken { .. }
@@ -161,7 +187,7 @@ impl State {
                 | State::CheckTokenPass { .. }
                 | State::AwaitStatusResponse { .. }
         );
-        *self = State::PassToken;
+        *self = State::PassToken { do_gap };
     }
 
     fn transition_check_token_pass(&mut self) {
@@ -169,12 +195,12 @@ impl State {
         *self = State::CheckTokenPass;
     }
 
-    fn transition_await_status_response(&mut self) {
+    fn transition_await_status_response(&mut self, address: crate::Address) {
         debug_assert_state!(
             self,
             State::AwaitStatusResponse { .. } | State::PassToken { .. }
         );
-        *self = State::AwaitStatusResponse;
+        *self = State::AwaitStatusResponse { address };
     }
 }
 
@@ -188,6 +214,9 @@ pub struct FdlActiveStation {
 
     /// Connectivity status of this station
     connectivity_state: ConnectivityState,
+
+    // State of GAP polling
+    gap_state: GapState,
 
     /// State of the active station
     state: State,
@@ -210,6 +239,9 @@ impl FdlActiveStation {
             token_ring: crate::fdl::TokenRing::new(&param),
             // A station must always start offline
             connectivity_state: ConnectivityState::Offline,
+            gap_state: GapState::NextPoll {
+                next_addr: param.address.wrapping_add(1),
+            },
             state: State::Offline,
             last_bus_activity: None,
             pending_bytes: 0,
@@ -382,6 +414,29 @@ impl FdlActiveStation {
         self.pending_bytes = 0;
         self.mark_bus_activity(now);
     }
+
+    /// Check whether the time to respond has passed without initiation of a response.
+    fn check_slot_expired(&mut self, now: crate::time::Instant) -> bool {
+        // We have two situations:
+        // 1. Either the slot expires without any repsonse activity at all
+        // 2. Or we received some bytes, but not a full telegram
+        let last_bus_activity = *self.last_bus_activity.get_or_insert(now);
+        if self.pending_bytes == 0 {
+            now > (last_bus_activity + self.p.slot_time())
+        } else {
+            // TODO: Technically, no inter-character delay is allowed at all but we are in a rough
+            // spot here.  The peripheral will most likely continue transmitting data in a short
+            // while so let's be conservative and wait an entire slot time again after partial
+            // receival.
+            //
+            // The tricky part here is that this timeout also becomes very relevant on non-realtime
+            // systems like a vanilla Linux where PROFIBUS communication happens over USB.  We can
+            // have longer delays between consecutive characters there.  For example, sometimes
+            // data is received in chunks of 32 bytes.  This obviously looks like a large
+            // inter-character delay that we need to be robust against.
+            now > (last_bus_activity + self.p.slot_time())
+        }
+    }
 }
 
 impl FdlActiveStation {
@@ -405,6 +460,24 @@ impl FdlActiveStation {
             Some(self.do_claim_token(now, phy))
         } else {
             None
+        }
+    }
+
+    fn next_gap_poll(&self, addr: u8) -> GapState {
+        let next_station = self.token_ring.next_station();
+        if addr >= next_station && next_station > self.p.address {
+            // Don't poll beyond the gap.
+            GapState::Waiting { rotation_count: 0 }
+        } else if (addr + 1) == self.p.address {
+            // Don't poll self.
+            GapState::Waiting { rotation_count: 0 }
+        } else if addr == (self.p.highest_station_address - 1) {
+            // Wrap around.
+            GapState::NextPoll { next_addr: 0 }
+        } else {
+            GapState::NextPoll {
+                next_addr: addr + 1,
+            }
         }
     }
 }
@@ -631,7 +704,7 @@ impl FdlActiveStation {
         // TODO: Rotation timer
         // TODO: Message exchange cycles
 
-        self.state.transition_pass_token();
+        self.state.transition_pass_token(true);
         PollDone::waiting_for_delay()
     }
 
@@ -641,11 +714,34 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
-        debug_assert_state!(self.state, State::PassToken);
-
-        // TODO: GAPL update
+        debug_assert_state!(self.state, State::PassToken { .. });
 
         return_if_done!(self.wait_synchronization_pause(now));
+
+        if let State::PassToken { do_gap: true } = self.state {
+            if let GapState::Waiting { rotation_count } = self.gap_state {
+                if rotation_count > self.p.gap_wait_rotations {
+                    // We're done waiting, do a poll now!
+                    log::debug!("Starting next gap polling cycle!");
+                    self.gap_state = self.next_gap_poll(self.p.address);
+                }
+            }
+
+            if let GapState::NextPoll { next_addr } = self.gap_state {
+                self.gap_state = self.next_gap_poll(next_addr);
+
+                let tx_res = phy
+                    .transmit_telegram(now, |tx| {
+                        Some(tx.send_fdl_status_request(next_addr, self.p.address))
+                    })
+                    .unwrap();
+
+                self.state.transition_await_status_response(next_addr);
+
+                return self.mark_tx(now, tx_res.bytes_sent());
+            }
+        }
+
         let tx_res = phy
             .transmit_telegram(now, |tx| {
                 Some(tx.send_token_telegram(self.token_ring.next_station(), self.p.address))
@@ -659,6 +755,54 @@ impl FdlActiveStation {
         }
 
         self.mark_tx(now, tx_res.bytes_sent())
+    }
+
+    #[must_use = "poll done marker"]
+    fn do_await_status_response<'a, PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+    ) -> PollDone {
+        debug_assert_state!(self.state, State::AwaitStatusResponse { .. });
+
+        let State::AwaitStatusResponse { address, .. } = self.state else {
+            unreachable!()
+        };
+
+        let received = phy.receive_telegram(now, |telegram| {
+            self.mark_rx(now);
+
+            if let crate::fdl::Telegram::Data(telegram) = &telegram {
+                if telegram.h.sa == address && telegram.h.da == self.p.address {
+                    if let crate::fdl::FunctionCode::Response { state, status } = telegram.h.fc {
+                        log::trace!("Address #{address} responded");
+                        if status == crate::fdl::ResponseStatus::Ok
+                            && matches!(state, crate::fdl::ResponseState::MasterWithoutToken | crate::fdl::ResponseState::MasterInRing) {
+                            self.token_ring.set_next_station(address);
+                        }
+                        self.state.transition_pass_token(false);
+                        return PollDone::waiting_for_delay();
+                    }
+                }
+
+            }
+
+            log::warn!("Received unexpected telegram while waiting for status reply from #{address}: {telegram:?}");
+            self.state.transition_active_idle();
+            PollDone::waiting_for_bus()
+        });
+
+        if let Some(res) = received {
+            return res;
+        }
+
+        if self.check_slot_expired(now) {
+            log::trace!("No reply from #{address}");
+            self.state.transition_pass_token(false);
+            PollDone::waiting_for_delay()
+        } else {
+            PollDone::waiting_for_bus()
+        }
     }
 
     #[must_use = "poll done marker"]
@@ -724,13 +868,14 @@ impl FdlActiveStation {
         return_if_done!(self.check_for_ongoing_transmision(now, phy));
 
         match &self.state {
-            State::Offline => unreachable!(),
+            State::Offline { .. } => unreachable!(),
             State::ListenToken { .. } => self.do_listen_token(now, phy).into(),
             State::ClaimToken { .. } => self.do_claim_token(now, phy).into(),
-            State::UseToken => self.do_use_token(now, phy).into(),
-            State::PassToken => self.do_pass_token(now, phy).into(),
-            State::CheckTokenPass => self.do_check_token_pass(now, phy).into(),
+            State::UseToken { .. } => self.do_use_token(now, phy).into(),
+            State::PassToken { .. } => self.do_pass_token(now, phy).into(),
+            State::CheckTokenPass { .. } => self.do_check_token_pass(now, phy).into(),
             State::ActiveIdle { .. } => self.do_active_idle(now, phy).into(),
+            State::AwaitStatusResponse { .. } => self.do_await_status_response(now, phy).into(),
             s => todo!("Active station state {s:?} not implemented yet!"),
         }
     }

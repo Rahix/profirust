@@ -385,7 +385,6 @@ fn test_two_rotations_before_ready() {
 }
 
 /// Test that an active station discovers another active neighbor station.
-#[ignore = "feature not yet implemented"]
 #[test]
 fn test_active_station_discovers_neighbor() {
     crate::test_utils::prepare_test_logger();

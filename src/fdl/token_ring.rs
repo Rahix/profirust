@@ -155,6 +155,13 @@ impl TokenRing {
             self.this_station
         };
 
+        if self.next_station != next_station {
+            log::trace!("New NS is #{next_station}");
+        }
+        if self.previous_station != previous_station {
+            log::trace!("New PS is #{previous_station}");
+        }
+
         self.next_station = next_station;
         self.previous_station = previous_station;
     }
@@ -190,6 +197,11 @@ impl TokenRing {
                 self.update_las_from_token_pass(sa, da);
             }
         }
+    }
+
+    pub fn set_next_station(&mut self, address: crate::Address) {
+        self.active_stations.set(usize::from(address), true);
+        self.update_las_from_token_pass(self.this_station, address);
     }
 }
 

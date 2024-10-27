@@ -485,13 +485,14 @@ impl FdlActiveStation {
                         self.set_offline();
                     }
                 }
-                return;
+                return PollDone::waiting_for_bus();
             }
 
             match telegram {
                 // Handle witnessing a token telegram
                 crate::fdl::Telegram::Token(token_telegram) => {
                     self.token_ring.witness_token_pass(token_telegram.sa, token_telegram.da);
+                    PollDone::waiting_for_bus()
                 }
 
                 // Handle FDL requests sent to us
@@ -504,12 +505,11 @@ impl FdlActiveStation {
                         unreachable!()
                     };
                     *status_request = Some(data_telegram.h.sa);
+                    PollDone::waiting_for_delay()
                 }
-                _ => (),
+                _ => PollDone::waiting_for_bus(),
             }
-        });
-
-        PollDone::waiting_for_bus()
+        }).unwrap_or(PollDone::waiting_for_bus())
     }
 
     #[must_use = "poll done marker"]

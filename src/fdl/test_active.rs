@@ -486,3 +486,54 @@ fn test_active_station_resends_token() {
     fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
     fdl_ut.wait_transmission();
 }
+
+/// Test that an active station is able to respond to telegrams immediately after it passed the
+/// token
+#[ignore = "not yet implemented"]
+#[test]
+fn test_active_station_replies_after_token_pass() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::new(7);
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(7, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.assert_next_telegram(fdl::Telegram::Data(fdl::DataTelegram {
+        h: fdl::DataTelegramHeader {
+            da: 15,
+            sa: 7,
+            dsap: None,
+            ssap: None,
+            fc: fdl::FunctionCode::Response {
+                state: fdl::ResponseState::MasterWithoutToken,
+                status: fdl::ResponseStatus::Ok,
+            },
+        },
+        pdu: &[],
+    }));
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.assert_next_telegram(fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+}

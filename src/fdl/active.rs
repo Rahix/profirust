@@ -429,7 +429,11 @@ impl FdlActiveStation {
         {
             return_if_done!(self.wait_synchronization_pause(now));
 
-            let state = if self.token_ring.ready_for_ring() {
+            // We must only respond to be ready (=without token) when the request is sent by our
+            // known previous neighbor station.
+            let state = if self.token_ring.ready_for_ring()
+                && status_request_source == self.token_ring.previous_station()
+            {
                 crate::fdl::ResponseState::MasterWithoutToken
             } else {
                 crate::fdl::ResponseState::MasterNotReady
@@ -474,7 +478,10 @@ impl FdlActiveStation {
                         log::warn!("Witnessed collision of another active station with own address (#{})!", self.p.address);
                     }
                     2 | _ => {
-                        log::warn!("Witnessed second collision of another active station with own address (#{}), going offline.", self.p.address);
+                        log::warn!(
+                            "Witnessed second collision of another active station with own address (#{}), going offline.",
+                            self.p.address,
+                        );
                         self.set_offline();
                     }
                 }

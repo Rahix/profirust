@@ -522,24 +522,71 @@ impl FdlActiveStation {
 
         return_if_done!(self.handle_lost_token(now, phy));
 
+        // Handle pending response to a telegram request we received
+        if let State::ActiveIdle {
+            status_request: Some(status_request_source),
+            ..
+        } = self.state
+        {
+            return_if_done!(self.wait_synchronization_pause(now));
+
+            let tx_res = phy
+                .transmit_telegram(now, |tx| {
+                    Some(tx.send_fdl_status_response(
+                        status_request_source,
+                        self.p.address,
+                        crate::fdl::ResponseState::MasterInRing,
+                        crate::fdl::ResponseStatus::Ok,
+                    ))
+                })
+                .unwrap();
+
+            let State::ActiveIdle { status_request, .. } = &mut self.state else {
+                unreachable!()
+            };
+            *status_request = None;
+
+            return self.mark_tx(now, tx_res.bytes_sent());
+        }
+
         phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);
 
             match telegram {
+                // Handle any token telegrams
                 crate::fdl::Telegram::Token(token_telegram) => {
-                    log::warn!("TODO: Handle rx token telegram in ActiveIdle state");
+                    self.token_ring
+                        .witness_token_pass(token_telegram.sa, token_telegram.da);
+
+                    if token_telegram.da != self.p.address {
+                        PollDone::waiting_for_bus()
+                    } else {
+                        // We may only accept the token from the known neighbor (on their first try)
+                        if token_telegram.sa == self.token_ring.previous_station() {
+                            self.state.transition_use_token();
+                            PollDone::waiting_for_delay()
+                        } else {
+                            log::warn!("TODO: Handle token from unknown neighbor");
+                            PollDone::waiting_for_bus()
+                        }
+                    }
                 }
+
+                // Handle FDL requests sent to us
                 crate::fdl::Telegram::Data(data_telegram)
                     if data_telegram.is_fdl_status_request().is_some()
                         && data_telegram.h.da == self.p.address =>
                 {
-                    log::warn!("TODO: Handle status request in ActiveIdle state");
+                    let State::ActiveIdle { status_request, .. } = &mut self.state else {
+                        unreachable!()
+                    };
+                    *status_request = Some(data_telegram.h.sa);
+                    PollDone::waiting_for_delay()
                 }
-                _ => (),
+                _ => PollDone::waiting_for_bus(),
             }
-        });
-
-        PollDone::waiting_for_bus()
+        })
+        .unwrap_or(PollDone::waiting_for_bus())
     }
 
     #[must_use = "poll done marker"]

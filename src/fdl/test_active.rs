@@ -381,6 +381,5 @@ fn test_two_rotations_before_ready() {
     fdl_ut.advance_bus_time_sync_pause();
     fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 4)));
 
-    // TODO: Have active station forward the token now
-    // fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 }

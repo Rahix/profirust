@@ -165,12 +165,14 @@ impl TokenRing {
             LasState::Uninitialized => {
                 if da <= sa {
                     self.las_state = LasState::Discovery;
+                    log::trace!("Starting discovery of active stations...");
                 }
             }
             LasState::Discovery => {
                 self.update_las_from_token_pass(sa, da);
                 if da <= sa {
                     self.las_state = LasState::Verification;
+                    log::trace!("Starting verification of active stations list...");
                 }
             }
             LasState::Verification => {
@@ -178,8 +180,10 @@ impl TokenRing {
                 if !self.verify_las_from_token_pass(sa, da) {
                     self.update_las_from_token_pass(sa, da);
                     self.las_state = LasState::Discovery;
+                    log::trace!("Rediscovering active stations due to a change...");
                 } else if da <= sa {
                     self.las_state = LasState::Valid;
+                    log::trace!("List of active stations is complete!");
                 }
             }
             LasState::Valid => {

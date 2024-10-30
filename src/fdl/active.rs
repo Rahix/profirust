@@ -204,6 +204,54 @@ impl State {
     }
 }
 
+/// Accessors for state-specific fields.  These accessors panic when trying to access a field
+/// from a different state.
+impl State {
+    fn get_listen_token_status_request(&mut self) -> &mut Option<crate::Address> {
+        match self {
+            Self::ListenToken { status_request, .. } => status_request,
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_listen_token_collision_count(&mut self) -> &mut u8 {
+        match self {
+            Self::ListenToken {
+                collision_count, ..
+            } => collision_count,
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_active_idle_status_request(&mut self) -> &mut Option<crate::Address> {
+        match self {
+            Self::ActiveIdle { status_request, .. } => status_request,
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_claim_token_first(&mut self) -> &mut bool {
+        match self {
+            Self::ClaimToken { first, .. } => first,
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_pass_token_do_gap(&mut self) -> &mut bool {
+        match self {
+            Self::PassToken { do_gap, .. } => do_gap,
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_await_status_response_address(&mut self) -> &mut crate::Address {
+        match self {
+            Self::AwaitStatusResponse { address, .. } => address,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct FdlActiveStation {
     /// Parameters for the connected bus and this station
@@ -495,11 +543,7 @@ impl FdlActiveStation {
         return_if_done!(self.handle_lost_token(now, phy));
 
         // Handle pending response to a telegram request we received
-        if let State::ListenToken {
-            status_request: Some(status_request_source),
-            collision_count,
-        } = self.state
-        {
+        if let Some(status_request_source) = *self.state.get_listen_token_status_request() {
             return_if_done!(self.wait_synchronization_pause(now));
 
             // We must only respond to be ready (=without token) when the request is sent by our
@@ -526,10 +570,7 @@ impl FdlActiveStation {
             if self.token_ring.ready_for_ring() {
                 self.state.transition_active_idle();
             } else {
-                self.state = State::ListenToken {
-                    status_request: None,
-                    collision_count,
-                };
+                *self.state.get_listen_token_status_request() = None;
             }
             return self.mark_tx(now, tx_res.bytes_sent());
         }
@@ -540,9 +581,7 @@ impl FdlActiveStation {
 
             // Handle address collision detection
             if telegram.source_address() == Some(self.p.address) {
-                let State::ListenToken { collision_count, .. } = &mut self.state else {
-                    unreachable!()
-                };
+                let collision_count = self.state.get_listen_token_collision_count();
 
                 *collision_count += 1;
 
@@ -573,11 +612,7 @@ impl FdlActiveStation {
                     if data_telegram.is_fdl_status_request().is_some()
                         && data_telegram.h.da == self.p.address =>
                 {
-
-                    let State::ListenToken { status_request, .. } = &mut self.state else {
-                        unreachable!()
-                    };
-                    *status_request = Some(data_telegram.h.sa);
+                    *self.state.get_listen_token_status_request() = Some(data_telegram.h.sa);
                     PollDone::waiting_for_delay()
                 }
                 _ => PollDone::waiting_for_bus(),
@@ -596,11 +631,7 @@ impl FdlActiveStation {
         return_if_done!(self.handle_lost_token(now, phy));
 
         // Handle pending response to a telegram request we received
-        if let State::ActiveIdle {
-            status_request: Some(status_request_source),
-            ..
-        } = self.state
-        {
+        if let Some(status_request_source) = *self.state.get_active_idle_status_request() {
             return_if_done!(self.wait_synchronization_pause(now));
 
             let tx_res = phy
@@ -614,11 +645,7 @@ impl FdlActiveStation {
                 })
                 .unwrap();
 
-            let State::ActiveIdle { status_request, .. } = &mut self.state else {
-                unreachable!()
-            };
-            *status_request = None;
-
+            *self.state.get_active_idle_status_request() = None;
             return self.mark_tx(now, tx_res.bytes_sent());
         }
 
@@ -650,10 +677,7 @@ impl FdlActiveStation {
                     if data_telegram.is_fdl_status_request().is_some()
                         && data_telegram.h.da == self.p.address =>
                 {
-                    let State::ActiveIdle { status_request, .. } = &mut self.state else {
-                        unreachable!()
-                    };
-                    *status_request = Some(data_telegram.h.sa);
+                    *self.state.get_active_idle_status_request() = Some(data_telegram.h.sa);
                     PollDone::waiting_for_delay()
                 }
                 _ => PollDone::waiting_for_bus(),
@@ -678,16 +702,12 @@ impl FdlActiveStation {
             })
             .unwrap();
 
-        match self.state {
-            State::ClaimToken { first: true } => {
-                // This will lead to sending the claim token telegram again
-                self.state = State::ClaimToken { first: false };
-            }
-            State::ClaimToken { first: false } => {
-                // Now we have claimed the token and can proceed to use it.
-                self.state.transition_use_token();
-            }
-            _ => unreachable!(),
+        if *self.state.get_claim_token_first() {
+            // This will lead to sending the claim token telegram again
+            *self.state.get_claim_token_first() = false;
+        } else {
+            // Now we have claimed the token and can proceed to use it.
+            self.state.transition_use_token();
         }
 
         self.mark_tx(now, tx_res.bytes_sent())
@@ -718,7 +738,7 @@ impl FdlActiveStation {
 
         return_if_done!(self.wait_synchronization_pause(now));
 
-        if let State::PassToken { do_gap: true } = self.state {
+        if *self.state.get_pass_token_do_gap() {
             if let GapState::Waiting { rotation_count } = self.gap_state {
                 if rotation_count > self.p.gap_wait_rotations {
                     // We're done waiting, do a poll now!
@@ -765,9 +785,7 @@ impl FdlActiveStation {
     ) -> PollDone {
         debug_assert_state!(self.state, State::AwaitStatusResponse { .. });
 
-        let State::AwaitStatusResponse { address, .. } = self.state else {
-            unreachable!()
-        };
+        let address = *self.state.get_await_status_response_address();
 
         let received = phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);

@@ -134,6 +134,10 @@ impl TokenRing {
         // itself.
         self.active_stations.set(usize::from(sa), true);
 
+        self.update_next_previous();
+    }
+
+    fn update_next_previous(&mut self) {
         let next_station =
             if let Some(next) = self.iter_active_stations().find(|a| *a > self.this_station) {
                 next
@@ -202,6 +206,11 @@ impl TokenRing {
     pub fn set_next_station(&mut self, address: crate::Address) {
         self.active_stations.set(usize::from(address), true);
         self.update_las_from_token_pass(self.this_station, address);
+    }
+
+    pub fn remove_station(&mut self, address: crate::Address) {
+        self.active_stations.set(usize::from(address), false);
+        self.update_next_previous();
     }
 }
 
@@ -285,6 +294,21 @@ mod tests {
         assert!(token_ring.ready_for_ring());
         assert_eq!(token_ring.next_station(), 15);
         assert_eq!(token_ring.previous_station(), 3);
+    }
+
+    #[test]
+    fn next_station_correct_after_removal() {
+        let mut token_ring = TokenRing::new(&Default::default());
+
+        token_ring.witness_token_pass(29, 3);
+        token_ring.witness_token_pass(3, 15);
+        token_ring.witness_token_pass(15, 29);
+
+        assert_eq!(token_ring.next_station(), 3);
+
+        token_ring.remove_station(3);
+
+        assert_eq!(token_ring.next_station(), 15);
     }
 
     proptest! {

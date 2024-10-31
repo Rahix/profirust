@@ -581,6 +581,12 @@ fn active_station_resends_token() {
         .wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
     assert!(wait_time <= fdl_ut.fdl_param().slot_time() * 2);
 
+    // And the station must also do a second retry.
+
+    let wait_time = fdl_ut
+        .wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+    assert!(wait_time <= fdl_ut.fdl_param().slot_time() * 2);
+
     fdl_ut.advance_bus_time_sync_pause();
     fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(9, 15)));
     fdl_ut.wait_transmission();
@@ -628,6 +634,14 @@ fn active_station_next_vanishes() {
     let wait_time = fdl_ut
         .wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
     assert!(wait_time <= fdl_ut.fdl_param().slot_time() * 2);
+
+    // Second retry attempt.
+
+    let wait_time = fdl_ut
+        .wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+    assert!(wait_time <= fdl_ut.fdl_param().slot_time() * 2);
+
+    // And now station #15 is kicked off the ring, leaving #7 alone.
 
     let wait_time = fdl_ut
         .wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 7, sa: 7 }));

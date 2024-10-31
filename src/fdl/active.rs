@@ -75,8 +75,11 @@ enum State {
     AwaitDataResponse,
     PassToken {
         do_gap: bool,
+        first_attempt: bool,
     },
-    CheckTokenPass,
+    CheckTokenPass {
+        first_attempt: bool,
+    },
     AwaitStatusResponse {
         address: crate::Address,
     },
@@ -178,7 +181,7 @@ impl State {
         *self = State::AwaitDataResponse;
     }
 
-    fn transition_pass_token(&mut self, do_gap: bool) {
+    fn transition_pass_token(&mut self, do_gap: bool, first_attempt: bool) {
         debug_assert_state!(
             self,
             State::PassToken { .. }
@@ -187,12 +190,15 @@ impl State {
                 | State::CheckTokenPass { .. }
                 | State::AwaitStatusResponse { .. }
         );
-        *self = State::PassToken { do_gap };
+        *self = State::PassToken {
+            do_gap,
+            first_attempt,
+        };
     }
 
-    fn transition_check_token_pass(&mut self) {
+    fn transition_check_token_pass(&mut self, first_attempt: bool) {
         debug_assert_state!(self, State::CheckTokenPass { .. } | State::PassToken { .. });
-        *self = State::CheckTokenPass;
+        *self = State::CheckTokenPass { first_attempt };
     }
 
     fn transition_await_status_response(&mut self, address: crate::Address) {
@@ -244,9 +250,23 @@ impl State {
         }
     }
 
+    fn get_pass_token_first_attempt(&mut self) -> &mut bool {
+        match self {
+            Self::PassToken { first_attempt, .. } => first_attempt,
+            _ => unreachable!(),
+        }
+    }
+
     fn get_await_status_response_address(&mut self) -> &mut crate::Address {
         match self {
             Self::AwaitStatusResponse { address, .. } => address,
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_check_token_pass_first_attempt(&mut self) -> &mut bool {
+        match self {
+            Self::CheckTokenPass { first_attempt, .. } => first_attempt,
             _ => unreachable!(),
         }
     }
@@ -724,7 +744,8 @@ impl FdlActiveStation {
         // TODO: Rotation timer
         // TODO: Message exchange cycles
 
-        self.state.transition_pass_token(true);
+        // do_gap and this is the first attempt at passing the token
+        self.state.transition_pass_token(true, true);
         PollDone::waiting_for_delay()
     }
 
@@ -771,7 +792,10 @@ impl FdlActiveStation {
         if self.token_ring.next_station() == self.p.address {
             self.state.transition_use_token();
         } else {
-            self.state.transition_check_token_pass();
+            // TODO: do_gap is not actually a reliable indicator whether we are on the first
+            // attempt
+            let first_attempt = *self.state.get_pass_token_first_attempt();
+            self.state.transition_check_token_pass(first_attempt);
         }
 
         self.mark_tx(now, tx_res.bytes_sent())
@@ -798,7 +822,9 @@ impl FdlActiveStation {
                             && matches!(state, crate::fdl::ResponseState::MasterWithoutToken | crate::fdl::ResponseState::MasterInRing) {
                             self.token_ring.set_next_station(address);
                         }
-                        self.state.transition_pass_token(false);
+                        // TODO: Do we always want to forward the token in a first_attempt after
+                        // this state?
+                        self.state.transition_pass_token(false, true);
                         return PollDone::waiting_for_delay();
                     }
                 }
@@ -816,7 +842,8 @@ impl FdlActiveStation {
 
         if self.check_slot_expired(now) {
             log::trace!("No reply from #{address}");
-            self.state.transition_pass_token(false);
+            // TODO: Do we always want to forward the token in a first_attempt after this state?
+            self.state.transition_pass_token(false, true);
             PollDone::waiting_for_delay()
         } else {
             PollDone::waiting_for_bus()
@@ -829,14 +856,22 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
     ) -> PollDone {
-        debug_assert_state!(self.state, State::CheckTokenPass);
+        debug_assert_state!(self.state, State::CheckTokenPass { .. });
 
         if self.check_slot_expired(now) {
-            log::warn!(
-                "Token was apparently not received by #{}, resending...",
-                self.token_ring.next_station()
-            );
-            self.state.transition_pass_token(false);
+            if *self.state.get_check_token_pass_first_attempt() {
+                log::warn!(
+                    "Token was apparently not received by #{}, resending...",
+                    self.token_ring.next_station()
+                );
+                self.state.transition_pass_token(false, false);
+            } else {
+                log::warn!("Token was also not received on second attempt.");
+                log::warn!("TODO: Clearing NS from LAS cold-bloodedly for now.");
+                self.token_ring
+                    .remove_station(self.token_ring.next_station());
+                self.state.transition_pass_token(false, true);
+            }
             return PollDone::waiting_for_delay();
         }
 

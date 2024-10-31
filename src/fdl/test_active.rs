@@ -582,8 +582,56 @@ fn active_station_resends_token() {
     assert!(wait_time <= fdl_ut.fdl_param().slot_time() * 2);
 
     fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(9, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
     fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
     fdl_ut.wait_transmission();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+}
+
+/// Test that an active station forwards the token to the next station when when the previous next
+/// station vanishes.
+#[test]
+fn active_station_next_vanishes() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::new(7);
+
+    fdl_ut.prepare_two_station_ring();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(8, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(9, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    // This time the next station doesn't do anything, so the previous one must resend the token.
+
+    let wait_time = fdl_ut
+        .wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+    assert!(wait_time <= fdl_ut.fdl_param().slot_time() * 2);
+
+    let wait_time = fdl_ut
+        .wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 7, sa: 7 }));
+    assert!(wait_time <= fdl_ut.fdl_param().slot_time() * 2);
 }
 
 /// Test that an active station is able to respond to telegrams immediately after it passed the

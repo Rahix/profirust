@@ -290,6 +290,66 @@ fn test_active_station_early_fdl_status() {
     }));
 }
 
+/// Test that an active station does not respond to a token telegram in ListenToken state
+#[test]
+fn test_active_station_ignore_telegrams_listen_token() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::default();
+    let addr = fdl_ut.fdl_param().address;
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(addr, 15)));
+
+    let time = fdl_ut.assert_next_telegram(fdl::Telegram::Token(fdl::TokenTelegram {
+        da: addr,
+        sa: addr,
+    }));
+
+    assert!(time > fdl_ut.fdl_param().token_lost_timeout());
+}
+
+/// Test that an active station correctly discovers an address collision
+#[test]
+fn test_active_station_address_collision() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::default();
+    let addr = fdl_ut.fdl_param().address;
+
+    let ring_members = [2, 4, 7, 12, 15];
+    assert!(ring_members.contains(&addr));
+
+    for _ in 0..2 {
+        for addresses in ring_members.windows(2) {
+            let prev = addresses[0];
+            let next = addresses[1];
+            fdl_ut.advance_bus_time_sync_pause();
+            fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(next, prev)));
+            fdl_ut.wait_transmission();
+        }
+        // Wrap around
+        fdl_ut.advance_bus_time_sync_pause();
+        fdl_ut.transmit_telegram(|tx| {
+            Some(tx.send_token_telegram(
+                *ring_members.first().unwrap(),
+                *ring_members.last().unwrap(),
+            ))
+        });
+        fdl_ut.wait_transmission();
+    }
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(addr, 4)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+
+    // After witnessing its own address on the bus twice, the active station must go offline.
+    assert_eq!(
+        fdl_ut.active_station.connectivity_state(),
+        fdl::active::ConnectivityState::Offline
+    );
+}
+
 /// Test that an active station correctly notices an address collision.
 #[test]
 fn test_listen_token_address_collision() {

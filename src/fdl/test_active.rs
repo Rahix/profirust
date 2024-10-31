@@ -350,9 +350,9 @@ fn address_collision_ring() {
     );
 }
 
-/// Test that an active station correctly notices an address collision.
+/// Test that an active station correctly notices an address collision in the ListenToken state.
 #[test]
-fn address_collision_simple() {
+fn address_collision_in_listen_token() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::default();
     let addr = fdl_ut.fdl_param().address;
@@ -368,6 +368,41 @@ fn address_collision_simple() {
     );
 
     fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(15, addr)));
+    fdl_ut.wait_transmission();
+    fdl_ut.advance_bus_time_sync_pause();
+
+    // Afer the second collision, the station should now be offline.
+    assert_eq!(
+        fdl_ut.active_station.connectivity_state(),
+        crate::fdl::active::ConnectivityState::Offline
+    );
+}
+
+/// Test that an active station correctly notices an address collision in the ActiveIdle state.
+#[ignore = "currently failing"]
+#[test]
+fn address_collision_in_active_idle() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::default();
+    let addr = fdl_ut.fdl_param().address;
+
+    fdl_ut.prepare_two_station_ring();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(9, 7)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+
+    // Afer the first collision, the station should still be going.
+    assert_eq!(
+        fdl_ut.active_station.connectivity_state(),
+        crate::fdl::active::ConnectivityState::Online
+    );
+
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(9, 7)));
     fdl_ut.wait_transmission();
     fdl_ut.advance_bus_time_sync_pause();
 
@@ -568,4 +603,68 @@ fn active_station_replies_after_token_pass() {
     fdl_ut.wait_transmission();
 
     fdl_ut.assert_next_telegram(fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+}
+
+/// Test that an active station responds to unknown requests.
+#[ignore = "not yet implemented"]
+#[test]
+fn active_station_responds_unknown() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::default();
+
+    fdl_ut.prepare_two_station_ring();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| {
+        Some(tx.send_data_telegram(
+            fdl::DataTelegramHeader {
+                da: 7,
+                sa: 15,
+                dsap: crate::consts::SAP_SLAVE_DIAGNOSIS,
+                ssap: crate::consts::SAP_MASTER_MS0,
+                fc: crate::fdl::FunctionCode::new_srd_low(Default::default()),
+            },
+            0,
+            |_buf| (),
+        ))
+    });
+    fdl_ut.wait_transmission();
+
+    fdl_ut.assert_next_telegram(fdl::Telegram::Data(fdl::DataTelegram {
+        h: fdl::DataTelegramHeader {
+            da: 15,
+            sa: 7,
+            dsap: crate::consts::SAP_MASTER_MS0,
+            ssap: crate::consts::SAP_SLAVE_DIAGNOSIS,
+            fc: fdl::FunctionCode::Response {
+                state: fdl::ResponseState::MasterInRing,
+                status: fdl::ResponseStatus::SapNotEnabled,
+            },
+        },
+        pdu: &[],
+    }));
+}
+
+/// Test that a token lost timeout is triggered in the active idle state as well
+#[test]
+fn active_idle_token_lost() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::default();
+
+    fdl_ut.prepare_two_station_ring();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    // We must send one more telegram so the station under test can happily exit the CheckTokenPass
+    // state
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_fdl_status_request(3, 15)));
+    fdl_ut.wait_transmission();
+
+    let time =
+        fdl_ut.assert_next_telegram(fdl::Telegram::Token(fdl::TokenTelegram { da: 7, sa: 7 }));
+
+    assert!(time > fdl_ut.fdl_param().token_lost_timeout());
 }

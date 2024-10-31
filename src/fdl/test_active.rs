@@ -202,7 +202,7 @@ impl FdlActiveUnderTest {
 
 /// Test that an active station sends a claimed token twice before doing anything else.
 #[test]
-fn test_new_token_is_sent_twice() {
+fn new_token_is_sent_twice() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::default();
 
@@ -229,7 +229,7 @@ fn test_new_token_is_sent_twice() {
 /// Test that the active station waits for the appropriate amount of time before claiming the token
 /// for itself on an idle bus.
 #[rstest::rstest]
-fn test_token_timeout(#[values(0, 1, 2, 7, 14)] addr: crate::Address) {
+fn token_timeout(#[values(0, 1, 2, 7, 14)] addr: crate::Address) {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::new(addr);
 
@@ -268,7 +268,7 @@ fn test_token_timeout(#[values(0, 1, 2, 7, 14)] addr: crate::Address) {
 
 /// Test active station FDL status response before initialization
 #[test]
-fn test_active_station_early_fdl_status() {
+fn early_fdl_status() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::default();
     let addr = fdl_ut.fdl_param().address;
@@ -292,7 +292,7 @@ fn test_active_station_early_fdl_status() {
 
 /// Test that an active station does not respond to a token telegram in ListenToken state
 #[test]
-fn test_active_station_ignore_telegrams_listen_token() {
+fn ignore_telegrams_listen_token() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::default();
     let addr = fdl_ut.fdl_param().address;
@@ -308,9 +308,9 @@ fn test_active_station_ignore_telegrams_listen_token() {
     assert!(time > fdl_ut.fdl_param().token_lost_timeout());
 }
 
-/// Test that an active station correctly discovers an address collision
+/// Test that an active station correctly discovers an address collision in an active ring
 #[test]
-fn test_active_station_address_collision() {
+fn address_collision_ring() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::default();
     let addr = fdl_ut.fdl_param().address;
@@ -352,7 +352,7 @@ fn test_active_station_address_collision() {
 
 /// Test that an active station correctly notices an address collision.
 #[test]
-fn test_listen_token_address_collision() {
+fn address_collision_simple() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::default();
     let addr = fdl_ut.fdl_param().address;
@@ -381,7 +381,7 @@ fn test_listen_token_address_collision() {
 /// Test that an active station waits at least two full token rotations before reporting to be
 /// ready for entering the ring.
 #[test]
-fn test_two_rotations_before_ready() {
+fn two_rotations_before_ready() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::new(7);
 
@@ -482,7 +482,7 @@ fn test_two_rotations_before_ready() {
 
 /// Test that an active station discovers another active neighbor station.
 #[test]
-fn test_active_station_discovers_neighbor() {
+fn active_station_discovers_neighbor() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::new(7);
 
@@ -512,7 +512,7 @@ fn test_active_station_discovers_neighbor() {
 
 /// Test that an active station resends the token when not received by next station
 #[test]
-fn test_active_station_resends_token() {
+fn active_station_resends_token() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::new(7);
 
@@ -555,7 +555,7 @@ fn test_active_station_resends_token() {
 /// token
 #[ignore = "not yet implemented"]
 #[test]
-fn test_active_station_replies_after_token_pass() {
+fn active_station_replies_after_token_pass() {
     crate::test_utils::prepare_test_logger();
     let mut fdl_ut = FdlActiveUnderTest::new(7);
 

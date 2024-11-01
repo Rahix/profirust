@@ -11,7 +11,7 @@ fn main() -> ! {
         .format_timestamp_micros()
         .init();
 
-    println!("PROFIBUS Live List:");
+    log::info!("PROFIBUS Live List:");
 
     let mut live_list = fdl::live_list::LiveList::new();
 
@@ -27,7 +27,12 @@ fn main() -> ! {
     // We must not poll() too often or to little. T_slot / 2 seems to be a good compromise.
     let sleep_time: std::time::Duration = (fdl.parameters().slot_time() / 2).into();
 
-    println!("Connecting to the bus...");
+    log::warn!(
+        "This station has address #{}.  No other station with this address shall be present.",
+        fdl.parameters().address
+    );
+
+    log::info!("Connecting to the bus...");
     let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl.parameters().baudrate);
 
     let mut last = profirust::time::Instant::now();

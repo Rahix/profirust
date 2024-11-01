@@ -13,9 +13,9 @@ mod token_ring;
 mod test_active;
 
 // Old code.
-#[cfg(feature = "false")]
+#[cfg(any())]
 mod master;
-#[cfg(feature = "false")]
+#[cfg(any())]
 mod tests;
 
 pub use active::FdlActiveStation;

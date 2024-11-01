@@ -393,6 +393,25 @@ impl FdlActiveStation {
     pub fn set_online(&mut self) {
         self.set_state(ConnectivityState::Online)
     }
+
+    /// Returns `true` when this active stations believes to be in the token ring.
+    pub fn is_in_ring(&self) -> bool {
+        matches!(
+            self.state,
+            State::UseToken { .. }
+                | State::PassToken { .. }
+                | State::ActiveIdle { .. }
+                | State::ClaimToken { .. }
+                | State::CheckTokenPass { .. }
+                | State::AwaitDataResponse { .. }
+                | State::AwaitStatusResponse { .. }
+        )
+    }
+
+    #[doc(hidden)]
+    pub fn inspect_token_ring(&self) -> &crate::fdl::TokenRing {
+        &self.token_ring
+    }
 }
 
 #[must_use = "\"poll done\" marker must lead to exit of poll function!"]

@@ -219,7 +219,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
     fn transmit_telegram(
         &mut self,
         now: crate::time::Instant,
-        fdl: &crate::fdl::FdlMaster,
+        fdl: &crate::fdl::FdlActiveStation,
         mut tx: crate::fdl::TelegramTx,
         high_prio_only: bool,
     ) -> (Option<crate::fdl::TelegramTxResponse>, Self::Events) {
@@ -342,7 +342,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
     fn receive_reply(
         &mut self,
         now: crate::time::Instant,
-        fdl: &crate::fdl::FdlMaster,
+        fdl: &crate::fdl::FdlActiveStation,
         addr: u8,
         telegram: crate::fdl::Telegram,
     ) -> Self::Events {
@@ -369,7 +369,12 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         }
     }
 
-    fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &crate::fdl::FdlMaster, addr: u8) {
+    fn handle_timeout(
+        &mut self,
+        now: crate::time::Instant,
+        fdl: &crate::fdl::FdlActiveStation,
+        addr: u8,
+    ) {
         // At this time, there is no meaningful action to take in response to this.  Timeout
         // handling is actually done as part of the transmit_telegram() code.
         //

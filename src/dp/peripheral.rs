@@ -300,7 +300,7 @@ impl<'a> Peripheral<'a> {
         &mut self,
         now: crate::time::Instant,
         dp: &crate::dp::DpMasterState,
-        fdl: &crate::fdl::FdlMaster,
+        fdl: &crate::fdl::FdlActiveStation,
         tx: crate::fdl::TelegramTx<'b>,
         high_prio_only: bool,
     ) -> Result<crate::fdl::TelegramTxResponse, (crate::fdl::TelegramTx<'b>, Option<PeripheralEvent>)>
@@ -435,7 +435,7 @@ impl<'a> Peripheral<'a> {
         &mut self,
         now: crate::time::Instant,
         dp: &crate::dp::DpMasterState,
-        fdl: &crate::fdl::FdlMaster,
+        fdl: &crate::fdl::FdlActiveStation,
         telegram: crate::fdl::Telegram,
     ) -> Option<PeripheralEvent> {
         match self.state {
@@ -596,7 +596,7 @@ impl<'a> Peripheral<'a> {
 
     fn send_diagnostics_request(
         &mut self,
-        master: &crate::fdl::FdlMaster,
+        master: &crate::fdl::FdlActiveStation,
         tx: crate::fdl::TelegramTx,
     ) -> crate::fdl::TelegramTxResponse {
         tx.send_data_telegram(
@@ -614,7 +614,7 @@ impl<'a> Peripheral<'a> {
 
     fn handle_diagnostics_response(
         &mut self,
-        master: &crate::fdl::FdlMaster,
+        master: &crate::fdl::FdlActiveStation,
         telegram: &crate::fdl::Telegram,
     ) -> Option<&DiagnosticsInfo> {
         if let crate::fdl::Telegram::Data(t) = telegram {

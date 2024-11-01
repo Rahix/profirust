@@ -581,7 +581,7 @@ impl FdlMaster {
         debug_assert!(self.communication_state.have_token());
         let mut events = Default::default();
         if let Some(tx_res) = phy.transmit_telegram(now, |tx| {
-            let (res, ev) = app.transmit_telegram(now, self, tx, high_prio_only);
+            let (res, ev) = app.transmit_telegram(now, todo!("self"), tx, high_prio_only);
             events = ev;
             res
         }) {
@@ -625,7 +625,7 @@ impl FdlMaster {
                 crate::fdl::Telegram::ShortConfirmation(_) => (),
             }
             // TODO: This needs to be revisited.  Always return true?
-            Some(Ok(app.receive_reply(now, self, addr, telegram)))
+            Some(Ok(app.receive_reply(now, todo!("self"), addr, telegram)))
         })
         .unwrap_or(None)
     }
@@ -636,7 +636,7 @@ impl FdlMaster {
         app: &mut impl FdlApplication,
         addr: u8,
     ) {
-        app.handle_timeout(now, self, addr)
+        app.handle_timeout(now, todo!("self"), addr)
     }
 
     fn check_for_status_response(

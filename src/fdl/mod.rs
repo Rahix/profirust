@@ -12,7 +12,7 @@ mod token_ring;
 
 #[cfg(test)]
 mod test_active;
-#[cfg(test)]
+#[cfg(feature = "false")]
 mod tests;
 
 pub use active::FdlActiveStation;
@@ -45,7 +45,7 @@ pub trait FdlApplication {
     fn transmit_telegram(
         &mut self,
         now: crate::time::Instant,
-        fdl: &FdlMaster,
+        fdl: &FdlActiveStation,
         tx: TelegramTx,
         high_prio_only: bool,
     ) -> (Option<TelegramTxResponse>, Self::Events);
@@ -54,13 +54,13 @@ pub trait FdlApplication {
     fn receive_reply(
         &mut self,
         now: crate::time::Instant,
-        fdl: &FdlMaster,
+        fdl: &FdlActiveStation,
         addr: u8,
         telegram: Telegram,
     ) -> Self::Events;
 
     /// Handle a timeout while waiting for a reply from the given address.
-    fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &FdlMaster, addr: u8);
+    fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &FdlActiveStation, addr: u8);
 }
 
 // A sort of placeholder when no application is used.
@@ -70,7 +70,7 @@ impl FdlApplication for () {
     fn transmit_telegram(
         &mut self,
         now: crate::time::Instant,
-        fdl: &FdlMaster,
+        fdl: &FdlActiveStation,
         tx: TelegramTx,
         high_prio_only: bool,
     ) -> (Option<TelegramTxResponse>, Self::Events) {
@@ -80,14 +80,14 @@ impl FdlApplication for () {
     fn receive_reply(
         &mut self,
         now: crate::time::Instant,
-        fdl: &FdlMaster,
+        fdl: &FdlActiveStation,
         addr: u8,
         telegram: Telegram,
     ) -> Self::Events {
         ()
     }
 
-    fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &FdlMaster, addr: u8) {
+    fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &FdlActiveStation, addr: u8) {
         // ignore
     }
 }

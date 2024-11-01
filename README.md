@@ -52,7 +52,7 @@ At the moment, the following implementations are available:
 - [x] Cyclic communication with DP-V0 peripherals
 - [x] Basic Diagnostics
 - [x] Extended Diagnostics (DP-V0)
-- [ ] Multi-master bus
+- [x] Multi-master bus
 - [ ] Bus error tracking
 - [ ] Bus discovery utilities
 - [ ] Reliable communication at 12 Mbit/s

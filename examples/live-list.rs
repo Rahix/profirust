@@ -6,15 +6,14 @@ const MASTER_ADDRESS: u8 = 3;
 const BUS_DEVICE: &'static str = "/dev/ttyUSB0";
 const BAUDRATE: profirust::Baudrate = profirust::Baudrate::B500000;
 
-fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("trace"))
+fn main() -> ! {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format_timestamp_micros()
         .init();
 
     println!("PROFIBUS Live List:");
 
-    log::warn!("FdlActiveStation doesn't have a live-list feature at this time!");
-    log::warn!("You can see what stations are active from the bus trace below...");
+    let mut live_list = fdl::live_list::LiveList::new();
 
     let mut fdl = fdl::FdlActiveStation::new(
         fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)
@@ -31,22 +30,31 @@ fn main() {
     println!("Connecting to the bus...");
     let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl.parameters().baudrate);
 
-    let mut i = 0u64;
+    let mut last = profirust::time::Instant::now();
 
     fdl.set_online();
     loop {
-        fdl.poll(profirust::time::Instant::now(), &mut phy, &mut ());
+        let event = fdl.poll(profirust::time::Instant::now(), &mut phy, &mut live_list);
 
-        // TODO: Update once new live-list is available.
-        // if i % 100 == 0 {
-        //     let live_list: Vec<_> = fdl
-        //         .iter_live_stations()
-        //         .map(|addr| addr.to_string())
-        //         .collect();
-        //     println!("Live Addresses: {}", live_list.join(", "));
-        // }
+        match event {
+            Some(fdl::live_list::StationEvent::Discovered(station)) => {
+                log::info!("Discovered #{} ({:?})", station.address, station.state);
+            }
+            Some(fdl::live_list::StationEvent::Lost(station_address)) => {
+                log::info!("Lost station #{station_address}");
+            }
+            None => (),
+        }
 
-        i += 1;
+        if (profirust::time::Instant::now() - last).secs() > 5 {
+            let live_list: Vec<_> = live_list
+                .iter_stations()
+                .map(|addr| format!("#{}", addr))
+                .collect();
+            log::info!("Live Stations: {}", live_list.join(", "));
+            last = profirust::time::Instant::now();
+        }
+
         std::thread::sleep(sleep_time);
     }
 }

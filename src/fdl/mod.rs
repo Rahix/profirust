@@ -5,6 +5,7 @@
 //!
 //! You can also find the representations of PROFIBUS telegrams and related data structures here.
 mod active;
+pub mod live_list;
 mod parameters;
 mod telegram;
 mod token_ring;

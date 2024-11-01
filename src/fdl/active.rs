@@ -79,7 +79,9 @@ enum State {
     ClaimToken {
         first: bool,
     },
-    AwaitDataResponse,
+    AwaitDataResponse {
+        address: crate::Address,
+    },
     PassToken {
         do_gap: bool,
         attempt: PassTokenAttempt,
@@ -180,12 +182,12 @@ impl State {
         *self = State::ClaimToken { first: true };
     }
 
-    fn transition_await_data_response(&mut self) {
+    fn transition_await_data_response(&mut self, address: crate::Address) {
         debug_assert_state!(
             self,
             State::AwaitDataResponse { .. } | State::UseToken { .. }
         );
-        *self = State::AwaitDataResponse;
+        *self = State::AwaitDataResponse { address };
     }
 
     fn transition_pass_token(&mut self, do_gap: bool, attempt: PassTokenAttempt) {
@@ -243,6 +245,13 @@ impl State {
     fn get_claim_token_first(&mut self) -> &mut bool {
         match self {
             Self::ClaimToken { first, .. } => first,
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_await_data_response_address(&mut self) -> &mut crate::Address {
+        match self {
+            Self::AwaitDataResponse { address, .. } => address,
             _ => unreachable!(),
         }
     }
@@ -738,20 +747,82 @@ impl FdlActiveStation {
     }
 
     #[must_use = "poll done marker"]
-    fn do_use_token<'a, PHY: ProfibusPhy>(
+    fn app_transmit_telegram<'a, PHY: ProfibusPhy, APP: FdlApplication>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-    ) -> PollDone {
+        app: &mut APP,
+        high_prio_only: bool,
+    ) -> (Option<PollDone>, APP::Events) {
+        let mut events = Default::default();
+        if let Some(tx_res) = phy.transmit_telegram(now, |tx| {
+            let (res, ev) = app.transmit_telegram(now, self, tx, high_prio_only);
+            events = ev;
+            res
+        }) {
+            if let Some(addr) = tx_res.expects_reply() {
+                self.state.transition_await_data_response(addr);
+            }
+            (Some(self.mark_tx(now, tx_res.bytes_sent())), events)
+        } else {
+            (None, events)
+        }
+    }
+
+    #[must_use = "poll done marker"]
+    fn do_use_token<'a, PHY: ProfibusPhy, APP: FdlApplication>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+        app: &mut APP,
+    ) -> PollResult<APP::Events> {
         debug_assert_state!(self.state, State::UseToken);
 
         // TODO: Rotation timer
-        // TODO: Message exchange cycles
 
-        // do_gap and this is the first attempt at passing the token
+        let (done, events) = self.app_transmit_telegram(now, phy, app, false);
+        match done {
+            Some(d) => return d.with_events(events),
+            None => (),
+        }
+
         self.state
             .transition_pass_token(true, PassTokenAttempt::First);
-        PollDone::waiting_for_delay()
+
+        PollDone::waiting_for_delay().with_events(events)
+    }
+
+    fn do_await_data_response<'a, PHY: ProfibusPhy, APP: FdlApplication>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+        app: &mut APP,
+    ) -> PollResult<APP::Events> {
+        debug_assert_state!(self.state, State::AwaitDataResponse { .. });
+
+        let address = *self.state.get_await_data_response_address();
+
+        let reply_events = phy
+            .receive_telegram(now, |telegram| {
+                self.mark_rx(now);
+
+                // TODO: Only pass on valid response telegrams
+
+                Some(app.receive_reply(now, self, address, telegram))
+            })
+            .unwrap_or(None);
+
+        if let Some(events) = reply_events {
+            self.state.transition_use_token();
+            return PollDone::waiting_for_delay().with_events(events);
+        }
+
+        if self.check_slot_expired(now) {
+            app.handle_timeout(now, self, address);
+            self.state.transition_use_token();
+        }
+
+        PollDone::waiting_for_bus().into()
     }
 
     #[must_use = "poll done marker"]
@@ -967,7 +1038,8 @@ impl FdlActiveStation {
             State::Offline { .. } => unreachable!(),
             State::ListenToken { .. } => self.do_listen_token(now, phy).into(),
             State::ClaimToken { .. } => self.do_claim_token(now, phy).into(),
-            State::UseToken { .. } => self.do_use_token(now, phy).into(),
+            State::UseToken { .. } => self.do_use_token(now, phy, app).into(),
+            State::AwaitDataResponse { .. } => self.do_await_data_response(now, phy, app).into(),
             State::PassToken { .. } => self.do_pass_token(now, phy).into(),
             State::CheckTokenPass { .. } => self.do_check_token_pass(now, phy).into(),
             State::ActiveIdle { .. } => self.do_active_idle(now, phy).into(),

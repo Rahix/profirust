@@ -379,7 +379,6 @@ fn address_collision_in_listen_token() {
 }
 
 /// Test that an active station correctly notices an address collision in the ActiveIdle state.
-#[ignore = "currently failing"]
 #[test]
 fn address_collision_in_active_idle() {
     crate::test_utils::prepare_test_logger();
@@ -406,11 +405,8 @@ fn address_collision_in_active_idle() {
     fdl_ut.wait_transmission();
     fdl_ut.advance_bus_time_sync_pause();
 
-    // Afer the second collision, the station should now be offline.
-    assert_eq!(
-        fdl_ut.active_station.connectivity_state(),
-        crate::fdl::active::ConnectivityState::Offline
-    );
+    // Afer the second collision, the station should now no longer be part of the token ring.
+    assert!(!fdl_ut.active_station.is_in_ring());
 }
 
 /// Test that an active station waits at least two full token rotations before reporting to be

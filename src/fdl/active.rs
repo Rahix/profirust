@@ -75,6 +75,7 @@ enum State {
     ActiveIdle {
         status_request: Option<crate::Address>,
         new_previous_station: Option<crate::Address>,
+        collision_count: u8,
     },
     UseToken,
     ClaimToken {
@@ -161,6 +162,7 @@ impl State {
         *self = State::ActiveIdle {
             status_request: None,
             new_previous_station: None,
+            collision_count: 0,
         };
     }
 
@@ -250,6 +252,15 @@ impl State {
                 new_previous_station,
                 ..
             } => new_previous_station,
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_active_idle_collision_count(&mut self) -> &mut u8 {
+        match self {
+            Self::ActiveIdle {
+                collision_count, ..
+            } => collision_count,
             _ => unreachable!(),
         }
     }
@@ -695,9 +706,34 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         telegram: crate::fdl::Telegram,
     ) -> PollDone {
+        debug_assert_state!(self.state, State::ActiveIdle { .. });
+
         match telegram {
             // Handle any token telegrams
             crate::fdl::Telegram::Token(token_telegram) => {
+                let collision_count = self.state.get_active_idle_collision_count();
+                if token_telegram.sa == self.p.address {
+                    *collision_count += 1;
+
+                    match *collision_count {
+                        1 => {
+                            log::warn!("Witnessed collision of another active station with own address (#{})!", self.p.address);
+                        }
+                        2 | _ => {
+                            log::warn!(
+                                "Witnessed second collision of another active station with own address (#{}), leaving ring.",
+                                self.p.address,
+                            );
+                            self.state.transition_listen_token();
+                        }
+                    }
+                    return PollDone::waiting_for_bus();
+                } else {
+                    // Collisions are only counted in ActiveIdle if we see them happening back to
+                    // back.
+                    *collision_count = 0;
+                }
+
                 if token_telegram.da != self.p.address {
                     self.token_ring
                         .witness_token_pass(token_telegram.sa, token_telegram.da);

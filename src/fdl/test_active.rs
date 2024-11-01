@@ -788,3 +788,58 @@ fn active_station_accepts_new_previous_neighbor() {
         .wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
     assert!(wait_time <= fdl_ut.fdl_param().slot_time() * 2);
 }
+
+#[test]
+fn multimaster_smoke() {
+    crate::test_utils::prepare_test_logger();
+    let baud = crate::Baudrate::B19200;
+
+    let actives_addr = vec![2, 7, 13, 24];
+
+    let phy = crate::phy::SimulatorPhy::new(baud, "phy#main");
+
+    let mut actives: Vec<_> = actives_addr
+        .iter()
+        .copied()
+        .map(|addr| {
+            let phy = phy.duplicate(format!("phy#{addr}").leak());
+            let mut fdl = crate::fdl::FdlActiveStation::new(
+                crate::fdl::ParametersBuilder::new(addr, baud)
+                    .highest_station_address(30)
+                    .slot_bits(300)
+                    .gap_wait_rotations(30)
+                    .build(),
+            );
+            crate::test_utils::set_active_addr(addr);
+            fdl.set_online();
+            (addr, phy, fdl)
+        })
+        .collect();
+
+    let start = crate::time::Instant::ZERO;
+    let mut now = start;
+    while (now - start) < crate::time::Duration::from_millis(3200) {
+        crate::test_utils::set_log_timestamp(now);
+        phy.set_bus_time(now);
+
+        for (addr, phy, fdl) in actives.iter_mut() {
+            crate::test_utils::set_active_addr(*addr);
+            fdl.poll(now, phy, &mut ());
+        }
+
+        now += crate::time::Duration::from_micros(100);
+    }
+
+    for (addr, _, fdl) in actives.iter() {
+        assert!(
+            fdl.is_in_ring(),
+            "station #{addr} is not in the token ring!"
+        );
+
+        let known_actives: Vec<_> = fdl.inspect_token_ring().iter_active_stations().collect();
+        assert_eq!(
+            known_actives, actives_addr,
+            "wrong LAS formed in station #{addr}"
+        );
+    }
+}

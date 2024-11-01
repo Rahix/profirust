@@ -2,6 +2,7 @@
   <img src="img/logo-header.svg" alt="profirust"><br/>
   <a href="https://crates.io/crates/profirust"><img src="https://img.shields.io/crates/v/profirust.svg" alt="crates.io page" /></a>
   <a href="https://docs.rs/profirust/latest/profirust/"><img src="https://docs.rs/profirust/badge.svg" alt="docs.rs page" /></a>
+  <a href="https://github.com/rahix/profirust/actions/workflows/ci.yml"><img src="https://github.com/rahix/profirust/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <br/>
   A PROFIBUS-DP compatible communication stack written in Rust.
 </p>

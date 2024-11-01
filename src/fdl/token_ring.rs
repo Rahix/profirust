@@ -203,6 +203,13 @@ impl TokenRing {
         }
     }
 
+    pub fn claim_token(&mut self) {
+        if self.las_state != LasState::Valid {
+            log::trace!("Declaring list of active stations valid due to claiming the token.");
+        }
+        self.las_state = LasState::Valid;
+    }
+
     pub fn set_next_station(&mut self, address: crate::Address) {
         self.active_stations.set(usize::from(address), true);
         self.update_las_from_token_pass(self.this_station, address);

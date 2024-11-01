@@ -780,6 +780,8 @@ impl FdlActiveStation {
             })
             .unwrap();
 
+        self.token_ring.claim_token();
+
         if *self.state.get_claim_token_first() {
             // This will lead to sending the claim token telegram again
             *self.state.get_claim_token_first() = false;

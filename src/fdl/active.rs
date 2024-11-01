@@ -802,19 +802,39 @@ impl FdlActiveStation {
 
         let address = *self.state.get_await_data_response_address();
 
-        let reply_events = phy
+        let reply_events: Result<Option<APP::Events>, PollDone> = phy
             .receive_telegram(now, |telegram| {
                 self.mark_rx(now);
 
-                // TODO: Only pass on valid response telegrams
+                let is_valid_response = match &telegram {
+                    crate::fdl::Telegram::Token(_) => false,
+                    crate::fdl::Telegram::ShortConfirmation(_) => true,
+                    crate::fdl::Telegram::Data(t) => {
+                        t.h.sa == address && t.h.da == self.p.address && matches!(t.h.fc, crate::fdl::FunctionCode::Response { .. })
+                    },
+                };
 
-                Some(app.receive_reply(now, self, address, telegram))
+                if is_valid_response {
+                    Ok(Some(app.receive_reply(now, self, address, telegram)))
+                } else {
+                    // When receiving a valid telegram that isn't a valid response, something went
+                    // wrong and we must go back to active idle state.
+                    log::warn!("Received unexpected telegram while waiting for reply from #{address}: {:?}", telegram);
+                    self.state.transition_active_idle();
+                    Err(PollDone::waiting_for_bus())
+                }
             })
-            .unwrap_or(None);
+            .unwrap_or(Ok(None));
 
-        if let Some(events) = reply_events {
-            self.state.transition_use_token();
-            return PollDone::waiting_for_delay().with_events(events);
+        match reply_events {
+            Err(d) => {
+                return d.into();
+            }
+            Ok(Some(events)) => {
+                self.state.transition_use_token();
+                return PollDone::waiting_for_delay().with_events(events);
+            }
+            Ok(None) => (),
         }
 
         if self.check_slot_expired(now) {

@@ -888,10 +888,8 @@ impl FdlActiveStation {
         if self.token_ring.next_station() == self.p.address {
             self.state.transition_use_token();
         } else {
-            // TODO: do_gap is not actually a reliable indicator whether we are on the first
-            // attempt
-            let first_attempt = *self.state.get_pass_token_attempt();
-            self.state.transition_check_token_pass(first_attempt);
+            let attempt = *self.state.get_pass_token_attempt();
+            self.state.transition_check_token_pass(attempt);
         }
 
         self.mark_tx(now, tx_res.bytes_sent())
@@ -918,8 +916,6 @@ impl FdlActiveStation {
                             && matches!(state, crate::fdl::ResponseState::MasterWithoutToken | crate::fdl::ResponseState::MasterInRing) {
                             self.token_ring.set_next_station(address);
                         }
-                        // TODO: Do we always want to forward the token in a first attempt after
-                        // this state?
                         self.state.transition_pass_token(false, PassTokenAttempt::First);
                         return PollDone::waiting_for_delay();
                     }
@@ -938,7 +934,6 @@ impl FdlActiveStation {
 
         if self.check_slot_expired(now) {
             log::trace!("No reply from #{address}");
-            // TODO: Do we always want to forward the token in a first attempt after this state?
             self.state
                 .transition_pass_token(false, PassTokenAttempt::First);
             PollDone::waiting_for_delay()

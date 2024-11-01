@@ -690,6 +690,57 @@ impl FdlActiveStation {
         }).unwrap_or(PollDone::waiting_for_bus())
     }
 
+    fn handle_telegram(
+        &mut self,
+        now: crate::time::Instant,
+        telegram: crate::fdl::Telegram,
+    ) -> PollDone {
+        match telegram {
+            // Handle any token telegrams
+            crate::fdl::Telegram::Token(token_telegram) => {
+                if token_telegram.da != self.p.address {
+                    self.token_ring
+                        .witness_token_pass(token_telegram.sa, token_telegram.da);
+
+                    PollDone::waiting_for_bus()
+                } else {
+                    // We may only accept the token from the known neighbor (on their first try)
+                    if token_telegram.sa == self.token_ring.previous_station() {
+                        self.state.transition_use_token();
+                        PollDone::waiting_for_delay()
+                    } else {
+                        match *self.state.get_active_idle_new_previous_station() {
+                            Some(address) if address == token_telegram.sa => {
+                                // We have seen this previous_station before, so accept the
+                                // token.
+                                self.token_ring
+                                    .witness_token_pass(token_telegram.sa, token_telegram.da);
+                                self.state.transition_use_token();
+                                PollDone::waiting_for_delay()
+                            }
+                            _ => {
+                                // Unknown, pend the address for receiving the retry.
+                                *self.state.get_active_idle_new_previous_station() =
+                                    Some(token_telegram.sa);
+                                PollDone::waiting_for_bus()
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Handle FDL requests sent to us
+            crate::fdl::Telegram::Data(data_telegram)
+                if data_telegram.is_fdl_status_request().is_some()
+                    && data_telegram.h.da == self.p.address =>
+            {
+                *self.state.get_active_idle_status_request() = Some(data_telegram.h.sa);
+                PollDone::waiting_for_delay()
+            }
+            _ => PollDone::waiting_for_bus(),
+        }
+    }
+
     #[must_use = "poll done marker"]
     fn do_active_idle<'a, PHY: ProfibusPhy>(
         &mut self,
@@ -722,50 +773,7 @@ impl FdlActiveStation {
         phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);
 
-            match telegram {
-                // Handle any token telegrams
-                crate::fdl::Telegram::Token(token_telegram) => {
-                    if token_telegram.da != self.p.address {
-                        self.token_ring
-                            .witness_token_pass(token_telegram.sa, token_telegram.da);
-
-                        PollDone::waiting_for_bus()
-                    } else {
-                        // We may only accept the token from the known neighbor (on their first try)
-                        if token_telegram.sa == self.token_ring.previous_station() {
-                            self.state.transition_use_token();
-                            PollDone::waiting_for_delay()
-                        } else {
-                            match *self.state.get_active_idle_new_previous_station() {
-                                Some(address) if address == token_telegram.sa => {
-                                    // We have seen this previous_station before, so accept the
-                                    // token.
-                                    self.token_ring
-                                        .witness_token_pass(token_telegram.sa, token_telegram.da);
-                                    self.state.transition_use_token();
-                                    PollDone::waiting_for_delay()
-                                }
-                                _ => {
-                                    // Unknown, pend the address for receiving the retry.
-                                    *self.state.get_active_idle_new_previous_station() =
-                                        Some(token_telegram.sa);
-                                    PollDone::waiting_for_bus()
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Handle FDL requests sent to us
-                crate::fdl::Telegram::Data(data_telegram)
-                    if data_telegram.is_fdl_status_request().is_some()
-                        && data_telegram.h.da == self.p.address =>
-                {
-                    *self.state.get_active_idle_status_request() = Some(data_telegram.h.sa);
-                    PollDone::waiting_for_delay()
-                }
-                _ => PollDone::waiting_for_bus(),
-            }
+            self.handle_telegram(now, telegram)
         })
         .unwrap_or(PollDone::waiting_for_bus())
     }
@@ -1058,12 +1066,11 @@ impl FdlActiveStation {
                 );
             }
 
-            // TODO: Handle telegrams directed at us (token or status request)
-
+            // In case this was a telegram to us, we must already handle it in ActiveIdle state
             self.state.transition_active_idle();
-        });
-
-        PollDone::waiting_for_bus()
+            self.handle_telegram(now, telegram)
+        })
+        .unwrap_or(PollDone::waiting_for_bus())
     }
 
     pub fn poll<'a, PHY: ProfibusPhy, APP: FdlApplication>(

@@ -650,7 +650,6 @@ fn active_station_next_vanishes() {
 
 /// Test that an active station is able to respond to telegrams immediately after it passed the
 /// token
-#[ignore = "not yet implemented"]
 #[test]
 fn active_station_replies_after_token_pass() {
     crate::test_utils::prepare_test_logger();
@@ -664,7 +663,19 @@ fn active_station_replies_after_token_pass() {
     fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 15)));
     fdl_ut.wait_transmission();
 
-    fdl_ut.assert_next_telegram(fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+    fdl_ut.assert_next_telegram(fdl::Telegram::Data(fdl::DataTelegram {
+        h: fdl::DataTelegramHeader {
+            da: 9,
+            sa: 7,
+            dsap: None,
+            ssap: None,
+            fc: fdl::FunctionCode::Request {
+                fcb: fdl::FrameCountBit::Inactive,
+                req: fdl::RequestType::FdlStatus,
+            },
+        },
+        pdu: &[],
+    }));
 }
 
 /// Test that an active station responds to unknown requests.

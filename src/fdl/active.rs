@@ -43,7 +43,7 @@ enum GapState {
     Waiting { rotation_count: u8 },
 
     /// A poll of the given address is scheduled next.
-    NextPoll { next_addr: crate::Address },
+    DoPoll { current_address: crate::Address },
 }
 
 impl GapState {
@@ -332,8 +332,8 @@ impl FdlActiveStation {
             token_ring: crate::fdl::TokenRing::new(&param),
             // A station must always start offline
             connectivity_state: ConnectivityState::Offline,
-            gap_state: GapState::NextPoll {
-                next_addr: param.address.wrapping_add(1),
+            gap_state: GapState::DoPoll {
+                current_address: param.address,
             },
             state: State::Offline,
             last_bus_activity: None,
@@ -575,20 +575,26 @@ impl FdlActiveStation {
         }
     }
 
-    fn next_gap_poll(&self, addr: u8) -> GapState {
+    fn next_gap_poll(&self, current_address: crate::Address) -> GapState {
         let next_station = self.token_ring.next_station();
-        if addr >= next_station && next_station > self.p.address {
-            // Don't poll beyond the gap.
-            GapState::Waiting { rotation_count: 0 }
-        } else if (addr + 1) == self.p.address {
-            // Don't poll self.
-            GapState::Waiting { rotation_count: 0 }
-        } else if addr == (self.p.highest_station_address - 1) {
-            // Wrap around.
-            GapState::NextPoll { next_addr: 0 }
+        let next_address = if current_address == (self.p.highest_station_address - 1) {
+            0
         } else {
-            GapState::NextPoll {
-                next_addr: addr + 1,
+            current_address + 1
+        };
+
+        if next_address >= next_station && next_station > self.p.address {
+            // We have reached the end of the GAP, enter waiting state.
+            GapState::Waiting { rotation_count: 0 }
+        } else if next_address >= next_station
+            && next_station < self.p.address
+            && next_address < self.p.address
+        {
+            // We have reached the end of the GAP, enter waiting state (wrap-around GAP case).
+            GapState::Waiting { rotation_count: 0 }
+        } else {
+            GapState::DoPoll {
+                current_address: next_address,
             }
         }
     }
@@ -903,24 +909,32 @@ impl FdlActiveStation {
         return_if_done!(self.wait_synchronization_pause(now));
 
         if *self.state.get_pass_token_do_gap() {
-            if let GapState::Waiting { rotation_count } = self.gap_state {
-                if rotation_count > self.p.gap_wait_rotations {
-                    // We're done waiting, do a poll now!
-                    log::debug!("Starting next gap polling cycle!");
-                    self.gap_state = self.next_gap_poll(self.p.address);
+            match &mut self.gap_state {
+                GapState::Waiting {
+                    ref mut rotation_count,
+                } => {
+                    if *rotation_count > self.p.gap_wait_rotations {
+                        // We're done waiting, do a poll now!
+                        log::debug!("Starting next gap polling cycle!");
+                        self.gap_state = self.next_gap_poll(self.p.address);
+                    } else {
+                        *rotation_count += 1;
+                    }
+                }
+                GapState::DoPoll { current_address } => {
+                    let current_address = *current_address;
+                    self.gap_state = self.next_gap_poll(current_address);
                 }
             }
 
-            if let GapState::NextPoll { next_addr } = self.gap_state {
-                self.gap_state = self.next_gap_poll(next_addr);
-
+            if let GapState::DoPoll { current_address } = self.gap_state {
                 let tx_res = phy
                     .transmit_telegram(now, |tx| {
-                        Some(tx.send_fdl_status_request(next_addr, self.p.address))
+                        Some(tx.send_fdl_status_request(current_address, self.p.address))
                     })
                     .unwrap();
 
-                self.state.transition_await_status_response(next_addr);
+                self.state.transition_await_status_response(current_address);
 
                 return self.mark_tx(now, tx_res.bytes_sent());
             }

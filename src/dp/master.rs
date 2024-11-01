@@ -1,6 +1,6 @@
 use crate::dp::Peripheral;
 
-/// Operating state of the FDL master
+/// Operating state of the DP master
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]
 pub enum OperatingState {

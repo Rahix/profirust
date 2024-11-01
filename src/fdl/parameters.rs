@@ -1,6 +1,6 @@
-/// FDL master parameters
+/// FDL active station parameters
 ///
-/// These parameters configure the behavior of the FDL master.
+/// These parameters configure the behavior of an FDL active station.
 ///
 /// You should use the [`ParametersBuilder`] to build the parameters struct.  Check its
 /// documentation for detailed explanations of the individual parameters.
@@ -19,7 +19,7 @@
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[non_exhaustive]
 pub struct Parameters {
-    /// Station address for this master
+    /// Station address for this master/active station
     pub address: u8,
     /// Baudrate
     pub baudrate: crate::Baudrate,
@@ -118,11 +118,11 @@ fn watchdog_factors(dur: crate::time::Duration) -> Option<Result<(u8, u8), ()>> 
         })
 }
 
-/// Builder for the parameters of an FDL master
+/// Builder for the parameters of an FDL active station
 pub struct ParametersBuilder(Parameters);
 
 impl ParametersBuilder {
-    /// Start building parameters for an FDL master with the given `address`.
+    /// Start building parameters for an FDL active station with the given `address`.
     ///
     /// - `address` must be a valid PROFIBUS address (<= 125).
     /// - `baudrate` is the baudrate the is used for this PROFIBUS network.
@@ -159,15 +159,13 @@ impl ParametersBuilder {
         self
     }
 
-    /// Set the highest projected station address.
+    /// Set the highest projected (active) station address.
     ///
-    /// The HSA is used when scanning for other FDL masters who want to participate on the bus.
+    /// The HSA is used when scanning for other FDL active station who want to participate on the bus.
     ///
-    /// The HSA also affects what addresses will appear in the live list recorded by this master.
-    ///
-    /// By default, all addresses are scanned (HSA = 126).  This means all masters will be found
-    /// but it also means that the time until a master can join the token ring is rather long.  It
-    /// is advisable to choose low addresses for all masters and then set the HSA accordingly to
+    /// By default, all addresses are scanned (HSA = 126).  This means all active stations will be found
+    /// but it also means that the time until an active station can join the token ring is rather long.  It
+    /// is advisable to choose low addresses for all active stations and then set the HSA accordingly to
     /// optimize recovery time after a master drops from the bus.
     #[inline]
     pub fn highest_station_address(&mut self, hsa: u8) -> &mut Self {
@@ -180,7 +178,7 @@ impl ParametersBuilder {
 
     /// Set the projected token rotation time (in bits).
     ///
-    /// The TTR is used to ensure each FDL master gets a chance to communicate with its peripherals
+    /// The TTR is used to ensure each FDL active station gets a chance to communicate with its peripherals
     /// in deterministic time.
     ///
     /// It is important that the TTR is not too small as this unnecessarily slows down
@@ -193,7 +191,7 @@ impl ParametersBuilder {
 
     /// Set how many token rotations to wait before restarting the GAP scan.
     ///
-    /// The GAP scan is used to detect other FDL masters who want to communicate on the bus.
+    /// The GAP scan is used to detect other FDL active stations who want to communicate on the bus.
     ///
     /// This factor is the wait time between scan cycles.  A low value means stations are found
     /// very quickly but the tradeoff is a higher average cycle time.

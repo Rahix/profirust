@@ -1,0 +1,111 @@
+;================================================================
+; This is a mock GSD-File so we can run at least some tests in CI
+;================================================================
+#Profibus_DP
+;
+GSD_Revision=3
+
+; Device identification
+Vendor_Name="profirust contributors"
+Model_Name="FROBNICATOR"
+Revision="V1.0"
+Ident_Number=0x1337
+Protocol_Ident=0
+Station_Type=0
+Hardware_Release="V1.0"
+Software_Release="V1.0"
+OrderNumber="13371337"
+Info_Text="Actual Frobnicator Device"
+
+; Supported baudrates
+9.6_supp=1
+19.2_supp=1
+45.45_supp=1
+93.75_supp=1
+187.5_supp=1
+500_supp=1
+1.5M_supp=1
+3M_supp=1
+6M_supp=1
+12M_supp=1
+
+; Maximum responder time for supported baudrates
+MaxTsdr_9.6     =   15
+MaxTsdr_19.2    =   15
+MaxTsdr_45.45   =   15
+MaxTsdr_93.75   =   15
+MaxTsdr_187.5   =   15
+MaxTsdr_500     =   15
+MaxTsdr_1.5M    =   25
+MaxTsdr_3M      =   50
+MaxTsdr_6M      =  100
+MaxTsdr_12M     =  200
+
+; Supported hardware features
+24V_Pins=2; Signal M24V and P24V connected
+
+; Supported hardware features
+Freeze_Mode_supp=0
+Sync_Mode_supp=0
+Auto_Baud_supp=1
+Set_Slave_Add_supp=0
+
+; Maximum polling frequency
+Min_Slave_Intervall=1
+
+; Maximum supported sizes
+;Modular_Station=1
+;Max_Module=244
+;Max_Input_Len=244
+;Max_Output_Len=244
+;Max_Data_Len=488
+
+Fail_Safe=1
+
+Implementation_Type="DPC31"
+Bitmap_Device="NONE"
+Slave_Family=0@Machine Vision;0 = General
+Family_Name = "PROFIRUST"
+
+Max_Diag_Data_Len=244
+;Plain-text display of the station diagnosis    (O)
+;Bit position in the station diagnosis unsigned 16
+;Plain-text display max. 32 characters
+Unit_Diag_Bit( 0) = "Invalid Sensor"
+Unit_Diag_Bit( 1) = "Sensor not found"
+Unit_Diag_Bit( 2) = "Diagnostic bit 2"
+Unit_Diag_Bit( 3) = "Error Disable Signal Change"
+Unit_Diag_Bit( 4) = "Error in Signal Sequence"
+Unit_Diag_Bit( 5) = "Code corrupt"
+Unit_Diag_Bit( 6) = "Diagnostic bit 6"
+Unit_Diag_Bit( 7) = "Transmit Error"
+Unit_Diag_Bit( 8) = "Invalid DP Parameters"
+Unit_Diag_Bit( 9) = "Cycletime too short"
+Unit_Diag_Bit(10) = "Error Training Code"
+Unit_Diag_Bit(11) = "Error Match Mismatch"
+Unit_Diag_Bit(12) = "Error No Code"
+Unit_Diag_Bit(13) = "PROFIBUS/DP Error"
+Unit_Diag_Bit(14) = "RS232-Box Communication Error"
+Unit_Diag_Bit(15) = "Lamp overload"
+Unit_Diag_Bit(16) = "Reserved Code-No."
+Unit_Diag_Bit(17) = "Frobincated"
+Unit_Diag_Bit(18) = "Diagnostic bit 18"
+Unit_Diag_Bit(19) = "Diagnostic bit 19"
+Unit_Diag_Bit(20) = "Diagnostic bit 20"
+Unit_Diag_Bit(21) = "Diagnostic bit 21"
+Unit_Diag_Bit(22) = "Diagnostic bit 22"
+Unit_Diag_Bit(23) = "Diagnostic bit 23"
+Unit_Diag_Bit(24) = "Diagnostic bit 24"
+Unit_Diag_Bit(25) = "Diagnostic bit 25"
+Unit_Diag_Bit(26) = "Diagnostic bit 26"
+Unit_Diag_Bit(27) = "Diagnostic bit 27"
+Unit_Diag_Bit(28) = "Diagnostic bit 28"
+Unit_Diag_Bit(29) = "Diagnostic bit 29"
+Unit_Diag_Bit(30) = "Diagnostic bit 30"
+Unit_Diag_Bit(31) = "Diagnostic bit 31"
+
+; Definition of modules
+Module = "FROBNICATOR 1 byte + 16 word I/O" 0x30,0xFF
+1
+Info_Text="Standard Frobnicator Configuration"
+EndModule

@@ -1,0 +1,5 @@
+---
+source: gsd-parser/tests/regress.rs
+expression: prm.as_bytes()
+---
+[]

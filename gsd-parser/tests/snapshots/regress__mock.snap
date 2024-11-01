@@ -1,0 +1,198 @@
+---
+source: gsd-parser/tests/regress.rs
+expression: gsd
+---
+GenericStationDescription {
+    gsd_revision: 3,
+    vendor: "profirust contributors",
+    model: "FROBNICATOR",
+    revision: "V1.0",
+    revision_number: 0,
+    ident_number: 4919,
+    hardware_release: "V1.0",
+    software_release: "V1.0",
+    implementation_type: "DPC31",
+    freeze_mode_supported: false,
+    sync_mode_supported: false,
+    auto_baud_supported: true,
+    set_slave_addr_supported: false,
+    fail_safe: true,
+    max_diag_data_length: 244,
+    modular_station: false,
+    max_modules: 0,
+    max_input_length: 0,
+    max_output_length: 0,
+    max_data_length: 0,
+    supported_speeds: SupportedSpeeds(
+        B9600 | B19200 | B45450 | B93750 | B187500 | B500000 | B1500000 | B3000000 | B6000000 | B12000000,
+    ),
+    max_tsdr: MaxTsdr {
+        b9600: 15,
+        b19200: 15,
+        b31250: 60,
+        b45450: 15,
+        b93750: 15,
+        b187500: 15,
+        b500000: 15,
+        b1500000: 25,
+        b3000000: 50,
+        b6000000: 100,
+        b12000000: 200,
+    },
+    available_modules: [
+        Module {
+            name: "FROBNICATOR 1 byte + 16 word I/O",
+            config: [
+                48,
+                255,
+            ],
+            reference: Some(
+                1,
+            ),
+            module_prm_data: UserPrmData {
+                length: 0,
+                data_const: [],
+                data_ref: [],
+            },
+        },
+    ],
+    user_prm_data: UserPrmData {
+        length: 0,
+        data_const: [],
+        data_ref: [],
+    },
+    unit_diag: UnitDiag {
+        bits: {
+            0: UnitDiagBitInfo {
+                text: "Invalid Sensor",
+                help: None,
+            },
+            1: UnitDiagBitInfo {
+                text: "Sensor not found",
+                help: None,
+            },
+            2: UnitDiagBitInfo {
+                text: "Diagnostic bit 2",
+                help: None,
+            },
+            3: UnitDiagBitInfo {
+                text: "Error Disable Signal Change",
+                help: None,
+            },
+            4: UnitDiagBitInfo {
+                text: "Error in Signal Sequence",
+                help: None,
+            },
+            5: UnitDiagBitInfo {
+                text: "Code corrupt",
+                help: None,
+            },
+            6: UnitDiagBitInfo {
+                text: "Diagnostic bit 6",
+                help: None,
+            },
+            7: UnitDiagBitInfo {
+                text: "Transmit Error",
+                help: None,
+            },
+            8: UnitDiagBitInfo {
+                text: "Invalid DP Parameters",
+                help: None,
+            },
+            9: UnitDiagBitInfo {
+                text: "Cycletime too short",
+                help: None,
+            },
+            10: UnitDiagBitInfo {
+                text: "Error Training Code",
+                help: None,
+            },
+            11: UnitDiagBitInfo {
+                text: "Error Match Mismatch",
+                help: None,
+            },
+            12: UnitDiagBitInfo {
+                text: "Error No Code",
+                help: None,
+            },
+            13: UnitDiagBitInfo {
+                text: "PROFIBUS/DP Error",
+                help: None,
+            },
+            14: UnitDiagBitInfo {
+                text: "RS232-Box Communication Error",
+                help: None,
+            },
+            15: UnitDiagBitInfo {
+                text: "Lamp overload",
+                help: None,
+            },
+            16: UnitDiagBitInfo {
+                text: "Reserved Code-No.",
+                help: None,
+            },
+            17: UnitDiagBitInfo {
+                text: "Frobincated",
+                help: None,
+            },
+            18: UnitDiagBitInfo {
+                text: "Diagnostic bit 18",
+                help: None,
+            },
+            19: UnitDiagBitInfo {
+                text: "Diagnostic bit 19",
+                help: None,
+            },
+            20: UnitDiagBitInfo {
+                text: "Diagnostic bit 20",
+                help: None,
+            },
+            21: UnitDiagBitInfo {
+                text: "Diagnostic bit 21",
+                help: None,
+            },
+            22: UnitDiagBitInfo {
+                text: "Diagnostic bit 22",
+                help: None,
+            },
+            23: UnitDiagBitInfo {
+                text: "Diagnostic bit 23",
+                help: None,
+            },
+            24: UnitDiagBitInfo {
+                text: "Diagnostic bit 24",
+                help: None,
+            },
+            25: UnitDiagBitInfo {
+                text: "Diagnostic bit 25",
+                help: None,
+            },
+            26: UnitDiagBitInfo {
+                text: "Diagnostic bit 26",
+                help: None,
+            },
+            27: UnitDiagBitInfo {
+                text: "Diagnostic bit 27",
+                help: None,
+            },
+            28: UnitDiagBitInfo {
+                text: "Diagnostic bit 28",
+                help: None,
+            },
+            29: UnitDiagBitInfo {
+                text: "Diagnostic bit 29",
+                help: None,
+            },
+            30: UnitDiagBitInfo {
+                text: "Diagnostic bit 30",
+                help: None,
+            },
+            31: UnitDiagBitInfo {
+                text: "Diagnostic bit 31",
+                help: None,
+            },
+        },
+        not_bits: {},
+        areas: [],
+    },
+}

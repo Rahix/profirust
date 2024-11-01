@@ -946,6 +946,9 @@ impl FdlActiveStation {
             })
             .unwrap();
 
+        self.token_ring
+            .witness_token_pass(self.p.address, self.token_ring.next_station());
+
         if self.token_ring.next_station() == self.p.address {
             self.state.transition_use_token();
         } else {

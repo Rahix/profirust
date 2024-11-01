@@ -5,18 +5,20 @@
 //!
 //! You can also find the representations of PROFIBUS telegrams and related data structures here.
 mod active;
-mod master;
 mod parameters;
 mod telegram;
 mod token_ring;
 
 #[cfg(test)]
 mod test_active;
+
+// Old code.
+#[cfg(feature = "false")]
+mod master;
 #[cfg(feature = "false")]
 mod tests;
 
 pub use active::FdlActiveStation;
-pub use master::{ConnectivityState, FdlMaster};
 pub use parameters::{Parameters, ParametersBuilder};
 pub(crate) use token_ring::TokenRing;
 

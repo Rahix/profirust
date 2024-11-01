@@ -64,14 +64,14 @@ impl PhyData<'_> {
 /// const BAUDRATE: Baudrate = Baudrate::B19200;
 /// # let mut dp_master = dp::DpMaster::new(vec![]);
 ///
-/// let mut fdl_master = fdl::FdlMaster::new(
+/// let mut fdl = fdl::FdlActiveStation::new(
 ///     fdl::ParametersBuilder::new(0x02, BAUDRATE)
 ///         // Increase T_slot (slot time)
 ///         .slot_bits(1920)
 ///         .build_verified(&dp_master)
 /// );
 ///
-/// let mut phy = phy::LinuxRs485Phy::new("/dev/ttyS0", fdl_master.parameters().baudrate);
+/// let mut phy = phy::LinuxRs485Phy::new("/dev/ttyS0", fdl.parameters().baudrate);
 /// ```
 #[derive(Debug)]
 pub struct LinuxRs485Phy<'a> {

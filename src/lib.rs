@@ -41,7 +41,7 @@
 //! // Set up the FDL master and parameterize it:
 //! // ==========================================
 //! let master_address = 2;
-//! let mut fdl_master = fdl::FdlMaster::new(
+//! let mut fdl = fdl::FdlActiveStation::new(
 //!     fdl::ParametersBuilder::new(master_address, Baudrate::B19200)
 //!         .slot_bits(300)
 //!         .build_verified(&dp_master)
@@ -49,18 +49,18 @@
 //!
 //! // Initialize the PHY layer:
 //! // =========================
-//! let mut phy = phy::LinuxRs485Phy::new("/dev/ttyS0", fdl_master.parameters().baudrate);
+//! let mut phy = phy::LinuxRs485Phy::new("/dev/ttyS0", fdl.parameters().baudrate);
 //!
 //! // Now let's go live:
 //! // ==================
-//! fdl_master.set_online();
+//! fdl.set_online();
 //! dp_master.enter_operate();
 //!
 //! // Main Application Cycle
 //! // ======================
 //! loop {
 //!     let now = profirust::time::Instant::now();
-//!     let events = fdl_master.poll(now, &mut phy, &mut dp_master);
+//!     let events = fdl.poll(now, &mut phy, &mut dp_master);
 //!
 //!     // Do something whenever new the DP cycle (for all peripherals) completes:
 //!     if events.cycle_completed {

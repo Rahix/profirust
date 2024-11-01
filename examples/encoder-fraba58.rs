@@ -68,7 +68,7 @@ fn main() {
         .with_diag_buffer(&mut buffer_diagnostics),
     );
 
-    let mut fdl_master = fdl::FdlMaster::new(
+    let mut fdl = fdl::FdlActiveStation::new(
         fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)
             // We use a rather large T_slot time because USB-RS485 converters
             // can induce large delays at times.
@@ -76,16 +76,16 @@ fn main() {
             .build_verified(&dp_master),
     );
     // We must not poll() too often or to little. T_slot / 2 seems to be a good compromise.
-    let sleep_time: std::time::Duration = (fdl_master.parameters().slot_time() / 2).into();
+    let sleep_time: std::time::Duration = (fdl.parameters().slot_time() / 2).into();
 
     println!("Connecting to the bus...");
-    let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl_master.parameters().baudrate);
+    let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl.parameters().baudrate);
 
-    fdl_master.set_online();
+    fdl.set_online();
     dp_master.enter_operate();
     loop {
         let now = profirust::time::Instant::now();
-        let events = fdl_master.poll(now, &mut phy, &mut dp_master);
+        let events = fdl.poll(now, &mut phy, &mut dp_master);
 
         // Get mutable access the the peripheral here so we can interact with it.
         let encoder = dp_master.get_mut(encoder_handle);

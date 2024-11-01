@@ -730,3 +730,61 @@ fn active_idle_token_lost() {
 
     assert!(time > fdl_ut.fdl_param().token_lost_timeout());
 }
+
+/// Test that the active station correctly rejects a single token from a new previous station
+#[test]
+fn active_station_rejects_new_previous_neighbor() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::default();
+
+    fdl_ut.prepare_two_station_ring();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(42, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 42)));
+    fdl_ut.wait_transmission();
+
+    // Active station must not accept this token, so the next thing we see is the token lost
+    // timeout.
+
+    let time =
+        fdl_ut.assert_next_telegram(fdl::Telegram::Token(fdl::TokenTelegram { da: 7, sa: 7 }));
+
+    assert!(time > fdl_ut.fdl_param().token_lost_timeout());
+}
+
+/// Test that the active station correctly accepts a token from a new previous station
+#[test]
+fn active_station_accepts_new_previous_neighbor() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::default();
+
+    fdl_ut.prepare_two_station_ring();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(42, 15)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 42)));
+    fdl_ut.wait_transmission();
+
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.advance_bus_time_sync_pause();
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(7, 42)));
+    fdl_ut.wait_transmission();
+
+    // Active station must not accept this token, so the next thing we see is the token lost
+    // timeout.
+
+    let wait_time = fdl_ut
+        .wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+    assert!(wait_time <= fdl_ut.fdl_param().slot_time() * 2);
+}

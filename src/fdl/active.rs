@@ -74,6 +74,7 @@ enum State {
     },
     ActiveIdle {
         status_request: Option<crate::Address>,
+        new_previous_station: Option<crate::Address>,
     },
     UseToken,
     ClaimToken {
@@ -159,6 +160,7 @@ impl State {
         );
         *self = State::ActiveIdle {
             status_request: None,
+            new_previous_station: None,
         };
     }
 
@@ -238,6 +240,16 @@ impl State {
     fn get_active_idle_status_request(&mut self) -> &mut Option<crate::Address> {
         match self {
             Self::ActiveIdle { status_request, .. } => status_request,
+            _ => unreachable!(),
+        }
+    }
+
+    fn get_active_idle_new_previous_station(&mut self) -> &mut Option<crate::Address> {
+        match self {
+            Self::ActiveIdle {
+                new_previous_station,
+                ..
+            } => new_previous_station,
             _ => unreachable!(),
         }
     }
@@ -688,10 +700,10 @@ impl FdlActiveStation {
             match telegram {
                 // Handle any token telegrams
                 crate::fdl::Telegram::Token(token_telegram) => {
-                    self.token_ring
-                        .witness_token_pass(token_telegram.sa, token_telegram.da);
-
                     if token_telegram.da != self.p.address {
+                        self.token_ring
+                            .witness_token_pass(token_telegram.sa, token_telegram.da);
+
                         PollDone::waiting_for_bus()
                     } else {
                         // We may only accept the token from the known neighbor (on their first try)
@@ -699,8 +711,22 @@ impl FdlActiveStation {
                             self.state.transition_use_token();
                             PollDone::waiting_for_delay()
                         } else {
-                            log::warn!("TODO: Handle token from unknown neighbor");
-                            PollDone::waiting_for_bus()
+                            match *self.state.get_active_idle_new_previous_station() {
+                                Some(address) if address == token_telegram.sa => {
+                                    // We have seen this previous_station before, so accept the
+                                    // token.
+                                    self.token_ring
+                                        .witness_token_pass(token_telegram.sa, token_telegram.da);
+                                    self.state.transition_use_token();
+                                    PollDone::waiting_for_delay()
+                                }
+                                _ => {
+                                    // Unknown, pend the address for receiving the retry.
+                                    *self.state.get_active_idle_new_previous_station() =
+                                        Some(token_telegram.sa);
+                                    PollDone::waiting_for_bus()
+                                }
+                            }
                         }
                     }
                 }

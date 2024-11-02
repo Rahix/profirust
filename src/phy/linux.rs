@@ -163,6 +163,22 @@ impl LinuxRs485Phy<'_> {
             tty.c_ospeed, baud,
             "c_ospeed not matching expected baudrate"
         );
+        assert!(
+            tty.c_cflag & libc::CS8 != 0,
+            "character size (8) was not accepted"
+        );
+        assert!(
+            tty.c_cflag & libc::CSTOPB == 0,
+            "stop bits setting (1) was not accepted"
+        );
+        assert!(
+            tty.c_cflag & libc::PARENB != 0,
+            "parity enable was not accepted"
+        );
+        assert!(
+            tty.c_cflag & libc::PARODD == 0,
+            "even parity was not accepted"
+        );
 
         let res = rs485::SerialRs485::new()
             .set_enabled(true)

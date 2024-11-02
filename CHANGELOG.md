@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### `profirust`
 #### Added
 - Reimplemented the FDL layer for correct multi-master operation.
+- Added more checks to the Linux PHY implementation to catch serial devices
+  that did not accept the required configuration.
 
 #### Changed
 - **BREAKING** The FDL layer driver is now called `FdlActiveStation` instead of `FdlMaster`.

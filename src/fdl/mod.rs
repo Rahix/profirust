@@ -13,12 +13,6 @@ mod token_ring;
 #[cfg(test)]
 mod test_active;
 
-// Old code.
-#[cfg(any())]
-mod master;
-#[cfg(any())]
-mod tests;
-
 pub use active::FdlActiveStation;
 pub use parameters::{Parameters, ParametersBuilder};
 pub(crate) use token_ring::TokenRing;

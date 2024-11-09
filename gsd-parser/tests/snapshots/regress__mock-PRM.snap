@@ -2,4 +2,17 @@
 source: gsd-parser/tests/regress.rs
 expression: prm.as_bytes()
 ---
-[]
+[
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    255,
+]

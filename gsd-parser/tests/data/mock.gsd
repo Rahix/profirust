@@ -67,6 +67,42 @@ Bitmap_Device="NONE"
 Slave_Family=0@Machine Vision;0 = General
 Family_Name = "PROFIRUST"
 
+PrmText=1
+Text(0)= "FALSE"
+Text(1)= "TRUE"
+EndPrmText
+
+PrmText=2
+Text(0)="Value 1"
+Text(1)="Value 2"
+Text(2)="Value 3"
+Text(3)="Value 4"
+EndPrmText
+
+ExtUserPrmData=1 "Peripheral Setting"
+Bit(0) 0 0-1
+Prm_Text_Ref=1
+EndExtUserPrmData
+
+ExtUserPrmData=2 "Peripheral Setting 2"
+BitArea(1-2) 0 0-3
+Prm_Text_Ref=2
+EndExtUserPrmData
+
+ExtUserPrmData=3 "Peripheral Setting Int"
+Unsigned16 2000 0-10000
+EndExtUserPrmData
+
+; Legacy
+User_Prm_Data_Len    = 10
+User_Prm_Data        = 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+
+; Modern
+Max_User_Prm_Data_Len= 15
+Ext_User_Prm_Data_Const(0)=0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xff
+Ext_User_Prm_Data_Ref(5)=1
+Ext_User_Prm_Data_Ref(5)=2
+
 Max_Diag_Data_Len=244
 ;Plain-text display of the station diagnosis    (O)
 ;Bit position in the station diagnosis unsigned 16
@@ -108,4 +144,12 @@ Unit_Diag_Bit(31) = "Diagnostic bit 31"
 Module = "FROBNICATOR 1 byte + 16 word I/O" 0x30,0xFF
 1
 Info_Text="Standard Frobnicator Configuration"
+EndModule
+
+Module="FROBNICATOR PRM Module" 0x30,0xFF
+5
+Ext_Module_Prm_Data_Len = 3
+Ext_User_Prm_Data_Const(0) = 0x05,0x00,0x00
+Ext_User_Prm_Data_Ref(1) = 1
+Ext_User_Prm_Data_Ref(1) = 2
 EndModule

@@ -55,11 +55,149 @@ GenericStationDescription {
                 data_ref: [],
             },
         },
+        Module {
+            name: "FROBNICATOR PRM Module",
+            config: [
+                48,
+                255,
+            ],
+            reference: Some(
+                5,
+            ),
+            module_prm_data: UserPrmData {
+                length: 3,
+                data_const: [
+                    (
+                        0,
+                        [
+                            5,
+                            0,
+                            0,
+                        ],
+                    ),
+                ],
+                data_ref: [
+                    (
+                        1,
+                        UserPrmDataDefinition {
+                            name: "Peripheral Setting",
+                            data_type: Bit(
+                                0,
+                            ),
+                            default_value: 0,
+                            constraint: MinMax(
+                                0,
+                                1,
+                            ),
+                            text_ref: Some(
+                                {
+                                    "FALSE": 0,
+                                    "TRUE": 1,
+                                },
+                            ),
+                            changeable: true,
+                            visible: true,
+                        },
+                    ),
+                    (
+                        1,
+                        UserPrmDataDefinition {
+                            name: "Peripheral Setting 2",
+                            data_type: BitArea(
+                                1,
+                                2,
+                            ),
+                            default_value: 0,
+                            constraint: MinMax(
+                                0,
+                                3,
+                            ),
+                            text_ref: Some(
+                                {
+                                    "Value 1": 0,
+                                    "Value 2": 1,
+                                    "Value 3": 2,
+                                    "Value 4": 3,
+                                },
+                            ),
+                            changeable: true,
+                            visible: true,
+                        },
+                    ),
+                ],
+            },
+        },
     ],
     user_prm_data: UserPrmData {
         length: 0,
-        data_const: [],
-        data_ref: [],
+        data_const: [
+            (
+                0,
+                [
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    255,
+                ],
+            ),
+        ],
+        data_ref: [
+            (
+                5,
+                UserPrmDataDefinition {
+                    name: "Peripheral Setting",
+                    data_type: Bit(
+                        0,
+                    ),
+                    default_value: 0,
+                    constraint: MinMax(
+                        0,
+                        1,
+                    ),
+                    text_ref: Some(
+                        {
+                            "FALSE": 0,
+                            "TRUE": 1,
+                        },
+                    ),
+                    changeable: true,
+                    visible: true,
+                },
+            ),
+            (
+                5,
+                UserPrmDataDefinition {
+                    name: "Peripheral Setting 2",
+                    data_type: BitArea(
+                        1,
+                        2,
+                    ),
+                    default_value: 0,
+                    constraint: MinMax(
+                        0,
+                        3,
+                    ),
+                    text_ref: Some(
+                        {
+                            "Value 1": 0,
+                            "Value 2": 1,
+                            "Value 3": 2,
+                            "Value 4": 3,
+                        },
+                    ),
+                    changeable: true,
+                    visible: true,
+                },
+            ),
+        ],
     },
     unit_diag: UnitDiag {
         bits: {

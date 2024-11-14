@@ -10,6 +10,7 @@ mod diagnostics;
 mod master;
 mod peripheral;
 mod peripheral_set;
+pub mod scan;
 
 pub use diagnostics::{
     ChannelDataType, ChannelDiagnostics, ChannelError, ExtDiagBlock, ExtDiagBlockIter,

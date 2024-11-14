@@ -102,7 +102,7 @@ pub struct PeripheralDiagnostics<'a> {
 
 /// Internal storage for diagnostics information
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct DiagnosticsInfo {
+pub(crate) struct DiagnosticsInfo {
     pub flags: DiagnosticFlags,
     pub ident_number: u16,
     pub master_address: u8,

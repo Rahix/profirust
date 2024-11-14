@@ -17,6 +17,7 @@ pub use diagnostics::{
 };
 pub(crate) use master::DpMasterState;
 pub use master::{DpEvents, DpMaster, OperatingState};
+pub(crate) use peripheral::DiagnosticsInfo;
 pub use peripheral::{
     DiagnosticFlags, Peripheral, PeripheralDiagnostics, PeripheralEvent, PeripheralOptions,
 };

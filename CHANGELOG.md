@@ -17,9 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Changed
 - **BREAKING** The FDL layer driver is now called `FdlActiveStation` instead of `FdlMaster`.
-- **BREAKING** In the DP diagnostics, the master address is now of type
+- **BREAKING** In the DP diagnostics, the `master_address` is now of type
   `Option<Address>`.  It is `None` when a peripheral is not yet tied to a
-  specific master.
+  specific master (previously, 255 was returned).
+- **BREAKING** The `fdl.poll()` no longer returns the application events.
+  These are now accessed via a specific method on the application types, e.g.
+  `DpMaster::take_last_events()`.  In code, this requires a change like this:
+  ```diff
+  -        let events = fdl.poll(now, &mut phy, &mut dp_master);
+  +        fdl.poll(now, &mut phy, &mut dp_master);
+  +        let events = dp_master.take_last_events();
+  ```
 
 #### Removed
 - **BREAKING** Removed the live-list that was built into the FDL layer driver.

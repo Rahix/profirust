@@ -28,8 +28,6 @@ pub use telegram::{
 ///
 /// Only one application layer component is permitted per FDL master.
 pub trait FdlApplication {
-    type Events: Default;
-
     /// Possibly transmit a telegram.
     ///
     /// The FDL layer will know whether a reply is expected based on the telegram that is sent.  If
@@ -45,7 +43,7 @@ pub trait FdlApplication {
         fdl: &FdlActiveStation,
         tx: TelegramTx,
         high_prio_only: bool,
-    ) -> (Option<TelegramTxResponse>, Self::Events);
+    ) -> Option<TelegramTxResponse>;
 
     /// Receive the reply for the telegram that was last transmitted.
     fn receive_reply(
@@ -54,7 +52,7 @@ pub trait FdlApplication {
         fdl: &FdlActiveStation,
         addr: u8,
         telegram: Telegram,
-    ) -> Self::Events;
+    );
 
     /// Handle a timeout while waiting for a reply from the given address.
     fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &FdlActiveStation, addr: u8);
@@ -62,16 +60,14 @@ pub trait FdlApplication {
 
 // A sort of placeholder when no application is used.
 impl FdlApplication for () {
-    type Events = ();
-
     fn transmit_telegram(
         &mut self,
         now: crate::time::Instant,
         fdl: &FdlActiveStation,
         tx: TelegramTx,
         high_prio_only: bool,
-    ) -> (Option<TelegramTxResponse>, Self::Events) {
-        (None, ())
+    ) -> Option<TelegramTxResponse> {
+        None
     }
 
     fn receive_reply(
@@ -80,7 +76,7 @@ impl FdlApplication for () {
         fdl: &FdlActiveStation,
         addr: u8,
         telegram: Telegram,
-    ) -> Self::Events {
+    ) {
         ()
     }
 

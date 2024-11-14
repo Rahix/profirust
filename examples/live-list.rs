@@ -39,7 +39,9 @@ fn main() -> ! {
 
     fdl.set_online();
     loop {
-        let event = fdl.poll(profirust::time::Instant::now(), &mut phy, &mut live_list);
+        fdl.poll(profirust::time::Instant::now(), &mut phy, &mut live_list);
+
+        let event = live_list.take_last_event();
 
         match event {
             Some(fdl::live_list::StationEvent::Discovered(station)) => {

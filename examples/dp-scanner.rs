@@ -38,9 +38,9 @@ fn main() -> ! {
 
     fdl.set_online();
     loop {
-        let event = fdl.poll(profirust::time::Instant::now(), &mut phy, &mut dp_scanner);
+        fdl.poll(profirust::time::Instant::now(), &mut phy, &mut dp_scanner);
 
-        match event {
+        match dp_scanner.take_last_event() {
             Some(dp::scan::DpScanEvent::PeripheralFound(desc)) => {
                 log::info!("Discovered peripheral #{}:", desc.address);
                 log::info!("  - Ident: 0x{:04x}", desc.ident);

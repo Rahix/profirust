@@ -114,6 +114,9 @@ pub struct DpMasterState {
 
     /// Cycle State, tracking progress of the data exchange cycle
     cycle_state: CycleState,
+
+    /// Last set of events that occurred
+    last_events: DpEvents,
 }
 
 impl<'a> DpMaster<'a> {
@@ -131,6 +134,7 @@ impl<'a> DpMaster<'a> {
                 operating_state: OperatingState::Stop,
                 last_global_control: None,
                 cycle_state: CycleState::DataExchange(0),
+                last_events: Default::default(),
             },
         }
     }
@@ -159,6 +163,14 @@ impl<'a> DpMaster<'a> {
 
     pub fn iter(&self) -> impl Iterator<Item = (crate::dp::PeripheralHandle, &Peripheral<'a>)> {
         self.peripherals.iter()
+    }
+
+    /// Return the last events set once.
+    ///
+    /// On consecutive calls, an empty events set it returned.  If events are not retrieved using
+    /// this function, they may be overridden by newer events on the next poll cycle.
+    pub fn take_last_events(&mut self) -> DpEvents {
+        core::mem::take(&mut self.state.last_events)
     }
 
     #[inline(always)]
@@ -214,18 +226,18 @@ impl<'a> DpMaster<'a> {
 }
 
 impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
-    type Events = DpEvents;
-
     fn transmit_telegram(
         &mut self,
         now: crate::time::Instant,
         fdl: &crate::fdl::FdlActiveStation,
         mut tx: crate::fdl::TelegramTx,
         high_prio_only: bool,
-    ) -> (Option<crate::fdl::TelegramTxResponse>, Self::Events) {
+    ) -> Option<crate::fdl::TelegramTxResponse> {
         // In STOP state, never send anything
         if self.state.operating_state.is_stop() {
-            return (None, DpEvents::default());
+            // TODO: Is overwriting the last events here the best course of action?
+            self.state.last_events = DpEvents::default();
+            return None;
         }
 
         // First check whether it is time for another global control telegram
@@ -244,31 +256,30 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                 "DP master sending global control for state {:?}",
                 self.state.operating_state
             );
-            return (
-                Some(tx.send_data_telegram(
-                    crate::fdl::DataTelegramHeader {
-                        da: 0x7f,
-                        sa: fdl.parameters().address,
-                        dsap: crate::consts::SAP_SLAVE_GLOBAL_CONTROL,
-                        ssap: crate::consts::SAP_MASTER_MS0,
-                        fc: crate::fdl::FunctionCode::Request {
-                            // TODO: Do we need an FCB for GC telegrams?
-                            fcb: crate::fdl::FrameCountBit::Inactive,
-                            req: crate::fdl::RequestType::SdnLow,
-                        },
+            // TODO: Is overwriting the last events here the best course of action?
+            self.state.last_events = DpEvents::default();
+            return Some(tx.send_data_telegram(
+                crate::fdl::DataTelegramHeader {
+                    da: 0x7f,
+                    sa: fdl.parameters().address,
+                    dsap: crate::consts::SAP_SLAVE_GLOBAL_CONTROL,
+                    ssap: crate::consts::SAP_MASTER_MS0,
+                    fc: crate::fdl::FunctionCode::Request {
+                        // TODO: Do we need an FCB for GC telegrams?
+                        fcb: crate::fdl::FrameCountBit::Inactive,
+                        req: crate::fdl::RequestType::SdnLow,
                     },
-                    2,
-                    |buf| {
-                        buf[0] = match self.state.operating_state {
-                            OperatingState::Clear => 0x02,
-                            OperatingState::Operate => 0x00,
-                            OperatingState::Stop => unreachable!(),
-                        };
-                        buf[1] = 0x00;
-                    },
-                )),
-                DpEvents::default(),
-            );
+                },
+                2,
+                |buf| {
+                    buf[0] = match self.state.operating_state {
+                        OperatingState::Clear => 0x02,
+                        OperatingState::Operate => 0x00,
+                        OperatingState::Stop => unreachable!(),
+                    };
+                    buf[1] = 0x00;
+                },
+            ));
         }
 
         let mut peripheral_event = None;
@@ -279,13 +290,11 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                     // On CycleCompleted, return None to let the FDL know where done.  Reset the
                     // cycle state to the beginning for the next time.
                     self.state.cycle_state = CycleState::DataExchange(0);
-                    return (
-                        None,
-                        DpEvents {
-                            peripheral: peripheral_event,
-                            ..Default::default()
-                        },
-                    );
+                    self.state.last_events = DpEvents {
+                        peripheral: peripheral_event,
+                        ..Default::default()
+                    };
+                    return None;
                 }
             };
 
@@ -295,13 +304,11 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                 match res {
                     Ok(tx_res) => {
                         // When this peripheral initiated a transmission, break out of the loop
-                        return (
-                            Some(tx_res),
-                            DpEvents {
-                                peripheral: peripheral_event,
-                                ..Default::default()
-                            },
-                        );
+                        self.state.last_events = DpEvents {
+                            peripheral: peripheral_event,
+                            ..Default::default()
+                        };
+                        return Some(tx_res);
                     }
                     Err((tx_returned, event)) => {
                         tx = tx_returned;
@@ -325,13 +332,11 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
                             // only okay here because we are in transmit_telegram() and will return
                             // without transmission on the next line.
                             self.state.cycle_state = CycleState::DataExchange(0);
-                            return (
-                                None,
-                                DpEvents {
-                                    cycle_completed: true,
-                                    peripheral: peripheral_event,
-                                },
-                            );
+                            self.state.last_events = DpEvents {
+                                cycle_completed: true,
+                                peripheral: peripheral_event,
+                            };
+                            return None;
                         }
                     }
                 }
@@ -345,7 +350,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         fdl: &crate::fdl::FdlActiveStation,
         addr: u8,
         telegram: crate::fdl::Telegram,
-    ) -> Self::Events {
+    ) {
         let index = match self.state.cycle_state {
             CycleState::DataExchange(i) => i,
             CycleState::CycleCompleted => {
@@ -356,10 +361,10 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
             Some((handle, peripheral)) if addr == peripheral.address() => {
                 let event = peripheral.receive_reply(now, &self.state, fdl, telegram);
                 let cycle_completed = self.increment_cycle_state(index);
-                DpEvents {
+                self.state.last_events = DpEvents {
                     cycle_completed,
                     peripheral: event.map(|ev| (handle, ev)),
-                }
+                };
             }
             _ => {
                 unreachable!(

@@ -895,20 +895,18 @@ impl FdlActiveStation {
         phy: &mut PHY,
         app: &mut APP,
         high_prio_only: bool,
-    ) -> (Option<PollDone>, APP::Events) {
-        let mut events = Default::default();
+    ) -> Option<PollDone> {
         if let Some(tx_res) = phy.transmit_telegram(now, |tx| {
-            let (res, ev) = app.transmit_telegram(now, self, tx, high_prio_only);
-            events = ev;
+            let res = app.transmit_telegram(now, self, tx, high_prio_only);
             res
         }) {
             if let Some(addr) = tx_res.expects_reply() {
                 let token_time = *self.state.get_use_token_token_time();
                 self.state.transition_await_data_response(addr, token_time);
             }
-            (Some(self.mark_tx(now, tx_res.bytes_sent())), events)
+            Some(self.mark_tx(now, tx_res.bytes_sent()))
         } else {
-            (None, events)
+            None
         }
     }
 
@@ -918,7 +916,7 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
         app: &mut APP,
-    ) -> PollResult<APP::Events> {
+    ) -> PollDone {
         debug_assert_state!(self.state, State::UseToken { .. });
 
         let token_time = *self.state.get_use_token_token_time();
@@ -935,34 +933,19 @@ impl FdlActiveStation {
 
         return_if_done!(self.wait_synchronization_pause(now));
 
-        let mut events = None;
         if now < self.end_token_hold_time {
             *self.state.get_use_token_first_cycle_done() = true;
-            let (done, ev) = self.app_transmit_telegram(now, phy, app, false);
-            match done {
-                Some(d) => return d.with_events(ev),
-                None => (),
-            }
-            events = Some(ev);
+            return_if_done!(self.app_transmit_telegram(now, phy, app, false));
         } else if !*self.state.get_use_token_first_cycle_done() {
             // Do one high priority message cycle
             *self.state.get_use_token_first_cycle_done() = true;
-            let (done, ev) = self.app_transmit_telegram(now, phy, app, true);
-            match done {
-                Some(d) => return d.with_events(ev),
-                None => (),
-            }
-            events = Some(ev);
+            return_if_done!(self.app_transmit_telegram(now, phy, app, true));
         }
 
         self.state
             .transition_pass_token(true, PassTokenAttempt::First);
 
-        if let Some(ev) = events {
-            PollDone::waiting_for_delay().with_events(ev)
-        } else {
-            PollDone::waiting_for_delay().into()
-        }
+        PollDone::waiting_for_delay()
     }
 
     fn do_await_data_response<'a, PHY: ProfibusPhy, APP: FdlApplication>(
@@ -970,13 +953,13 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
         app: &mut APP,
-    ) -> PollResult<APP::Events> {
+    ) -> PollDone {
         debug_assert_state!(self.state, State::AwaitDataResponse { .. });
 
         let address = *self.state.get_await_data_response_address();
         let token_time = *self.state.get_await_data_response_token_time();
 
-        let reply_events: Result<Option<APP::Events>, PollDone> = phy
+        let reply_events: Result<Option<()>, PollDone> = phy
             .receive_telegram(now, |telegram| {
                 self.mark_rx(now);
 
@@ -1004,10 +987,10 @@ impl FdlActiveStation {
             Err(d) => {
                 return d.into();
             }
-            Ok(Some(events)) => {
+            Ok(Some(())) => {
                 self.state.transition_use_token(token_time);
                 *self.state.get_use_token_first_cycle_done() = true;
-                return PollDone::waiting_for_delay().with_events(events);
+                return PollDone::waiting_for_delay();
             }
             Ok(None) => (),
         }
@@ -1018,7 +1001,7 @@ impl FdlActiveStation {
             *self.state.get_use_token_first_cycle_done() = true;
         }
 
-        PollDone::waiting_for_bus().into()
+        PollDone::waiting_for_bus()
     }
 
     #[must_use = "poll done marker"]
@@ -1193,9 +1176,8 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
         app: &mut APP,
-    ) -> APP::Events {
-        let result = self.poll_inner(now, phy, app);
-        result.events
+    ) {
+        let _result = self.poll_inner(now, phy, app);
     }
 
     fn poll_inner<'a, PHY: ProfibusPhy, APP: FdlApplication>(
@@ -1203,7 +1185,7 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
         app: &mut APP,
-    ) -> PollResult<APP::Events> {
+    ) -> PollDone {
         // Handle connectivity_state changes
         match self.connectivity_state {
             ConnectivityState::Offline => {

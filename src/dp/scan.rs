@@ -27,6 +27,10 @@ impl DpScanner {
         }
     }
 
+    pub fn take_last_event(&mut self) -> Option<DpScanEvent> {
+        self.pending_event.take()
+    }
+
     fn parse_diag_response(
         &self,
         telegram: crate::fdl::Telegram,
@@ -87,15 +91,13 @@ impl DpScanner {
 }
 
 impl crate::fdl::FdlApplication for DpScanner {
-    type Events = Option<DpScanEvent>;
-
     fn transmit_telegram(
         &mut self,
         now: crate::time::Instant,
         fdl: &crate::fdl::FdlActiveStation,
         tx: crate::fdl::TelegramTx,
         high_prio_only: bool,
-    ) -> (Option<crate::fdl::TelegramTxResponse>, Self::Events) {
+    ) -> Option<crate::fdl::TelegramTxResponse> {
         let this_station = fdl.parameters().address;
         let address = self.cursor;
 
@@ -105,20 +107,17 @@ impl crate::fdl::FdlApplication for DpScanner {
             self.cursor = 0;
         }
 
-        (
-            Some(tx.send_data_telegram(
-                crate::fdl::DataTelegramHeader {
-                    da: address,
-                    sa: this_station,
-                    dsap: crate::consts::SAP_SLAVE_DIAGNOSIS,
-                    ssap: crate::consts::SAP_MASTER_MS0,
-                    fc: crate::fdl::FunctionCode::new_srd_low(crate::fdl::FrameCountBit::First),
-                },
-                0,
-                |_buf| (),
-            )),
-            self.pending_event.take(),
-        )
+        Some(tx.send_data_telegram(
+            crate::fdl::DataTelegramHeader {
+                da: address,
+                sa: this_station,
+                dsap: crate::consts::SAP_SLAVE_DIAGNOSIS,
+                ssap: crate::consts::SAP_MASTER_MS0,
+                fc: crate::fdl::FunctionCode::new_srd_low(crate::fdl::FrameCountBit::First),
+            },
+            0,
+            |_buf| (),
+        ))
     }
 
     fn receive_reply(
@@ -127,7 +126,7 @@ impl crate::fdl::FdlApplication for DpScanner {
         fdl: &crate::fdl::FdlActiveStation,
         address: u8,
         telegram: crate::fdl::Telegram,
-    ) -> Self::Events {
+    ) {
         let station_unknown = !self.stations.get(usize::from(address)).unwrap();
 
         let event = if let Some(diag) = self.parse_diag_response(telegram, address) {
@@ -152,7 +151,7 @@ impl crate::fdl::FdlApplication for DpScanner {
             self.stations.set(usize::from(address), true);
         }
 
-        event
+        self.pending_event = event;
     }
 
     fn handle_timeout(

@@ -29,18 +29,20 @@ impl LiveList {
     pub fn iter_stations(&self) -> impl Iterator<Item = crate::Address> + DoubleEndedIterator + '_ {
         self.stations.iter_ones().map(|a| u8::try_from(a).unwrap())
     }
+
+    pub fn take_last_event(&mut self) -> Option<StationEvent> {
+        self.pending_event.take()
+    }
 }
 
 impl crate::fdl::FdlApplication for LiveList {
-    type Events = Option<StationEvent>;
-
     fn transmit_telegram(
         &mut self,
         now: crate::time::Instant,
         fdl: &super::FdlActiveStation,
         tx: super::TelegramTx,
         high_prio_only: bool,
-    ) -> (Option<super::TelegramTxResponse>, Self::Events) {
+    ) -> Option<super::TelegramTxResponse> {
         let this_station = fdl.parameters().address;
         let address = self.cursor;
 
@@ -50,10 +52,7 @@ impl crate::fdl::FdlApplication for LiveList {
             self.cursor = 0;
         }
 
-        (
-            Some(tx.send_fdl_status_request(address, this_station)),
-            self.pending_event.take(),
-        )
+        Some(tx.send_fdl_status_request(address, this_station))
     }
 
     fn receive_reply(
@@ -62,7 +61,7 @@ impl crate::fdl::FdlApplication for LiveList {
         fdl: &super::FdlActiveStation,
         addr: u8,
         telegram: super::Telegram,
-    ) -> Self::Events {
+    ) {
         let event = if !self.stations.get(usize::from(addr)).unwrap() {
             self.stations.set(usize::from(addr), true);
 
@@ -87,7 +86,7 @@ impl crate::fdl::FdlApplication for LiveList {
             None
         };
 
-        event
+        self.pending_event = event;
     }
 
     fn handle_timeout(

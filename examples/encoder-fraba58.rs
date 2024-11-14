@@ -85,7 +85,8 @@ fn main() {
     dp_master.enter_operate();
     loop {
         let now = profirust::time::Instant::now();
-        let events = fdl.poll(now, &mut phy, &mut dp_master);
+        fdl.poll(now, &mut phy, &mut dp_master);
+        let events = dp_master.take_last_events();
 
         // Get mutable access the the peripheral here so we can interact with it.
         let encoder = dp_master.get_mut(encoder_handle);

@@ -60,7 +60,8 @@
 //! // ======================
 //! loop {
 //!     let now = profirust::time::Instant::now();
-//!     let events = fdl.poll(now, &mut phy, &mut dp_master);
+//!     fdl.poll(now, &mut phy, &mut dp_master);
+//!     let events = dp_master.take_last_events();
 //!
 //!     // Do something whenever new the DP cycle (for all peripherals) completes:
 //!     if events.cycle_completed {

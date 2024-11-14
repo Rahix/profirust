@@ -65,13 +65,23 @@ enum PassTokenAttempt {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum ScheduleNext {
+    Scheduled,
+    CycleCompleted,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 struct UseTokenData {
     pub token_time: crate::time::Instant,
+    pub first_app: Option<usize>,
 }
 
 impl UseTokenData {
     pub fn with_token_time(token_time: crate::time::Instant) -> Self {
-        Self { token_time }
+        Self {
+            token_time,
+            first_app: None,
+        }
     }
 }
 
@@ -380,6 +390,9 @@ pub struct FdlActiveStation {
 
     /// Timestamp of the end of our token hold time.
     end_token_hold_time: crate::time::Instant,
+
+    /// Index of the application that gets to transmit a telegram next.
+    next_application: usize,
 }
 
 impl FdlActiveStation {
@@ -398,6 +411,7 @@ impl FdlActiveStation {
             pending_bytes: 0,
             last_token_time: crate::time::Instant::ZERO,
             end_token_hold_time: crate::time::Instant::ZERO,
+            next_application: 0,
             p: param,
         }
     }
@@ -896,11 +910,11 @@ impl FdlActiveStation {
     }
 
     #[must_use = "poll done marker"]
-    fn app_transmit_telegram<'a, PHY: ProfibusPhy, APP: FdlApplication + ?Sized>(
+    fn app_transmit_telegram<PHY: ProfibusPhy>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        app: &mut APP,
+        app: &mut dyn FdlApplication,
         high_prio_only: bool,
     ) -> Option<PollDone> {
         if let Some(tx_res) = phy.transmit_telegram(now, |tx| {
@@ -917,12 +931,49 @@ impl FdlActiveStation {
         }
     }
 
+    fn schedule_next_application(&mut self, num_apps: usize) -> ScheduleNext {
+        let data = self.state.get_use_token_data();
+        let first_app = *data.first_app.get_or_insert(self.next_application);
+        self.next_application = (self.next_application + 1) % num_apps;
+        if self.next_application == first_app {
+            ScheduleNext::CycleCompleted
+        } else {
+            ScheduleNext::Scheduled
+        }
+    }
+
     #[must_use = "poll done marker"]
-    fn do_use_token<'a, PHY: ProfibusPhy, APP: FdlApplication + ?Sized>(
+    fn apps_transmit_telegram<PHY: ProfibusPhy>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        app: &mut APP,
+        apps: &mut [&mut dyn FdlApplication],
+        high_prio_only: bool,
+    ) -> Option<PollDone> {
+        for _ in 0..apps.len() {
+            // TODO: Need to deal with the application list changing size.  Currently, this will lead
+            // to a panic or unexpected telegrams being forwarded to an application.
+            let current_app = &mut apps[self.next_application];
+            let res = self.app_transmit_telegram(now, phy, *current_app, high_prio_only);
+            return_if_done!(res);
+
+            // The previous application claims its cycle is done, so the next application can take
+            // over.
+            if self.schedule_next_application(apps.len()) == ScheduleNext::CycleCompleted {
+                // All applications completed their cycle once since we got the token, now it's
+                // time to pass the token.
+                break;
+            }
+        }
+        None
+    }
+
+    #[must_use = "poll done marker"]
+    fn do_use_token<PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+        apps: &mut [&mut dyn FdlApplication],
     ) -> PollDone {
         debug_assert_state!(self.state, State::UseToken { .. });
 
@@ -942,11 +993,11 @@ impl FdlActiveStation {
 
         if now < self.end_token_hold_time {
             *self.state.get_use_token_first_cycle_done() = true;
-            return_if_done!(self.app_transmit_telegram(now, phy, app, false));
+            return_if_done!(self.apps_transmit_telegram(now, phy, apps, false));
         } else if !*self.state.get_use_token_first_cycle_done() {
             // Do one high priority message cycle
             *self.state.get_use_token_first_cycle_done() = true;
-            return_if_done!(self.app_transmit_telegram(now, phy, app, true));
+            return_if_done!(self.apps_transmit_telegram(now, phy, apps, true));
         }
 
         self.state
@@ -955,16 +1006,20 @@ impl FdlActiveStation {
         PollDone::waiting_for_delay()
     }
 
-    fn do_await_data_response<'a, PHY: ProfibusPhy, APP: FdlApplication + ?Sized>(
+    fn do_await_data_response<PHY: ProfibusPhy>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        app: &mut APP,
+        apps: &mut [&mut dyn FdlApplication],
     ) -> PollDone {
         debug_assert_state!(self.state, State::AwaitDataResponse { .. });
 
         let address = *self.state.get_await_data_response_address();
         let data = *self.state.get_await_data_response_data();
+
+        // TODO: Need to deal with the application list changing size.  Currently, this will lead
+        // to a panic or unexpected telegrams being forwarded to an application.
+        let app = &mut apps[self.next_application];
 
         let reply_events: Result<Option<()>, PollDone> = phy
             .receive_telegram(now, |telegram| {
@@ -1179,20 +1234,48 @@ impl FdlActiveStation {
         .unwrap_or(PollDone::waiting_for_bus())
     }
 
-    pub fn poll<'a, PHY: ProfibusPhy, APP: FdlApplication + ?Sized>(
+    /// Poll the bus with a single active application.
+    ///
+    /// Poll must always be called with the same application.  The application may only be switched
+    /// when the FdlActiveStation is currently offline.
+    pub fn poll<PHY: ProfibusPhy>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        app: &mut APP,
+        app: &mut dyn FdlApplication,
     ) {
-        let _result = self.poll_inner(now, phy, app);
+        let _result = self.poll_inner(now, phy, &mut [app]);
     }
 
-    fn poll_inner<'a, PHY: ProfibusPhy, APP: FdlApplication + ?Sized>(
+    /// Poll the bus with multiple active applications.
+    ///
+    /// With multiple applications a simple round-robin scheduling is performed.  Each application
+    /// gets to transmit all telegrams of its cycle before the next application is activated.
+    /// This requires cooperations of the applications.  They must report completion of their cycle
+    /// (by refusing to transmit another telegram once) after all work for one iteration has
+    /// completed.
+    ///
+    /// When all applications complete their cycle once before the token hold time expires, the token is
+    /// forwarded early.  Otherwise, the token is forwarded in between application telegrams and
+    /// the applications get to continue their cycles once the token is received again.
+    ///
+    /// **Warning**: The list of applications must not change unless the FdlActiveStation is
+    /// currently offline.  Changing the list may lead to unexpected behavior of applications or
+    /// panics.
+    pub fn poll_multi<PHY: ProfibusPhy>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
-        app: &mut APP,
+        apps: &mut [&mut dyn FdlApplication],
+    ) {
+        let _result = self.poll_inner(now, phy, apps);
+    }
+
+    fn poll_inner<PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+        apps: &mut [&mut dyn FdlApplication],
     ) -> PollDone {
         // Handle connectivity_state changes
         match self.connectivity_state {
@@ -1229,8 +1312,8 @@ impl FdlActiveStation {
             State::Offline { .. } => unreachable!(),
             State::ListenToken { .. } => self.do_listen_token(now, phy).into(),
             State::ClaimToken { .. } => self.do_claim_token(now, phy).into(),
-            State::UseToken { .. } => self.do_use_token(now, phy, app).into(),
-            State::AwaitDataResponse { .. } => self.do_await_data_response(now, phy, app).into(),
+            State::UseToken { .. } => self.do_use_token(now, phy, apps).into(),
+            State::AwaitDataResponse { .. } => self.do_await_data_response(now, phy, apps).into(),
             State::PassToken { .. } => self.do_pass_token(now, phy).into(),
             State::CheckTokenPass { .. } => self.do_check_token_pass(now, phy).into(),
             State::ActiveIdle { .. } => self.do_active_idle(now, phy).into(),

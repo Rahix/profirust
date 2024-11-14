@@ -889,7 +889,7 @@ impl FdlActiveStation {
     }
 
     #[must_use = "poll done marker"]
-    fn app_transmit_telegram<'a, PHY: ProfibusPhy, APP: FdlApplication>(
+    fn app_transmit_telegram<'a, PHY: ProfibusPhy, APP: FdlApplication + ?Sized>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
@@ -911,7 +911,7 @@ impl FdlActiveStation {
     }
 
     #[must_use = "poll done marker"]
-    fn do_use_token<'a, PHY: ProfibusPhy, APP: FdlApplication>(
+    fn do_use_token<'a, PHY: ProfibusPhy, APP: FdlApplication + ?Sized>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
@@ -948,7 +948,7 @@ impl FdlActiveStation {
         PollDone::waiting_for_delay()
     }
 
-    fn do_await_data_response<'a, PHY: ProfibusPhy, APP: FdlApplication>(
+    fn do_await_data_response<'a, PHY: ProfibusPhy, APP: FdlApplication + ?Sized>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
@@ -1171,7 +1171,7 @@ impl FdlActiveStation {
         .unwrap_or(PollDone::waiting_for_bus())
     }
 
-    pub fn poll<'a, PHY: ProfibusPhy, APP: FdlApplication>(
+    pub fn poll<'a, PHY: ProfibusPhy, APP: FdlApplication + ?Sized>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,
@@ -1180,7 +1180,7 @@ impl FdlActiveStation {
         let _result = self.poll_inner(now, phy, app);
     }
 
-    fn poll_inner<'a, PHY: ProfibusPhy, APP: FdlApplication>(
+    fn poll_inner<'a, PHY: ProfibusPhy, APP: FdlApplication + ?Sized>(
         &mut self,
         now: crate::time::Instant,
         phy: &mut PHY,

@@ -64,6 +64,17 @@ enum PassTokenAttempt {
     Third,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+struct UseTokenData {
+    pub token_time: crate::time::Instant,
+}
+
+impl UseTokenData {
+    pub fn with_token_time(token_time: crate::time::Instant) -> Self {
+        Self { token_time }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum State {
     Offline,
@@ -78,7 +89,7 @@ enum State {
         collision_count: u8,
     },
     UseToken {
-        token_time: crate::time::Instant,
+        data: UseTokenData,
         first_cycle_done: bool,
     },
     ClaimToken {
@@ -86,7 +97,7 @@ enum State {
     },
     AwaitDataResponse {
         address: crate::Address,
-        token_time: crate::time::Instant,
+        data: UseTokenData,
     },
     PassToken {
         do_gap: bool,
@@ -170,7 +181,7 @@ impl State {
         };
     }
 
-    fn transition_use_token(&mut self, token_time: crate::time::Instant) {
+    fn transition_use_token(&mut self, data: UseTokenData) {
         debug_assert_state!(
             self,
             State::UseToken { .. }
@@ -180,7 +191,7 @@ impl State {
                 | State::ActiveIdle { .. }
         );
         *self = State::UseToken {
-            token_time,
+            data,
             first_cycle_done: false,
         };
     }
@@ -193,19 +204,12 @@ impl State {
         *self = State::ClaimToken { first: true };
     }
 
-    fn transition_await_data_response(
-        &mut self,
-        address: crate::Address,
-        token_time: crate::time::Instant,
-    ) {
+    fn transition_await_data_response(&mut self, address: crate::Address, data: UseTokenData) {
         debug_assert_state!(
             self,
             State::AwaitDataResponse { .. } | State::UseToken { .. }
         );
-        *self = State::AwaitDataResponse {
-            address,
-            token_time,
-        };
+        *self = State::AwaitDataResponse { address, data };
     }
 
     fn transition_pass_token(&mut self, do_gap: bool, attempt: PassTokenAttempt) {
@@ -279,9 +283,9 @@ impl State {
         }
     }
 
-    fn get_use_token_token_time(&mut self) -> &mut crate::time::Instant {
+    fn get_use_token_data(&mut self) -> &mut UseTokenData {
         match self {
-            Self::UseToken { token_time, .. } => token_time,
+            Self::UseToken { data, .. } => data,
             _ => unreachable!(),
         }
     }
@@ -309,9 +313,9 @@ impl State {
         }
     }
 
-    fn get_await_data_response_token_time(&mut self) -> &mut crate::time::Instant {
+    fn get_await_data_response_data(&mut self) -> &mut UseTokenData {
         match self {
-            Self::AwaitDataResponse { token_time, .. } => token_time,
+            Self::AwaitDataResponse { data, .. } => data,
             _ => unreachable!(),
         }
     }
@@ -787,7 +791,8 @@ impl FdlActiveStation {
                 } else {
                     // We may only accept the token from the known neighbor (on their first try)
                     if token_telegram.sa == self.token_ring.previous_station() {
-                        self.state.transition_use_token(now);
+                        self.state
+                            .transition_use_token(UseTokenData::with_token_time(now));
                         PollDone::waiting_for_delay()
                     } else {
                         match *self.state.get_active_idle_new_previous_station() {
@@ -796,7 +801,8 @@ impl FdlActiveStation {
                                 // token.
                                 self.token_ring
                                     .witness_token_pass(token_telegram.sa, token_telegram.da);
-                                self.state.transition_use_token(now);
+                                self.state
+                                    .transition_use_token(UseTokenData::with_token_time(now));
                                 PollDone::waiting_for_delay()
                             }
                             _ => {
@@ -882,7 +888,8 @@ impl FdlActiveStation {
             *self.state.get_claim_token_first() = false;
         } else {
             // Now we have claimed the token and can proceed to use it.
-            self.state.transition_use_token(now);
+            self.state
+                .transition_use_token(UseTokenData::with_token_time(now));
         }
 
         self.mark_tx(now, tx_res.bytes_sent())
@@ -901,8 +908,8 @@ impl FdlActiveStation {
             res
         }) {
             if let Some(addr) = tx_res.expects_reply() {
-                let token_time = *self.state.get_use_token_token_time();
-                self.state.transition_await_data_response(addr, token_time);
+                let data = *self.state.get_use_token_data();
+                self.state.transition_await_data_response(addr, data);
             }
             Some(self.mark_tx(now, tx_res.bytes_sent()))
         } else {
@@ -919,10 +926,10 @@ impl FdlActiveStation {
     ) -> PollDone {
         debug_assert_state!(self.state, State::UseToken { .. });
 
-        let token_time = *self.state.get_use_token_token_time();
-        if self.last_token_time != token_time {
+        let data = *self.state.get_use_token_data();
+        if self.last_token_time != data.token_time {
             self.end_token_hold_time = self.last_token_time + self.p.token_rotation_time();
-            self.last_token_time = token_time;
+            self.last_token_time = data.token_time;
 
             if let GapState::DoPoll { .. } = self.gap_state {
                 // Subtract the gap poll time from the end_token_hold_time so we leave time for
@@ -957,7 +964,7 @@ impl FdlActiveStation {
         debug_assert_state!(self.state, State::AwaitDataResponse { .. });
 
         let address = *self.state.get_await_data_response_address();
-        let token_time = *self.state.get_await_data_response_token_time();
+        let data = *self.state.get_await_data_response_data();
 
         let reply_events: Result<Option<()>, PollDone> = phy
             .receive_telegram(now, |telegram| {
@@ -988,7 +995,7 @@ impl FdlActiveStation {
                 return d.into();
             }
             Ok(Some(())) => {
-                self.state.transition_use_token(token_time);
+                self.state.transition_use_token(data);
                 *self.state.get_use_token_first_cycle_done() = true;
                 return PollDone::waiting_for_delay();
             }
@@ -997,7 +1004,7 @@ impl FdlActiveStation {
 
         if self.check_slot_expired(now) {
             app.handle_timeout(now, self, address);
-            self.state.transition_use_token(token_time);
+            self.state.transition_use_token(data);
             *self.state.get_use_token_first_cycle_done() = true;
         }
 
@@ -1056,7 +1063,8 @@ impl FdlActiveStation {
             .witness_token_pass(self.p.address, self.token_ring.next_station());
 
         if self.token_ring.next_station() == self.p.address {
-            self.state.transition_use_token(now);
+            self.state
+                .transition_use_token(UseTokenData::with_token_time(now));
         } else {
             let attempt = *self.state.get_pass_token_attempt();
             self.state.transition_check_token_pass(attempt);

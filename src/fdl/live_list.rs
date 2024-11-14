@@ -15,6 +15,7 @@ pub struct LiveList {
     stations: bitvec::BitArr!(for 128),
     cursor: crate::Address,
     pending_event: Option<StationEvent>,
+    current_address_done: bool,
 }
 
 impl LiveList {
@@ -23,6 +24,7 @@ impl LiveList {
             stations: bitvec::array::BitArray::ZERO,
             cursor: 0,
             pending_event: None,
+            current_address_done: false,
         }
     }
 
@@ -46,13 +48,17 @@ impl crate::fdl::FdlApplication for LiveList {
         let this_station = fdl.parameters().address;
         let address = self.cursor;
 
-        if self.cursor < 125 {
-            self.cursor += 1;
+        if self.current_address_done {
+            self.current_address_done = false;
+            if self.cursor < 125 {
+                self.cursor += 1;
+            } else {
+                self.cursor = 0;
+            }
+            None
         } else {
-            self.cursor = 0;
+            Some(tx.send_fdl_status_request(address, this_station))
         }
-
-        Some(tx.send_fdl_status_request(address, this_station))
     }
 
     fn receive_reply(
@@ -62,6 +68,7 @@ impl crate::fdl::FdlApplication for LiveList {
         addr: u8,
         telegram: super::Telegram,
     ) {
+        self.current_address_done = true;
         let event = if !self.stations.get(usize::from(addr)).unwrap() {
             self.stations.set(usize::from(addr), true);
 
@@ -95,6 +102,7 @@ impl crate::fdl::FdlApplication for LiveList {
         fdl: &super::FdlActiveStation,
         addr: u8,
     ) {
+        self.current_address_done = true;
         if *self.stations.get(usize::from(addr)).unwrap() {
             self.pending_event = Some(StationEvent::Lost(addr));
             self.stations.set(usize::from(addr), false);

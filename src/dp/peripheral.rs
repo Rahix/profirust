@@ -95,7 +95,7 @@ pub struct PeripheralDiagnostics<'a> {
     /// This ident number must match the one passed in [`PeripheralOptions`].
     pub ident_number: u16,
     /// Address of the DP master this peripheral is locked to (if any)
-    pub master_address: u8,
+    pub master_address: Option<u8>,
     /// Extended diagnostics blocks
     pub extended_diagnostics: &'a crate::dp::ExtendedDiagnostics<'a>,
 }
@@ -105,7 +105,7 @@ pub struct PeripheralDiagnostics<'a> {
 pub(crate) struct DiagnosticsInfo {
     pub flags: DiagnosticFlags,
     pub ident_number: u16,
-    pub master_address: u8,
+    pub master_address: Option<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -640,11 +640,17 @@ impl<'a> Peripheral<'a> {
                 return None;
             }
 
+            let master_address = if t.pdu[3] == 255 {
+                None
+            } else {
+                Some(t.pdu[3])
+            };
+
             let mut diag = DiagnosticsInfo {
                 flags: DiagnosticFlags::from_bits_retain(u16::from_le_bytes(
                     t.pdu[0..2].try_into().unwrap(),
                 )),
-                master_address: t.pdu[3],
+                master_address,
                 ident_number: u16::from_be_bytes(t.pdu[4..6].try_into().unwrap()),
             };
 

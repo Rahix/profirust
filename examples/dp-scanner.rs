@@ -23,7 +23,6 @@ fn main() -> ! {
             .slot_bits(2500)
             // For generating the live-list as fast as possible, set GAP factor to 1.
             .gap_wait_rotations(1)
-            .max_retry_limit(3)
             .build(),
     );
     // We must not poll() too often or to little. T_slot / 2 seems to be a good compromise.
@@ -45,7 +44,7 @@ fn main() -> ! {
             Some(dp::scan::DpScanEvent::PeripheralFound(desc)) => {
                 log::info!("Discovered peripheral #{}:", desc.address);
                 log::info!("  - Ident: 0x{:04x}", desc.ident);
-                log::info!("  - Master: {:?}", desc.tied_to_master);
+                log::info!("  - Master: {:?}", desc.master_address);
             }
             Some(dp::scan::DpScanEvent::PeripheralLost(address)) => {
                 log::info!("Lost peripheral #{}.", address);

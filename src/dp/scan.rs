@@ -2,7 +2,7 @@
 pub struct DpPeripheralDescription {
     pub address: crate::Address,
     pub ident: u16,
-    pub tied_to_master: Option<crate::Address>,
+    pub master_address: Option<crate::Address>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -46,11 +46,17 @@ impl DpScanner {
                 return None;
             }
 
+            let master_address = if t.pdu[3] == 255 {
+                None
+            } else {
+                Some(t.pdu[3])
+            };
+
             let mut diag = crate::dp::DiagnosticsInfo {
                 flags: crate::dp::DiagnosticFlags::from_bits_retain(u16::from_le_bytes(
                     t.pdu[0..2].try_into().unwrap(),
                 )),
-                master_address: t.pdu[3],
+                master_address,
                 ident_number: u16::from_be_bytes(t.pdu[4..6].try_into().unwrap()),
             };
 
@@ -128,8 +134,7 @@ impl crate::fdl::FdlApplication for DpScanner {
             let desc = DpPeripheralDescription {
                 address,
                 ident: diag.ident_number,
-                // TODO: Not always Some()
-                tied_to_master: Some(diag.master_address),
+                master_address: diag.master_address,
             };
 
             if station_unknown {

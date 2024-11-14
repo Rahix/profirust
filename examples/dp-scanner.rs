@@ -1,0 +1,58 @@
+use profirust::dp;
+use profirust::fdl;
+use profirust::phy;
+
+// Bus Parameters
+const MASTER_ADDRESS: u8 = 3;
+const BUS_DEVICE: &'static str = "/dev/ttyUSB0";
+const BAUDRATE: profirust::Baudrate = profirust::Baudrate::B500000;
+
+fn main() -> ! {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp_micros()
+        .init();
+
+    log::info!("PROFIBUS DP Bus-Scanner:");
+
+    let mut dp_scanner = dp::scan::DpScanner::new();
+
+    let mut fdl = fdl::FdlActiveStation::new(
+        fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)
+            // We use a rather large T_slot time because USB-RS485 converters
+            // can induce large delays at times.
+            .slot_bits(2500)
+            // For generating the live-list as fast as possible, set GAP factor to 1.
+            .gap_wait_rotations(1)
+            .max_retry_limit(3)
+            .build(),
+    );
+    // We must not poll() too often or to little. T_slot / 2 seems to be a good compromise.
+    let sleep_time: std::time::Duration = (fdl.parameters().slot_time() / 2).into();
+
+    log::warn!(
+        "This station has address #{}.  No other station with this address shall be present.",
+        fdl.parameters().address
+    );
+
+    log::info!("Connecting to the bus...");
+    let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl.parameters().baudrate);
+
+    fdl.set_online();
+    loop {
+        let event = fdl.poll(profirust::time::Instant::now(), &mut phy, &mut dp_scanner);
+
+        match event {
+            Some(dp::scan::DpScanEvent::PeripheralFound(desc)) => {
+                log::info!("Discovered peripheral #{}:", desc.address);
+                log::info!("  - Ident: 0x{:04x}", desc.ident);
+                log::info!("  - Master: {:?}", desc.tied_to_master);
+            }
+            Some(dp::scan::DpScanEvent::PeripheralLost(address)) => {
+                log::info!("Lost peripheral #{}.", address);
+            }
+            _ => (),
+        }
+
+        std::thread::sleep(sleep_time);
+    }
+}

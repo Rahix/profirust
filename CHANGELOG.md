@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the old built-in live-list.
 - Added a "DP scanner" application (`dp::scan::DpScanner`) which scans the bus
   for any DP peripherals.
+- Added support for running multiple applications ontop of a single FDL active
+  station.
 
 #### Changed
 - **BREAKING** The FDL layer driver is now called `FdlActiveStation` instead of `FdlMaster`.

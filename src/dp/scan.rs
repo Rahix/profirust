@@ -16,6 +16,7 @@ pub struct DpScanner {
     stations: bitvec::BitArr!(for 128),
     cursor: crate::Address,
     pending_event: Option<DpScanEvent>,
+    current_address_done: bool,
 }
 
 impl DpScanner {
@@ -24,6 +25,7 @@ impl DpScanner {
             stations: bitvec::array::BitArray::ZERO,
             cursor: 0,
             pending_event: None,
+            current_address_done: false,
         }
     }
 
@@ -101,23 +103,27 @@ impl crate::fdl::FdlApplication for DpScanner {
         let this_station = fdl.parameters().address;
         let address = self.cursor;
 
-        if self.cursor < 125 {
-            self.cursor += 1;
+        if self.current_address_done {
+            self.current_address_done = false;
+            if self.cursor < 125 {
+                self.cursor += 1;
+            } else {
+                self.cursor = 0;
+            }
+            None
         } else {
-            self.cursor = 0;
+            Some(tx.send_data_telegram(
+                crate::fdl::DataTelegramHeader {
+                    da: address,
+                    sa: this_station,
+                    dsap: crate::consts::SAP_SLAVE_DIAGNOSIS,
+                    ssap: crate::consts::SAP_MASTER_MS0,
+                    fc: crate::fdl::FunctionCode::new_srd_low(crate::fdl::FrameCountBit::First),
+                },
+                0,
+                |_buf| (),
+            ))
         }
-
-        Some(tx.send_data_telegram(
-            crate::fdl::DataTelegramHeader {
-                da: address,
-                sa: this_station,
-                dsap: crate::consts::SAP_SLAVE_DIAGNOSIS,
-                ssap: crate::consts::SAP_MASTER_MS0,
-                fc: crate::fdl::FunctionCode::new_srd_low(crate::fdl::FrameCountBit::First),
-            },
-            0,
-            |_buf| (),
-        ))
     }
 
     fn receive_reply(
@@ -128,6 +134,7 @@ impl crate::fdl::FdlApplication for DpScanner {
         telegram: crate::fdl::Telegram,
     ) {
         let station_unknown = !self.stations.get(usize::from(address)).unwrap();
+        self.current_address_done = true;
 
         let event = if let Some(diag) = self.parse_diag_response(telegram, address) {
             let desc = DpPeripheralDescription {
@@ -160,6 +167,7 @@ impl crate::fdl::FdlApplication for DpScanner {
         fdl: &crate::fdl::FdlActiveStation,
         address: u8,
     ) {
+        self.current_address_done = true;
         if *self.stations.get(usize::from(address)).unwrap() {
             log::debug!("Lost peripheral #{}.", address,);
             self.pending_event = Some(DpScanEvent::PeripheralLost(address));

@@ -10,9 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reimplemented the FDL layer for correct multi-master operation.
 - Added more checks to the Linux PHY implementation to catch serial devices
   that did not accept the required configuration.
+- Added a "live-list" application (`fdl::live_list::LiveList`) which replaces
+  the old built-in live-list.
+- Added a "DP scanner" application (`dp::scan::DpScanner`) which scans the bus
+  for any DP peripherals.
 
 #### Changed
 - **BREAKING** The FDL layer driver is now called `FdlActiveStation` instead of `FdlMaster`.
+- **BREAKING** In the DP diagnostics, the master address is now of type
+  `Option<Address>`.  It is `None` when a peripheral is not yet tied to a
+  specific master.
+
+#### Removed
+- **BREAKING** Removed the live-list that was built into the FDL layer driver.
 
 
 ## [0.3.0] - 2024-10-31

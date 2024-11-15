@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### `profirust`
+#### Added
+- Added a `SerialPortPhy` implementation (feature `phy-serial`) which uses an
+  arbitrary OS serial device.  This is a portable PHY for using USB-RS485
+  converters on any platform.
+
 #### Changed
 - **BREAKING** Buffers in the `dp::Peripheral` are now stored in `managed::ManagedSlice`
   containers.  This allows using owned buffers on platforms with an allocator.
@@ -22,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   -.with_diag_buffer(&mut buffer_diagnostics),
   +.with_diag_buffer(&mut buffer_diagnostics[..])
   ```
+- Dropped unnecessary lifetime from the `LinuxRs485Phy`.
 
 ### `gsd-parser`
 #### Fixed

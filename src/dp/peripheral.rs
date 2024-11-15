@@ -170,7 +170,7 @@ enum PeripheralState {
 ///     }
 /// }
 /// ```
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug)]
 pub struct Peripheral<'a> {
     /// Station address of this peripheral (slave)
     address: u8,
@@ -184,9 +184,9 @@ pub struct Peripheral<'a> {
     /// side.
     fcb: crate::fdl::FrameCountBit,
     /// Process Image of Inputs
-    pi_i: &'a mut [u8],
+    pi_i: managed::ManagedSlice<'a, u8>,
     /// Process Image of Outputs
-    pi_q: &'a mut [u8],
+    pi_q: managed::ManagedSlice<'a, u8>,
     /// Last diagnostics request
     diag: Option<DiagnosticsInfo>,
     /// Storage for extended diagnostics (if available)
@@ -197,20 +197,36 @@ pub struct Peripheral<'a> {
     options: PeripheralOptions<'a>,
 }
 
+impl Default for Peripheral<'_> {
+    fn default() -> Self {
+        Self {
+            address: Default::default(),
+            state: Default::default(),
+            retry_count: Default::default(),
+            fcb: Default::default(),
+            pi_i: [].into(),
+            pi_q: [].into(),
+            diag: Default::default(),
+            ext_diag: Default::default(),
+            diag_needed: Default::default(),
+            options: Default::default(),
+        }
+    }
+}
+
 impl<'a> Peripheral<'a> {
     /// Construct a new peripheral from its address, options, and buffers for the process image of
     /// inputs (`pi_i`) and process image of outputs (`pi_q`).
-    pub fn new(
-        address: u8,
-        options: PeripheralOptions<'a>,
-        pi_i: &'a mut [u8],
-        pi_q: &'a mut [u8],
-    ) -> Self {
+    pub fn new<PII, PIQ>(address: u8, options: PeripheralOptions<'a>, pi_i: PII, pi_q: PIQ) -> Self
+    where
+        PII: Into<managed::ManagedSlice<'a, u8>>,
+        PIQ: Into<managed::ManagedSlice<'a, u8>>,
+    {
         Self {
             address,
             options,
-            pi_i,
-            pi_q,
+            pi_i: pi_i.into(),
+            pi_q: pi_q.into(),
             ..Default::default()
         }
     }
@@ -235,8 +251,8 @@ impl<'a> Peripheral<'a> {
     /// place once the device responds at the new address.
     pub fn reset_address(&mut self, new_address: crate::Address) {
         let options = core::mem::take(&mut self.options);
-        let pi_i = core::mem::take(&mut self.pi_i);
-        let pi_q = core::mem::take(&mut self.pi_q);
+        let pi_i = core::mem::replace(&mut self.pi_i, [].into());
+        let pi_q = core::mem::replace(&mut self.pi_q, [].into());
         let diag_buffer = self.ext_diag.take_buffer();
 
         *self = Self::new(new_address, options, pi_i, pi_q).with_diag_buffer(diag_buffer);

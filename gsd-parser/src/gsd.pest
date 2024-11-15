@@ -26,8 +26,8 @@ prm_text = {
 prm_text_value = { ^"Text" ~ "(" ~ number ~ ")" ~ "=" ~ string_literal }
 
 ext_user_prm_data = {
-    ^"ExtUserPrmData" ~ "=" ~ number ~ string_literal ~ NEWLINE ~
-    prm_data_type_name ~ number ~ (prm_data_value_range | prm_data_value_set)? ~ NEWLINE ~
+    ^"ExtUserPrmData" ~ "=" ~ number ~ string_literal ~ NEWLINE+ ~
+    prm_data_type_name ~ number ~ (prm_data_value_range | prm_data_value_set)? ~ NEWLINE+ ~
     prm_text_ref? ~
     prm_data_changeable? ~
     prm_data_visible? ~
@@ -38,9 +38,9 @@ bit = { ^"Bit" ~ "(" ~ number ~ ")" }
 prm_data_type_name = { bit | bit_area | identifier }
 prm_data_value_range = { number ~ "-" ~ number }
 prm_data_value_set = { number ~ ("," ~ number)* }
-prm_text_ref = { ^"Prm_Text_Ref" ~ "=" ~ number ~ NEWLINE }
-prm_data_changeable = { ^"Changeable" ~ "=" ~ number ~ NEWLINE }
-prm_data_visible = { ^"Visible" ~ "=" ~ number ~ NEWLINE }
+prm_text_ref = { ^"Prm_Text_Ref" ~ "=" ~ number ~ NEWLINE+ }
+prm_data_changeable = { ^"Changeable" ~ "=" ~ number ~ NEWLINE+ }
+prm_data_visible = { ^"Visible" ~ "=" ~ number ~ NEWLINE+ }
 
 module = {
     ^"Module" ~ "=" ~ string_literal ~ number_list ~ NEWLINE+ ~
@@ -59,7 +59,7 @@ data_area = {
 }
 
 slot_definition = {
-    ^"SlotDefinition" ~ NEWLINE ~
+    ^"SlotDefinition" ~ NEWLINE+ ~
     (!^"EndSlotDefinition" ~ ANY)* ~
     ^"EndSlotDefinition"
 }
@@ -78,19 +78,19 @@ unit_diag_area = {
 unit_diag_area_value = { ^"Value" ~ "(" ~ number ~ ")" ~ "=" ~ string_literal }
 
 version_dl_definition = {
-    ^"Version_Firmware_Download" ~ NEWLINE ~
+    ^"Version_Firmware_Download" ~ NEWLINE+ ~
     (!^"End_Version_Firmware_Download" ~ ANY)* ~
     ^"End_Version_Firmware_Download"
 }
 
 physical_interface = {
-    ^"Physical_Interface" ~ "=" ~ number ~ NEWLINE ~
+    ^"Physical_Interface" ~ "=" ~ number ~ NEWLINE+ ~
     (!^"End_Physical_Interface" ~ ANY)* ~
     ^"End_Physical_Interface"
 }
 
 jokerblock_type = {
-    ^"Jokerblock_Type" ~ "=" ~ number ~ NEWLINE ~
+    ^"Jokerblock_Type" ~ "=" ~ number ~ NEWLINE+ ~
     (!^"End_Jokerblock_Type" ~ ANY)* ~
     ^"End_Jokerblock_Type"
 }

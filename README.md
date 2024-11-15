@@ -55,7 +55,7 @@ At the moment, the following implementations are available:
 - [x] Extended Diagnostics (DP-V0)
 - [x] Multi-master bus
 - [ ] Bus error tracking
-- [ ] Bus discovery utilities
+- [x] Bus discovery utilities
 - [ ] Reliable communication at 12 Mbit/s
 - [ ] Communication with DP-V1 peripherals
 - [ ] Equidistant bus cycle

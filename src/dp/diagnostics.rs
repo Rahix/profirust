@@ -2,10 +2,18 @@
 ///
 /// The [`ExtendedDiagnostics::iter_diag_blocks()`] method can be used to iterate over the
 /// diagnostics blocks contained in this data.
-#[derive(Default, PartialEq, Eq)]
 pub struct ExtendedDiagnostics<'a> {
-    buffer: &'a mut [u8],
+    buffer: managed::ManagedSlice<'a, u8>,
     length: usize,
+}
+
+impl Default for ExtendedDiagnostics<'_> {
+    fn default() -> Self {
+        Self {
+            buffer: [].into(),
+            length: 0,
+        }
+    }
 }
 
 impl<'a> ExtendedDiagnostics<'a> {
@@ -42,13 +50,13 @@ impl<'a> ExtendedDiagnostics<'a> {
         }
     }
 
-    pub(crate) fn from_buffer(buffer: &'a mut [u8]) -> Self {
+    pub(crate) fn from_buffer(buffer: managed::ManagedSlice<'a, u8>) -> Self {
         Self { buffer, length: 0 }
     }
 
-    pub(crate) fn take_buffer(&mut self) -> &'a mut [u8] {
+    pub(crate) fn take_buffer(&mut self) -> managed::ManagedSlice<'a, u8> {
         self.length = 0;
-        core::mem::take(&mut self.buffer)
+        core::mem::replace(&mut self.buffer, [].into())
     }
 
     pub(crate) fn fill(&mut self, buf: &[u8]) -> bool {
@@ -330,7 +338,7 @@ mod tests {
         ];
         let ext_diag = ExtendedDiagnostics {
             length: buffer.len(),
-            buffer: &mut buffer[..],
+            buffer: (&mut buffer[..]).into(),
         };
 
         let blocks: Vec<ExtDiagBlock> = ext_diag.iter_diag_blocks().collect();
@@ -373,7 +381,7 @@ mod tests {
         let mut buffer = [0x44, 0x00, 0x01, 0x00, 0xff, 0x12, 0x34];
         let ext_diag = ExtendedDiagnostics {
             length: buffer.len(),
-            buffer: &mut buffer[..],
+            buffer: (&mut buffer[..]).into(),
         };
 
         let blocks: Vec<ExtDiagBlock> = ext_diag.iter_diag_blocks().collect();
@@ -395,7 +403,7 @@ mod tests {
         let mut buffer = [0x48, 0x00, 0x01, 0x00];
         let ext_diag = ExtendedDiagnostics {
             length: buffer.len(),
-            buffer: &mut buffer[..],
+            buffer: (&mut buffer[..]).into(),
         };
 
         let blocks = ext_diag.iter_diag_blocks().count();
@@ -405,7 +413,7 @@ mod tests {
         let mut buffer = [0x88, 0x00];
         let ext_diag = ExtendedDiagnostics {
             length: buffer.len(),
-            buffer: &mut buffer[..],
+            buffer: (&mut buffer[..]).into(),
         };
 
         let blocks = ext_diag.iter_diag_blocks().count();
@@ -415,7 +423,7 @@ mod tests {
         let mut buffer = [0x08, 0x00, 0x01, 0x00];
         let ext_diag = ExtendedDiagnostics {
             length: buffer.len(),
-            buffer: &mut buffer[..],
+            buffer: (&mut buffer[..]).into(),
         };
 
         let blocks = ext_diag.iter_diag_blocks().count();

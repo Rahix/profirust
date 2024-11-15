@@ -86,7 +86,7 @@ pub enum PeripheralEvent {
 }
 
 /// Diagnostic information reported by the peripheral
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct PeripheralDiagnostics<'a> {
     /// Diagnostic flags (see [`DiagnosticFlags`])
     pub flags: DiagnosticFlags,
@@ -240,8 +240,11 @@ impl<'a> Peripheral<'a> {
     ///
     /// This is kept separate from the `new()` constructor to make ext. diagnostics optional.  This
     /// may be useful in cases where the diagnostics buffer would eat too much additional memory.
-    pub fn with_diag_buffer(mut self, ext_diag: &'a mut [u8]) -> Self {
-        self.ext_diag = crate::dp::ExtendedDiagnostics::from_buffer(ext_diag);
+    pub fn with_diag_buffer<S>(mut self, ext_diag: S) -> Self
+    where
+        S: Into<managed::ManagedSlice<'a, u8>>,
+    {
+        self.ext_diag = crate::dp::ExtendedDiagnostics::from_buffer(ext_diag.into());
         self
     }
 

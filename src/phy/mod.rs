@@ -13,6 +13,11 @@ mod linux;
 #[cfg(feature = "phy-linux")]
 pub use linux::LinuxRs485Phy;
 
+#[cfg(feature = "phy-serial")]
+mod serial;
+#[cfg(feature = "phy-serial")]
+pub use serial::SerialPortPhy;
+
 #[cfg(feature = "phy-simulator")]
 pub mod simulator;
 #[cfg(feature = "phy-simulator")]

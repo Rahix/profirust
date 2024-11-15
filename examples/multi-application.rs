@@ -74,8 +74,8 @@ fn main() -> ! {
     let mut buffer_outputs = [0u8; 1];
     let mut buffer_diagnostics = [0u8; 64];
     let handle_io_wago = dp_master.add(
-        dp::Peripheral::new(8, options, &mut buffer_inputs, &mut buffer_outputs)
-            .with_diag_buffer(&mut buffer_diagnostics),
+        dp::Peripheral::new(8, options, &mut buffer_inputs[..], &mut buffer_outputs[..])
+            .with_diag_buffer(&mut buffer_diagnostics[..]),
     );
 
     let mut fdl = fdl::FdlActiveStation::new(

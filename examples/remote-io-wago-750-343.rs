@@ -85,10 +85,10 @@ fn main() {
         dp::Peripheral::new(
             IO_STATION_ADDRESS,
             options,
-            &mut buffer_inputs,
-            &mut buffer_outputs,
+            &mut buffer_inputs[..],
+            &mut buffer_outputs[..],
         )
-        .with_diag_buffer(&mut buffer_diagnostics),
+        .with_diag_buffer(&mut buffer_diagnostics[..]),
     );
 
     let mut fdl = fdl::FdlActiveStation::new(

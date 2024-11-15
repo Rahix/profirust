@@ -35,7 +35,7 @@
 //! let mut buffer_outputs = [0u8; 4];
 //!
 //! let remoteio_handle = dp_master.add(dp::Peripheral::new(
-//!     remoteio_address, remoteio_options, &mut buffer_inputs, &mut buffer_outputs
+//!     remoteio_address, remoteio_options, &mut buffer_inputs[..], &mut buffer_outputs[..]
 //! ));
 //!
 //! // Set up the FDL master and parameterize it:

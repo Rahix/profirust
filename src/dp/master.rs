@@ -94,8 +94,8 @@ enum CycleState {
 /// let remoteio = dp_master.add(dp::Peripheral::new(
 ///     remoteio_address,
 ///     remoteio_options,
-///     &mut buffer_inputs,
-///     &mut buffer_outputs,
+///     &mut buffer_inputs[..],
+///     &mut buffer_outputs[..],
 /// ));
 ///
 /// dp_master.enter_operate();

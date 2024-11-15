@@ -149,10 +149,10 @@ enum PeripheralState {
 ///     dp::Peripheral::new(
 ///         remoteio_address,
 ///         remoteio_options,
-///         &mut buffer_inputs,
-///         &mut buffer_outputs,
+///         &mut buffer_inputs[..],
+///         &mut buffer_outputs[..],
 ///     )
-///     .with_diag_buffer(&mut buffer_diagnostics)
+///     .with_diag_buffer(&mut buffer_diagnostics[..])
 /// );
 ///
 /// dp_master.enter_operate();

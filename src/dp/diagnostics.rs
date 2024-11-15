@@ -46,6 +46,11 @@ impl<'a> ExtendedDiagnostics<'a> {
         Self { buffer, length: 0 }
     }
 
+    pub(crate) fn take_buffer(&mut self) -> &'a mut [u8] {
+        self.length = 0;
+        core::mem::take(&mut self.buffer)
+    }
+
     pub(crate) fn fill(&mut self, buf: &[u8]) -> bool {
         if self.buffer.len() == 0 {
             // No buffer for ext. diagnostics so we ignore them entirely.

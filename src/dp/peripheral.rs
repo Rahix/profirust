@@ -229,6 +229,19 @@ impl<'a> Peripheral<'a> {
         self
     }
 
+    /// Completely reset this peripheral to a new address.
+    ///
+    /// The process images are not changed by this operation.  A new DP parameterization will take
+    /// place once the device responds at the new address.
+    pub fn reset_address(&mut self, new_address: crate::Address) {
+        let options = core::mem::take(&mut self.options);
+        let pi_i = core::mem::take(&mut self.pi_i);
+        let pi_q = core::mem::take(&mut self.pi_q);
+        let diag_buffer = self.ext_diag.take_buffer();
+
+        *self = Self::new(new_address, options, pi_i, pi_q).with_diag_buffer(diag_buffer);
+    }
+
     /// Address of this peripheral.
     #[inline(always)]
     pub fn address(&self) -> u8 {

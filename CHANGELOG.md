@@ -5,6 +5,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### `profirust`
+#### Changed
+- **BREAKING** Buffers in the `dp::Peripheral` are now stored in `managed::ManagedSlice`
+  containers.  This allows using owned buffers on platforms with an allocator.
+  You may need to explicitly cast buffers into slices now, to avoid a compiler error:
+  ```diff
+   dp::Peripheral::new(
+       ENCODER_ADDRESS,
+       options,
+  -    &mut buffer_inputs,
+  -    &mut buffer_outputs,
+  +    &mut buffer_inputs[..],
+  +    &mut buffer_outputs[..],
+   )
+  -.with_diag_buffer(&mut buffer_diagnostics),
+  +.with_diag_buffer(&mut buffer_diagnostics[..])
+  ```
 
 
 ## [0.4.0] - 2024-11-15

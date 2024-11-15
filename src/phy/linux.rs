@@ -74,12 +74,12 @@ impl PhyData<'_> {
 /// let mut phy = phy::LinuxRs485Phy::new("/dev/ttyS0", fdl.parameters().baudrate);
 /// ```
 #[derive(Debug)]
-pub struct LinuxRs485Phy<'a> {
+pub struct LinuxRs485Phy {
     fd: RawFd,
-    data: PhyData<'a>,
+    data: PhyData<'static>,
 }
 
-impl LinuxRs485Phy<'_> {
+impl LinuxRs485Phy {
     /// Construct and initialize a new PHY device
     ///
     /// This function will attempt to configure the TTY device `serial_port` for PROFIBUS
@@ -247,7 +247,7 @@ impl LinuxRs485Phy<'_> {
     }
 }
 
-impl<'a> crate::phy::ProfibusPhy for LinuxRs485Phy<'a> {
+impl crate::phy::ProfibusPhy for LinuxRs485Phy {
     fn poll_transmission(&mut self, _now: crate::time::Instant) -> bool {
         if let PhyData::Tx {
             buffer,

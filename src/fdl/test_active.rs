@@ -80,15 +80,16 @@ impl FdlActiveUnderTest {
         self.phy_control.bus_time() - start
     }
 
-    pub fn wait_next_telegram<R: Default, F: FnMut(fdl::Telegram) -> R>(
+    pub fn wait_next_telegram<R: Default, F: FnOnce(fdl::Telegram) -> R>(
         &mut self,
-        mut f: F,
+        f: F,
     ) -> (crate::time::Duration, R) {
         let start = self.phy_control.bus_time();
         crate::test_utils::set_active_addr(self.control_addr);
         let mut res = Default::default();
+        let mut f = Some(f);
         for now in self.phy_control.iter_until_matching(self.timestep, |t| {
-            res = f(t);
+            res = (f.take().unwrap())(t);
             true
         }) {
             crate::test_utils::set_log_timestamp(now);
@@ -99,10 +100,11 @@ impl FdlActiveUnderTest {
         (self.phy_control.bus_time() - start, res)
     }
 
+    #[track_caller]
     pub fn assert_next_telegram(&mut self, expected: fdl::Telegram) -> crate::time::Duration {
-        let (time, _) = self.wait_next_telegram(|t| {
-            assert_eq!(t, expected);
-        });
+        let mut pdu = [0u8; 256];
+        let (time, t) = self.wait_next_telegram(|t| Some(t.clone_with_pdu_buffer(&mut pdu)));
+        assert_eq!(t, Some(expected));
         time
     }
 

@@ -470,6 +470,15 @@ impl DataTelegram<'_> {
             _ => None,
         }
     }
+
+    pub fn clone_with_pdu_buffer<'a>(&self, pdu_buffer: &'a mut [u8]) -> DataTelegram<'a> {
+        let pdu_buffer = &mut pdu_buffer[..self.pdu.len()];
+        pdu_buffer.copy_from_slice(self.pdu);
+        DataTelegram {
+            h: self.h.clone(),
+            pdu: pdu_buffer,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -583,6 +592,14 @@ impl<'a> Telegram<'a> {
             Telegram::Data(t) => Some(t.h.da),
             Telegram::Token(t) => Some(t.da),
             Telegram::ShortConfirmation(_) => None,
+        }
+    }
+
+    pub fn clone_with_pdu_buffer<'b>(&self, pdu_buffer: &'b mut [u8]) -> Telegram<'b> {
+        match self {
+            Telegram::Data(t) => t.clone_with_pdu_buffer(pdu_buffer).into(),
+            Telegram::Token(t) => t.clone().into(),
+            Telegram::ShortConfirmation(t) => t.clone().into(),
         }
     }
 }

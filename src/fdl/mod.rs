@@ -13,7 +13,7 @@ mod token_ring;
 #[cfg(test)]
 mod test_active;
 
-pub use active::FdlActiveStation;
+pub use active::{ConnectivityState, FdlActiveStation};
 pub use parameters::{Parameters, ParametersBuilder};
 pub(crate) use token_ring::TokenRing;
 

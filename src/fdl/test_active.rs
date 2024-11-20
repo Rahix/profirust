@@ -798,6 +798,32 @@ fn active_station_accepts_new_previous_neighbor() {
     assert!(wait_time <= fdl_ut.fdl_param().slot_time() * 2);
 }
 
+/// Test that the active station correctly goes offline when requested to
+#[test]
+fn going_offline() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::default();
+
+    fdl_ut.prepare_two_station_ring();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
+
+    fdl_ut.active_station.set_offline();
+    assert_eq!(
+        fdl_ut.active_station.connectivity_state(),
+        fdl::ConnectivityState::Offline
+    );
+
+    for _ in 0..100 {
+        fdl_ut.do_timestep();
+    }
+
+    assert_eq!(
+        fdl_ut.active_station.connectivity_state(),
+        fdl::ConnectivityState::Offline
+    );
+}
+
 #[test]
 fn multimaster_smoke() {
     crate::test_utils::prepare_test_logger();

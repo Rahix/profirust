@@ -182,8 +182,15 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
         .map(|m| m.name.to_string())
         .collect();
 
+    // Dirty way to support compact stations for now
+    let max_modules = if gsd.modular_station {
+        gsd.max_modules
+    } else {
+        1
+    };
+
     let mut module_selection_list = vec![];
-    for i in 0..gsd.max_modules {
+    for i in 0..max_modules {
         let selection = dialoguer::FuzzySelect::new()
             .with_prompt(format!(
                 "Select module {}/{} (ESC to stop)",

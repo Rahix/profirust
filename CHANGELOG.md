@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Fixed
 - Fixed consecutive newlines in some places tripping up the parser.
 
+### `gsdtool`
+#### Fixed
+- Fixed gsdtool failing to generate an appropriate configuration for DP compact
+  stations (compact stations are non-modular stations).
+
 
 ## [0.4.0] - 2024-11-15
 ### `profirust`

@@ -33,7 +33,7 @@ fn main() -> ! {
     );
 
     log::info!("Connecting to the bus...");
-    let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl.parameters().baudrate);
+    let mut phy = phy::SerialPortPhy::new(BUS_DEVICE, fdl.parameters().baudrate);
 
     let mut last = profirust::time::Instant::now();
 

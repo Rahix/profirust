@@ -103,7 +103,7 @@ fn main() {
     let sleep_time: std::time::Duration = (fdl.parameters().slot_time() / 2).into();
 
     println!("Connecting to the bus...");
-    let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl.parameters().baudrate);
+    let mut phy = phy::SerialPortPhy::new(BUS_DEVICE, fdl.parameters().baudrate);
 
     let start = profirust::time::Instant::now();
 

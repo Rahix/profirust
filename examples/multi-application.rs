@@ -90,7 +90,7 @@ fn main() -> ! {
     let sleep_time: std::time::Duration = (fdl.parameters().slot_time() / 2).into();
 
     log::info!("Connecting to the bus...");
-    let mut phy = phy::LinuxRs485Phy::new(BUS_DEVICE, fdl.parameters().baudrate);
+    let mut phy = phy::SerialPortPhy::new(BUS_DEVICE, fdl.parameters().baudrate);
 
     fdl.set_online();
     dp_master.enter_operate();

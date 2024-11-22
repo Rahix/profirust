@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 - Dropped unnecessary lifetime from the `LinuxRs485Phy`.
 
+#### Fixed
+- Fixed a crash of the active station when receiving a token telegram with
+  invalid addresses.
+
 ### `gsd-parser`
 #### Fixed
 - Fixed consecutive newlines in some places tripping up the parser.

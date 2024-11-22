@@ -171,6 +171,15 @@ impl TokenRing {
     }
 
     pub fn witness_token_pass(&mut self, sa: crate::Address, da: crate::Address) {
+        if sa > 125 {
+            log::warn!("Witnessed token pass from invalid address #{sa}->#{da}, ignoring.");
+            return;
+        }
+        if da > 125 {
+            log::warn!("Witnessed token pass to invalid address #{da}<-#{sa}, ignoring.");
+            return;
+        }
+
         match self.las_state {
             // If we see the wrap-around, start discovery
             LasState::Uninitialized => {
@@ -316,6 +325,14 @@ mod tests {
         token_ring.remove_station(3);
 
         assert_eq!(token_ring.next_station(), 15);
+    }
+
+    #[test]
+    fn token_rink_eats_bat_addresses() {
+        let mut token_ring = TokenRing::new(&Default::default());
+
+        token_ring.witness_token_pass(223, 7);
+        token_ring.witness_token_pass(7, 223);
     }
 
     proptest! {

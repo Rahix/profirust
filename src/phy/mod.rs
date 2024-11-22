@@ -78,11 +78,14 @@ pub trait ProfibusPhy {
             let ttx = crate::fdl::TelegramTx::new(buffer);
             let response = f(ttx);
             if let Some(response) = response {
-                log::trace!(
-                    "PHY TX {:?}",
-                    crate::fdl::Telegram::deserialize(buffer).unwrap().unwrap()
-                );
                 let bytes_sent = response.bytes_sent();
+
+                if let Some(Ok(t)) = crate::fdl::Telegram::deserialize(buffer) {
+                    log::trace!("PHY TX {:?}", t);
+                } else {
+                    log::trace!("PHY TX {:?} (invalid!)", &buffer[..bytes_sent]);
+                }
+
                 (bytes_sent, Some(response))
             } else {
                 (0, None)

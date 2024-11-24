@@ -898,3 +898,50 @@ fn active_station_receives_faulty_token_telegram() {
 
     fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 }
+
+#[test]
+fn slot_time_timing() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::default();
+    let slot_bits = fdl_ut.fdl_param().slot_bits;
+    let slot_time = fdl_ut.fdl_param().slot_time();
+
+    log::debug!("slot_bits = {slot_bits}");
+    log::debug!("slot_time = {slot_time}");
+
+    fdl_ut.wait_for_matching(|t| {
+        t == fdl::Telegram::Data(fdl::DataTelegram {
+            h: fdl::DataTelegramHeader {
+                da: 9,
+                sa: 7,
+                dsap: None,
+                ssap: None,
+                fc: fdl::FunctionCode::Request {
+                    fcb: fdl::FrameCountBit::Inactive,
+                    req: fdl::RequestType::FdlStatus,
+                },
+            },
+            pdu: &[],
+        })
+    });
+
+    log::debug!("After receiving request...");
+
+    let time =
+        fdl_ut.assert_next_telegram(fdl::Telegram::Token(fdl::TokenTelegram { da: 7, sa: 7 }));
+
+    // We have to subtract the telegram runtime of the just received token telegram
+    let time = time - fdl_ut.bits_to_time(33);
+
+    let bits_over = fdl_ut.time_to_bits(time - slot_time);
+    log::debug!("Slot time was {bits_over} bits over projected time.");
+
+    assert!(
+        time > slot_time,
+        "Slot time was {time} instead of {slot_time}!"
+    );
+    assert!(
+        time < (slot_time * 2),
+        "Slot time was {time} instead of {slot_time} (that's {bits_over} too many T_bit)!"
+    );
+}

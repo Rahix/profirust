@@ -1061,9 +1061,13 @@ impl FdlActiveStation {
             app.handle_timeout(now, self, address);
             self.state.transition_use_token(data);
             *self.state.get_use_token_first_cycle_done() = true;
-        }
 
-        PollDone::waiting_for_bus()
+            // Immediately evaluate UseToken state because the bus is free for immediate
+            // transmission
+            self.do_use_token(now, phy, apps)
+        } else {
+            PollDone::waiting_for_bus()
+        }
     }
 
     #[must_use = "poll done marker"]
@@ -1169,7 +1173,9 @@ impl FdlActiveStation {
             log::trace!("No reply from #{address}");
             self.state
                 .transition_pass_token(false, PassTokenAttempt::First);
-            PollDone::waiting_for_delay()
+            // Immediately evaluate PassToken state because the bus is free for immediate
+            // transmission
+            self.do_pass_token(now, phy)
         } else {
             PollDone::waiting_for_bus()
         }
@@ -1213,7 +1219,9 @@ impl FdlActiveStation {
                         .transition_pass_token(false, PassTokenAttempt::First);
                 }
             }
-            return PollDone::waiting_for_delay();
+            // Immediately evaluate PassToken state because the bus is free for immediate
+            // transmission
+            return self.do_pass_token(now, phy);
         }
 
         phy.receive_telegram(now, |telegram| {

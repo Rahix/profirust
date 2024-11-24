@@ -32,10 +32,14 @@ pub fn prepare_test_logger() {
         .try_init();
 
     set_log_timestamp(crate::time::Instant::ZERO);
+
+    // Because we only have one global timestamp, multiple tests that run concurrently will mess
+    // things up.
+    log::warn!("Log timestamps are only accurate when running a single test in isolation!");
 }
 
 pub fn set_log_timestamp(t: crate::time::Instant) {
-    LOG_TIMESTAMP.store(t.total_millis(), atomic::Ordering::SeqCst);
+    LOG_TIMESTAMP.store(t.total_micros(), atomic::Ordering::SeqCst);
 }
 
 pub fn set_active_addr(addr: u8) {

@@ -94,33 +94,50 @@ impl SimulatorBus {
             None
         };
 
-        let min_delay = if sa == self.token_master {
-            // Master must wait 33 bit synchronization pause before transmitting.
-            33
-        } else {
-            // Peripherals must wait at least 11 bit minimum Tsdr before responding.
-            11
-        };
+        #[derive(Debug)]
+        enum DelayType {
+            Tid1,
+            Tid2,
+            Tsdr,
+        }
 
+        let mut delay_type: Option<DelayType> = None;
         // Ensure that at least 11 bit times were left between two consecutive transmissions.
         if let Some(last_telegram_and_pause) = self.telegrams.last().map(|t| {
+            let min_delay = if let Some(t) = self.get_telegram(t) {
+                if sa == self.token_master && t.source_address() == sa {
+                    delay_type = Some(DelayType::Tid2);
+                    // TODO: Update this to be a value calculated from FDL parameters
+                    33
+                } else if sa == self.token_master && t.source_address() != sa {
+                    delay_type = Some(DelayType::Tid1);
+                    // TODO: Update this to be a value calculated from FDL parameters
+                    33
+                } else {
+                    /* sa != self.token_master */
+                    delay_type = Some(DelayType::Tsdr);
+                    // TODO: Update this to be a value calculated from FDL parameters
+                    11
+                }
+            } else {
+                log::debug!(
+                    "Received undeciperable transmission: {:?}",
+                    self.get_telegram_data(t)
+                );
+                // We don't know what is being transmitted, but at least one symbol time should be
+                // required anyway.
+                11
+            };
             t.timestamp
                 + self
                     .baudrate
                     .bits_to_time(u32::try_from(t.length).unwrap() * 11 + min_delay)
         }) {
             if self.bus_time < last_telegram_and_pause {
-                if sa == self.token_master {
-                    panic!(
-                        "\"{}\" did not leave synchronization pause before its transmission.",
-                        name
-                    );
-                } else {
-                    panic!(
-                        "\"{}\" did not leave minimum Tsdr time before its transmission.",
-                        name
-                    );
-                }
+                panic!(
+                    "\"{}\" did not leave appropriate {:?} delay time before transmission!",
+                    name, delay_type
+                );
             }
         }
 
@@ -153,6 +170,17 @@ impl SimulatorBus {
             }
             println!();
         }
+    }
+
+    pub fn get_telegram_data(&self, t: &CapturedTelegram) -> &[u8] {
+        &self.stream[t.index..t.index + t.length]
+    }
+
+    pub fn get_telegram(&self, t: &CapturedTelegram) -> Option<crate::fdl::Telegram> {
+        crate::fdl::Telegram::deserialize(self.get_telegram_data(t))
+            .map(Result::ok)
+            .flatten()
+            .map(|(t, _)| t)
     }
 
     // phy needs to find out what data is still pending for it

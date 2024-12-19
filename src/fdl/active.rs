@@ -1316,6 +1316,10 @@ impl FdlActiveStation {
         // return immediately in this case.
         return_if_done!(self.check_for_ongoing_transmision(now, phy));
 
+        // Important: We may receive more data later during processing so we need to keep in mind
+        // that the activity marker might change again later during the poll cycle.
+        self.check_for_bus_activity(now, phy);
+
         match &self.state {
             State::Offline { .. } => unreachable!(),
             State::ListenToken { .. } => self.do_listen_token(now, phy).into(),

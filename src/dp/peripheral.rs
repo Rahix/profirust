@@ -194,6 +194,9 @@ pub struct Peripheral<'a> {
     /// Flag to indicate necessity of polling diagnostics ASAP
     diag_needed: bool,
 
+    #[cfg(feature = "debug-measure-roundtrip")]
+    tx_time: Option<crate::time::Instant>,
+
     options: PeripheralOptions<'a>,
 }
 
@@ -209,6 +212,8 @@ impl Default for Peripheral<'_> {
             diag: Default::default(),
             ext_diag: Default::default(),
             diag_needed: Default::default(),
+            #[cfg(feature = "debug-measure-roundtrip")]
+            tx_time: Default::default(),
             options: Default::default(),
         }
     }
@@ -432,6 +437,11 @@ impl<'a> Peripheral<'a> {
                 if self.diag_needed {
                     Ok(self.send_diagnostics_request(fdl, tx))
                 } else {
+                    #[cfg(feature = "debug-measure-roundtrip")]
+                    {
+                        self.tx_time = Some(now);
+                    }
+
                     Ok(tx.send_data_telegram(
                         crate::fdl::DataTelegramHeader {
                             da: self.address,
@@ -618,6 +628,14 @@ impl<'a> Peripheral<'a> {
                         }
                         crate::fdl::Telegram::Token(_) => unreachable!(),
                     };
+                    #[cfg(feature = "debug-measure-roundtrip")]
+                    if let Some(tx_time) = self.tx_time {
+                        log::debug!(
+                            "Data-Exchange Roundtrip Time for #{}: {} us",
+                            self.address,
+                            (now - tx_time).total_micros()
+                        );
+                    }
                     self.retry_count = 0;
                     self.fcb.cycle();
                     event

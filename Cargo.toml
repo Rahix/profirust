@@ -18,6 +18,7 @@ phy-simulator = ["std"]
 phy-rp2040 = ["rp2040-hal", "fugit", "embedded-hal", "nb", "cortex-m"]
 std = ["managed/std"]
 alloc = ["managed/alloc"]
+debug-measure-roundtrip = []
 
 default = ["std", "phy-linux", "phy-simulator", "phy-serial"]
 

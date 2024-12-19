@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a `SerialPortPhy` implementation (feature `phy-serial`) which uses an
   arbitrary OS serial device.  This is a portable PHY for using USB-RS485
   converters on any platform.
+- Added a `debug-measure-roundtrip` feature to enable debug-logging for DP
+  data-exchange communication roundtrip times.  This is useful for finding out
+  the communication delays in a hardware setup.
 
 #### Changed
 - **BREAKING** Buffers in the `dp::Peripheral` are now stored in `managed::ManagedSlice`
@@ -27,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   -.with_diag_buffer(&mut buffer_diagnostics),
   +.with_diag_buffer(&mut buffer_diagnostics[..])
   ```
+- **BREAKING** The `phy-linux` feature is no longer enabled by default.
 - Dropped unnecessary lifetime from the `LinuxRs485Phy`.
 - Changed all examples to use the new `SerialPortPhy` so they are now all
   platform-independent!

@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a `debug-measure-roundtrip` feature to enable debug-logging for DP
   data-exchange communication roundtrip times.  This is useful for finding out
   the communication delays in a hardware setup.
+- Added a `debug-measure-dp-cycle` feature to enable debug-logging of the DP
+  cycle times.  That is the time between each report of `cycle_completed`, so
+  one data-exchange with each peripheral attached to this DP master.
 
 #### Changed
 - **BREAKING** Buffers in the `dp::Peripheral` are now stored in `managed::ManagedSlice`

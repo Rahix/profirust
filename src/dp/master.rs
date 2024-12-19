@@ -117,6 +117,9 @@ pub struct DpMasterState {
 
     /// Last set of events that occurred
     last_events: DpEvents,
+
+    #[cfg(feature = "debug-measure-dp-cycle")]
+    last_cycle: Option<crate::time::Instant>,
 }
 
 impl<'a> DpMaster<'a> {
@@ -135,6 +138,8 @@ impl<'a> DpMaster<'a> {
                 last_global_control: None,
                 cycle_state: CycleState::DataExchange(0),
                 last_events: Default::default(),
+                #[cfg(feature = "debug-measure-dp-cycle")]
+                last_cycle: None,
             },
         }
     }
@@ -214,11 +219,19 @@ impl<'a> DpMaster<'a> {
         self.enter_state(OperatingState::Operate)
     }
 
-    fn increment_cycle_state(&mut self, index: u8) -> bool {
+    fn increment_cycle_state(&mut self, index: u8, now: crate::time::Instant) -> bool {
         if let Some(next) = self.peripherals.get_next_index(index) {
             self.state.cycle_state = CycleState::DataExchange(next);
             false
         } else {
+            #[cfg(feature = "debug-measure-dp-cycle")]
+            {
+                if let Some(last_cycle) = self.state.last_cycle {
+                    log::debug!("DP Cycle Time: {} us", (now - last_cycle).total_micros());
+                }
+                self.state.last_cycle = Some(now);
+            }
+
             self.state.cycle_state = CycleState::CycleCompleted;
             true
         }
@@ -327,7 +340,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
 
                         // When this peripheral was not interested in sending data, move on to the
                         // next one.
-                        if self.increment_cycle_state(index) {
+                        if self.increment_cycle_state(index, now) {
                             // And immediately reset to the beginning for the next cycle.  This is
                             // only okay here because we are in transmit_telegram() and will return
                             // without transmission on the next line.
@@ -360,7 +373,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         match self.peripherals.get_at_index_mut(index) {
             Some((handle, peripheral)) if addr == peripheral.address() => {
                 let event = peripheral.receive_reply(now, &self.state, fdl, telegram);
-                let cycle_completed = self.increment_cycle_state(index);
+                let cycle_completed = self.increment_cycle_state(index, now);
                 self.state.last_events = DpEvents {
                     cycle_completed,
                     peripheral: event.map(|ev| (handle, ev)),

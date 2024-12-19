@@ -40,23 +40,21 @@ impl PhyData<'_> {
     }
 }
 
-/// Linux userspace PHY implementation for serial TTY devices
+/// Linux userspace PHY implementation for UART TTY devices
 ///
 /// Available with the `phy-linux` feature.
 ///
-/// **Important**: Due to the non-realtime nature of Linux, you must use this PHY implementation
-/// with care.  You may need to decrease the baudrate or lengthen timeouts (T<sub>SLOT</sub>) to
-/// get reliable communication.  You should also consider running your pogram at "real-time
-/// priority" if you need higher bus speeds.  It is advisable to run tests with heavy system load
-/// to ensure the bus communication stays reliable in all circumstances.
+/// This PHY implementation is meant to be used with TTY devices configured for RS485 operation in
+/// Linux ([Kernel Documentation][kernel-rs485]).
 ///
-/// **Important 2**: If you plan to use this PHY with a USB-serial device, you have to choose your
-/// bus parameters even more carefully.  Stick to very low baudrates (<= 500kbit/s) and increase
-/// T<sub>SL</sub> (slot time) to deal with communication delays.  Tests have shown a slot time of
-/// ~5ms to work reliably (at 500kbit/s, that would be 2500 T_bit).  Additionally, it seems to be
-/// important to give the OS time to deliver received data by sleeping long enough between `poll()`
-/// calls.  A minimum sleep of 2ms was needed in my tests to ensure all received data is delivered
-/// in time.
+/// For USB-RS485 converters, use [`crate::phy::SerialPortPhy`] (feature `phy-serial`) instead.
+///
+/// # Considerations
+/// Due to the non-realtime nature of Linux, you must use this PHY implementation with care.  You
+/// may need to decrease the baudrate or lengthen timeouts (T<sub>SL</sub>) to get reliable
+/// communication.  You should also consider running your pogram at "real-time priority" to ensure
+/// low latency.  It is advisable to run tests with heavy system load to ensure the bus
+/// communication stays reliable in all circumstances.
 ///
 /// # Example
 /// ```no_run
@@ -73,6 +71,8 @@ impl PhyData<'_> {
 ///
 /// let mut phy = phy::LinuxRs485Phy::new("/dev/ttyS0", fdl.parameters().baudrate);
 /// ```
+///
+/// [kernel-rs485]: https://www.kernel.org/doc/html/latest/driver-api/serial/serial-rs485.html
 #[derive(Debug)]
 pub struct LinuxRs485Phy {
     fd: RawFd,

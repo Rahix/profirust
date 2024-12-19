@@ -49,7 +49,7 @@
 //!
 //! // Initialize the PHY layer:
 //! // =========================
-//! let mut phy = phy::LinuxRs485Phy::new("/dev/ttyS0", fdl.parameters().baudrate);
+//! let mut phy = phy::SerialPortPhy::new("/dev/ttyUSB0", fdl.parameters().baudrate);
 //!
 //! // Now let's go live:
 //! // ==================

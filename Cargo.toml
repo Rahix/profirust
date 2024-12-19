@@ -20,7 +20,7 @@ std = ["managed/std"]
 alloc = ["managed/alloc"]
 debug-measure-roundtrip = []
 
-default = ["std", "phy-linux", "phy-simulator", "phy-serial"]
+default = ["std", "phy-simulator", "phy-serial"]
 
 [dependencies]
 bitflags = "2.3.3"

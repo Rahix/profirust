@@ -60,7 +60,7 @@ impl PhyData<'_> {
 ///   general purpose operating system.  This can be facilitated by setting `max_retry_limit` to 2
 ///   or 3.
 ///
-/// ### Measuring roundtrip time
+/// # Measuring roundtrip time
 /// You can measure the roundtrip time using the `debug-measure-roundtrip` crate-feature.  It will
 /// debug-log the roundtrip time for each peripheral communication.  The information gained from
 /// this measurement can then be used to find an appropriate T<sub>SLEEP</sub> and T<sub>SL</sub>.
@@ -68,7 +68,7 @@ impl PhyData<'_> {
 /// If you are struggling to get any communcation working, try starting with a very high
 /// T<sub>SL</sub> (slot time) value (e.g. 20ms = 10000 bits at 500kBaud).
 ///
-/// ### Empirical Recommendations
+/// # Empirical Recommendations
 /// The following values were determined to yield stable communication using various popular
 /// USB-RS485 converters (all tested devices were either based on the CH341 or FT232R chips).
 ///
@@ -79,6 +79,24 @@ impl PhyData<'_> {
 ///
 /// [ftdi-latency-win]: https://www.ftdichip.com/Support/Knowledgebase/index.html?settingacustomdefaultlaten.htm
 /// [ftdi-latency-linux]: https://askubuntu.com/questions/696593/reduce-request-latency-on-an-ftdi-ubs-to-rs-232-adapter
+///
+/// # Example
+/// ```no_run
+/// use profirust::{Baudrate, fdl, dp, phy};
+/// const BAUDRATE: Baudrate = Baudrate::B500000;
+/// # let mut dp_master = dp::DpMaster::new(vec![]);
+///
+/// let mut fdl = fdl::FdlActiveStation::new(
+///     fdl::ParametersBuilder::new(0x02, BAUDRATE)
+///         // Increased slot time due to USB latency
+///         .slot_bits(4000)
+///         .build_verified(&dp_master)
+/// );
+///
+/// let mut phy = phy::SerialPortPhy::new("/dev/ttyUSB0", fdl.parameters().baudrate);
+/// // Sleep time for the bus poll loop
+/// let sleep_time = std::time::Duration::from_micros(3500);
+/// ```
 pub struct SerialPortPhy {
     port: Box<dyn serialport::SerialPort>,
     data: PhyData<'static>,

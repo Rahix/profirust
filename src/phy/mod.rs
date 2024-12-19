@@ -4,7 +4,8 @@
 //! PROFIBUS communication.  You will need to enable the corresponding crate features for your PHY
 //! implementation.  Here is a list:
 //!
-//! - `phy-linux`: Linux userspace PHY implementation using a serial TTY device
+//! - `phy-serial`: Platform-independent PHY implementation for serial port devices
+//! - `phy-linux`: Linux userspace PHY implementation for UART TTY devices
 //! - `phy-rp2040`: PHY implementation for UART of the RP2040
 //! - `phy-simulator`: Simulator PHY implementation for `profirust` testing with a simulated bus
 

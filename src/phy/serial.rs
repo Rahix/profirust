@@ -37,6 +37,48 @@ impl PhyData<'_> {
     }
 }
 
+/// Platform-independent PHY implementation for serial port devices
+///
+/// Available with the `phy-serial` feature.
+///
+/// This PHY implementation is mainly meant for use with USB-RS485 converters, for applications
+/// running within a general purpose operating system.
+///
+/// Between USB, the converter device, and the OS, large delays are introduced into the
+/// communication path.  The PROFIBUS timing paramters need to be adjusted to accound for this.
+/// Here are a few points to consider:
+///
+/// - Particularly FT232-based devices come with a 16ms latency by default, unless explicitly
+///   configured for low-latency (configuration for [Linux][ftdi-latency-linux] or
+///   [Windows][ftdi-latency-win]).
+/// - You should adjust your bus poll cycle time (called T<sub>SLEEP</sub> here) to be slightly
+///   longer than the roundtrip time of an average data-exchange communication.
+/// - The T<sub>SL</sub> (slot time) PROFIBUS timing parameter of the bus needs to be much longer
+///   than usual.  A value of 2 * T<sub>SLEEP</sub> + 1ms has experimentally proven itself to work
+///   quite well.
+/// - At least one or two retries should be permitted to cope with the non-realtime nature of the
+///   general purpose operating system.  This can be facilitated by setting `max_retry_limit` to 2
+///   or 3.
+///
+/// ### Measuring roundtrip time
+/// You can measure the roundtrip time using the `debug-measure-roundtrip` crate-feature.  It will
+/// debug-log the roundtrip time for each peripheral communication.  The information gained from
+/// this measurement can then be used to find an appropriate T<sub>SLEEP</sub> and T<sub>SL</sub>.
+///
+/// If you are struggling to get any communcation working, try starting with a very high
+/// T<sub>SL</sub> (slot time) value (e.g. 20ms = 10000 bits at 500kBaud).
+///
+/// ### Empirical Recommendations
+/// The following values were determined to yield stable communication using various popular
+/// USB-RS485 converters (all tested devices were either based on the CH341 or FT232R chips).
+///
+/// | Baudrate | T<sub>SLEEP</sub> | T<sub>SL</sub> (slot time) |
+/// | ---: | ---: | ---: |
+/// | 19.2 kBaud | 10 ms | 30 ms = 576 bits |
+/// | 500 kBaud | 3.5 ms | 8 ms = 4000 bits |
+///
+/// [ftdi-latency-win]: https://www.ftdichip.com/Support/Knowledgebase/index.html?settingacustomdefaultlaten.htm
+/// [ftdi-latency-linux]: https://askubuntu.com/questions/696593/reduce-request-latency-on-an-ftdi-ubs-to-rs-232-adapter
 pub struct SerialPortPhy {
     port: Box<dyn serialport::SerialPort>,
     data: PhyData<'static>,

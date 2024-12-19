@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Fixed
 - Fixed a crash of the active station when receiving a token telegram with
   invalid addresses.
+- Fixed not tracking partially-received telegrams correctly.  This would show
+  up as _"# bytes in the receive buffer and we go into transmission?"_ warnings
+  in some setups.
 
 ### `gsd-parser`
 #### Fixed

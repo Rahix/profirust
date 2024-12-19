@@ -1,7 +1,7 @@
 //! FDL - Fieldbus data link
 //!
-//! The central type in the `fdl` module is the [`FdlMaster`], the implementation of the FDL
-//! master.  It is configured using the [`ParametersBuilder`].
+//! The central type in the `fdl` module is the [`FdlActiveStation`], the implementation of the FDL
+//! active station.  It is configured using the [`ParametersBuilder`].
 //!
 //! You can also find the representations of PROFIBUS telegrams and related data structures here.
 mod active;

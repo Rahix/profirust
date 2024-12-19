@@ -1,3 +1,5 @@
+#![cfg_attr(test, allow(non_local_definitions))]
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 #[repr(u8)]

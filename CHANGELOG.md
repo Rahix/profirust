@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed not tracking partially-received telegrams correctly.  This would show
   up as _"# bytes in the receive buffer and we go into transmission?"_ warnings
   in some setups.
+- Fixed profirust not immediately processing all received telegrams at once.
+  This lead to very slow performance in some multi-master environments.
 
 ### `gsd-parser`
 #### Fixed

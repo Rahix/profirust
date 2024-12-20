@@ -75,6 +75,8 @@ impl PhyData<'_> {
 /// | Baudrate | T<sub>SLEEP</sub> | T<sub>SL</sub> (slot time) |
 /// | ---: | ---: | ---: |
 /// | 19.2 kBaud | 10 ms | 30 ms = 576 bits |
+/// | 93.75 kBaud | 3.5 ms | 8 ms = 750 bits |
+/// | 187.5 kBaud | 3.5 ms | 8 ms = 1500 bits |
 /// | 500 kBaud | 3.5 ms | 8 ms = 4000 bits |
 ///
 /// [ftdi-latency-win]: https://www.ftdichip.com/Support/Knowledgebase/index.html?settingacustomdefaultlaten.htm

@@ -63,9 +63,11 @@ fn main() {
             // We use a rather large T_sl time because USB-RS485 converters can induce large delays
             // at times.
             .slot_bits(4000)
+            .max_retry_limit(3)
             .watchdog_timeout(profirust::time::Duration::from_secs(2))
             .build_verified(&dp_master),
     );
+    // Read more about timing considerations in the SerialPortPhy documentation.
     let sleep_time = std::time::Duration::from_micros(3500);
 
     println!("Connecting to the bus...");

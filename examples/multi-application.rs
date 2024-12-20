@@ -82,12 +82,13 @@ fn main() -> ! {
         fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)
             // We use a rather large T_slot time because USB-RS485 converters
             // can induce large delays at times.
-            .slot_bits(2500)
+            .slot_bits(4000)
+            .max_retry_limit(3)
             // .token_rotation_bits(512)
             .build(),
     );
-    // We must not poll() too often or to little. T_slot / 2 seems to be a good compromise.
-    let sleep_time: std::time::Duration = (fdl.parameters().slot_time() / 2).into();
+    // Read more about timing considerations in the SerialPortPhy documentation.
+    let sleep_time = std::time::Duration::from_micros(3500);
 
     log::info!("Connecting to the bus...");
     let mut phy = phy::SerialPortPhy::new(BUS_DEVICE, fdl.parameters().baudrate);

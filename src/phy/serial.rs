@@ -100,6 +100,7 @@ impl PhyData<'_> {
 pub struct SerialPortPhy {
     port: Box<dyn serialport::SerialPort>,
     data: PhyData<'static>,
+    last_rx: Option<crate::time::Instant>,
 }
 
 impl SerialPortPhy {
@@ -127,6 +128,7 @@ impl SerialPortPhy {
         Self {
             port,
             data: PhyData::Rx { buffer, length: 0 },
+            last_rx: None,
         }
     }
 
@@ -181,7 +183,7 @@ impl crate::phy::ProfibusPhy for SerialPortPhy {
         }
     }
 
-    fn transmit_data<F, R>(&mut self, _now: crate::time::Instant, f: F) -> R
+    fn transmit_data<F, R>(&mut self, now: crate::time::Instant, f: F) -> R
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
@@ -196,6 +198,21 @@ impl crate::phy::ProfibusPhy for SerialPortPhy {
                         "{} bytes in the receive buffer and we go into transmission?",
                         receive_length
                     );
+                    #[cfg(feature = "std")]
+                    {
+                        let buffer_string = buffer[..*receive_length]
+                            .iter()
+                            .map(|b| format!("{b:02X}"))
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        if let Some(last_rx) = self.last_rx {
+                            log::warn!(
+                                "Last data was received {} us ago",
+                                (now - last_rx).total_micros()
+                            );
+                        }
+                        log::warn!("Receive buffer content: {buffer_string}");
+                    }
                 }
                 let (length, res) = f(&mut buffer[..]);
                 if length == 0 {
@@ -215,14 +232,18 @@ impl crate::phy::ProfibusPhy for SerialPortPhy {
         }
     }
 
-    fn receive_data<F, R>(&mut self, _now: crate::time::Instant, f: F) -> R
+    fn receive_data<F, R>(&mut self, now: crate::time::Instant, f: F) -> R
     where
         F: FnOnce(&[u8]) -> (usize, R),
     {
         match &mut self.data {
             PhyData::Tx { .. } => panic!("receive_data() while transmitting!"),
             PhyData::Rx { buffer, length } => {
+                let last_length = *length;
                 *length += Self::read(&mut *self.port, &mut buffer[*length..]).unwrap();
+                if last_length != *length {
+                    self.last_rx = Some(now);
+                }
                 debug_assert!(*length <= buffer.len());
                 let (drop, res) = f(&buffer[..*length]);
                 match drop {

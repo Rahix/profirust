@@ -1,6 +1,6 @@
 [package]
 name = "gsdtool"
-version = "0.3.0"
+version = "0.5.0"
 edition = "2021"
 
 description = "CLI utility for PROFIBUS GSD files (Generic Station Descripions)"
@@ -16,5 +16,5 @@ homepage = "https://github.com/rahix/profirust/tree/main/gsdtool"
 bitvec = "1.0.1"
 console = { version = "0.15.7", default-features = false }
 dialoguer = { version = "0.10.4", default-features = false, features = ["editor", "fuzzy-select"] }
-gsd-parser = { version = "0.3.0", path = "../gsd-parser/" }
+gsd-parser = { version = "0.5.0", path = "../gsd-parser/" }
 gumdrop = "0.8.1"

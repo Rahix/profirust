@@ -720,7 +720,7 @@ impl FdlActiveStation {
         }
 
         // Handle received telegrams
-        phy.receive_telegram(now, |telegram| {
+        phy.receive_all_telegrams(now, |telegram, is_last_telegram| {
             self.mark_rx(now);
 
             // Handle address collision detection
@@ -756,8 +756,12 @@ impl FdlActiveStation {
                     if data_telegram.is_fdl_status_request().is_some()
                         && data_telegram.h.da == self.p.address =>
                 {
-                    *self.state.get_listen_token_status_request() = Some(data_telegram.h.sa);
-                    PollDone::waiting_for_delay()
+                    if is_last_telegram {
+                        *self.state.get_listen_token_status_request() = Some(data_telegram.h.sa);
+                        PollDone::waiting_for_delay()
+                    } else {
+                        PollDone::waiting_for_bus()
+                    }
                 }
                 _ => PollDone::waiting_for_bus(),
             }
@@ -768,6 +772,7 @@ impl FdlActiveStation {
         &mut self,
         now: crate::time::Instant,
         telegram: crate::fdl::Telegram,
+        is_last_telegram: bool,
     ) -> PollDone {
         debug_assert_state!(self.state, State::ActiveIdle { .. });
 
@@ -797,7 +802,9 @@ impl FdlActiveStation {
                     *collision_count = 0;
                 }
 
-                if token_telegram.da != self.p.address {
+                // Witness token passes between other stations and token passes to us that are
+                // followed by more received telegrams.
+                if token_telegram.da != self.p.address || !is_last_telegram {
                     self.token_ring
                         .witness_token_pass(token_telegram.sa, token_telegram.da);
 
@@ -833,7 +840,8 @@ impl FdlActiveStation {
             // Handle FDL requests sent to us
             crate::fdl::Telegram::Data(data_telegram)
                 if data_telegram.is_fdl_status_request().is_some()
-                    && data_telegram.h.da == self.p.address =>
+                    && data_telegram.h.da == self.p.address
+                    && is_last_telegram =>
             {
                 *self.state.get_active_idle_status_request() = Some(data_telegram.h.sa);
                 PollDone::waiting_for_delay()
@@ -871,10 +879,10 @@ impl FdlActiveStation {
             return self.mark_tx(now, tx_res.bytes_sent());
         }
 
-        phy.receive_telegram(now, |telegram| {
+        phy.receive_all_telegrams(now, |telegram, is_last_telegram| {
             self.mark_rx(now);
 
-            self.handle_telegram(now, telegram)
+            self.handle_telegram(now, telegram, is_last_telegram)
         })
         .unwrap_or(PollDone::waiting_for_bus())
     }
@@ -1021,6 +1029,9 @@ impl FdlActiveStation {
         // to a panic or unexpected telegrams being forwarded to an application.
         let app = &mut apps[self.next_application];
 
+        // Here we conservatively only receive the first pending telegram because it is very
+        // unlikely that some other station randomly stole our token.  If it did, we will notice in
+        // the next poll cycle.
         let reply_events: Result<Option<()>, PollDone> = phy
             .receive_telegram(now, |telegram| {
                 self.mark_rx(now);
@@ -1142,6 +1153,9 @@ impl FdlActiveStation {
 
         let address = *self.state.get_await_status_response_address();
 
+        // Here we conservatively only receive the first pending telegram because it is very
+        // unlikely that some other station randomly stole our token.  If it did, we will notice in
+        // the next poll cycle.
         let received = phy.receive_telegram(now, |telegram| {
             self.mark_rx(now);
 
@@ -1224,20 +1238,26 @@ impl FdlActiveStation {
             return self.do_pass_token(now, phy);
         }
 
-        phy.receive_telegram(now, |telegram| {
+        let mut first_in = true;
+        phy.receive_all_telegrams(now, |telegram, is_last_telegram| {
             self.mark_rx(now);
 
-            if telegram.source_address() != Some(self.token_ring.next_station()) {
-                log::warn!(
-                    "Unexpected station #{} transmitting after token pass to #{}",
-                    telegram.source_address().unwrap(),
-                    self.token_ring.next_station()
-                );
-            }
+            // Only check and transition to ActiveIdle on the first telegram.
+            if first_in {
+                if telegram.source_address() != Some(self.token_ring.next_station()) {
+                    log::warn!(
+                        "Unexpected station #{} transmitting after token pass to #{}",
+                        telegram.source_address().unwrap(),
+                        self.token_ring.next_station()
+                    );
+                }
 
-            // In case this was a telegram to us, we must already handle it in ActiveIdle state
-            self.state.transition_active_idle();
-            self.handle_telegram(now, telegram)
+                // In case this was a telegram to us, we must already handle it in ActiveIdle state
+                self.state.transition_active_idle();
+
+                first_in = false;
+            }
+            self.handle_telegram(now, telegram, is_last_telegram)
         })
         .unwrap_or(PollDone::waiting_for_bus())
     }

@@ -723,6 +723,12 @@ impl FdlActiveStation {
         phy.receive_all_telegrams(now, |telegram, is_last_telegram| {
             self.mark_rx(now);
 
+            // This unusual construct is needed to catch situations where multiple telegrams are
+            // received at once and the first one leads us to go offline due to collision.
+            if self.connectivity_state() == ConnectivityState::Offline {
+                return PollDone::waiting_for_bus();
+            }
+
             // Handle address collision detection
             if telegram.source_address() == Some(self.p.address) {
                 let collision_count = self.state.get_listen_token_collision_count();
@@ -774,6 +780,12 @@ impl FdlActiveStation {
         telegram: crate::fdl::Telegram,
         is_last_telegram: bool,
     ) -> PollDone {
+        // This unusual construct is needed to catch situations where multiple telegrams are
+        // received at once and the first one leads us to go back to ListenToken due to collision.
+        if matches!(self.state, State::ListenToken { .. }) {
+            return PollDone::waiting_for_bus();
+        }
+
         debug_assert_state!(self.state, State::ActiveIdle { .. });
 
         match telegram {

@@ -39,11 +39,13 @@ such implementations for inclusion in **profirust**.
 
 At the moment, the following implementations are available:
 
-- [`LinuxRs485Phy`]: Implementation for non-realtime Linux UART devices
+- [`SerialPortPhy`]: Platform-independent PHY implementation for serial port devices
+- [`LinuxRs485Phy`]: Linux userspace PHY implementation for UART TTY devices
 - [`Rp2040Phy`]: Implementation for RP2040 microcontrollers
 - _Planned:_ Generic implementation for [`embedded-hal`]-supported microcontrollers
 
 [`ProfibusPhy`]: https://docs.rs/profirust/latest/profirust/phy/trait.ProfibusPhy.html
+[`SerialPortPhy`]: https://docs.rs/profirust/latest/profirust/phy/struct.SerialPortPhy.html
 [`LinuxRs485Phy`]: https://docs.rs/profirust/latest/profirust/phy/struct.LinuxRs485Phy.html
 [`Rp2040Phy`]: https://docs.rs/profirust/latest/profirust/phy/struct.Rp2040Phy.html
 [`embedded-hal`]: https://github.com/rust-embedded/embedded-hal
@@ -54,12 +56,13 @@ At the moment, the following implementations are available:
 - [x] Basic Diagnostics
 - [x] Extended Diagnostics (DP-V0)
 - [x] Multi-master bus
-- [ ] Bus error tracking
 - [x] Bus discovery utilities
+- [ ] Bus error tracking
 - [ ] Reliable communication at 12 Mbit/s
 - [ ] Communication with DP-V1 peripherals
 - [ ] Equidistant bus cycle
 - [ ] Isochronous bus cycle
+- [ ] Passive Station (Peripheral)
 
 ## Getting Started
 This is a short guide for getting communication up and running with your

@@ -112,6 +112,10 @@ pub trait ProfibusPhy {
     ///
     /// When a full and correct telegram was received, the closure `f` is called to process it.
     ///
+    /// When `f()` is called, there is no guarantee that no more telegrams are pending after this
+    /// one in the receive buffer.  Call `receive_telegram()` multiple times to process them all or
+    /// use `receive_all_telegrams()` instead.
+    ///
     /// **Important**: This function must not block on the actually receiving a telegram and should
     /// return `None` in case no full telegram was received yet!
     ///
@@ -125,15 +129,63 @@ pub trait ProfibusPhy {
             match crate::fdl::Telegram::deserialize(buffer) {
                 // Discard all received data on error.
                 Some(Err(_)) => (buffer.len(), None),
-                // TODO: Only drop telegram length bytes instead of whole buffer.
                 Some(Ok((telegram, length))) => {
                     log::trace!("PHY RX {:?}", telegram);
+                    if length != buffer.len() {
+                        log::trace!("Received more than one telegram at once!");
+                    }
                     (length, Some(f(telegram)))
                 }
                 // Don't drop any bytes yet if the telegram isn't complete.
                 None => (0, None),
             }
         })
+    }
+
+    /// Try receiving all pending telegrams.
+    ///
+    /// This function calls `f()` for each valid telegram in the receive buffer.  The second
+    /// parameter to `f()` is a boolean indicating whether this is the latest telegram that was
+    /// received (`is_last_telegram`).  There are a few caveats:
+    ///
+    /// - The return value of `f()` is only forwarded for the last call of `f()` where
+    ///   `is_last_telegram` was `true`.
+    /// - It may be possible that no call of `f()` has `is_last_telegram==true`.  This happens when
+    ///   the final data in the receive buffer is not (yet) a valid telegram. `None` is returned in this
+    ///   case.
+    ///
+    /// **Important**: This function must not block on the actually receiving a telegram and should
+    /// return `None` in case no full telegram was received yet!
+    ///
+    /// # Panics
+    /// This function may panic when a transmission is ongoing.
+    fn receive_all_telegrams<F, R>(&mut self, now: crate::time::Instant, mut f: F) -> Option<R>
+    where
+        F: FnMut(crate::fdl::Telegram, bool) -> R,
+    {
+        // TODO: Limit this loop in some way?  Or is it enough to rely on the receive-buffer being
+        // finite?
+        loop {
+            let (is_last, res) = self.receive_data(now, |buffer| {
+                match crate::fdl::Telegram::deserialize(buffer) {
+                    // Discard all received data on error.
+                    Some(Err(_)) => (buffer.len(), (true, None)),
+                    Some(Ok((telegram, length))) => {
+                        log::trace!("PHY RX {:?}", telegram);
+                        let telegram_is_last = length == buffer.len();
+                        let res = f(telegram, telegram_is_last);
+                        (length, (telegram_is_last, Some(res)))
+                    }
+                    // Don't drop any bytes yet if the telegram isn't complete.
+                    None => (0, (true, None)),
+                }
+            });
+            if is_last {
+                return res;
+            } else {
+                log::trace!("Received more than one telegram at once, trying to keep up!");
+            }
+        }
     }
 
     /// Poll for the current amount of bytes waiting in the receive buffer.

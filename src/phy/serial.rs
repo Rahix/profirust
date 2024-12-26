@@ -111,12 +111,15 @@ impl SerialPortPhy {
     }
 
     fn new_inner(serial_port: Cow<'_, str>, baudrate: crate::Baudrate) -> Self {
-        let port = serialport::new(serial_port, u32::try_from(baudrate.to_rate()).unwrap())
+        use serialport::SerialPort;
+
+        #[allow(unused_mut)]
+        let mut port = serialport::new(serial_port, u32::try_from(baudrate.to_rate()).unwrap())
             .data_bits(serialport::DataBits::Eight)
             .flow_control(serialport::FlowControl::None)
             .parity(serialport::Parity::Even)
             .stop_bits(serialport::StopBits::One)
-            .open()
+            .open_native()
             .unwrap();
 
         assert_eq!(
@@ -125,10 +128,13 @@ impl SerialPortPhy {
             "baudrate not configured correctly"
         );
 
+        #[cfg(target_os = "linux")]
+        serialport_low_latency::enable_low_latency(&mut port).unwrap();
+
         let buffer = crate::phy::BufferHandle::from(vec![0u8; 512]);
 
         Self {
-            port,
+            port: Box::new(port),
             data: PhyData::Rx { buffer, length: 0 },
             last_rx: None,
         }

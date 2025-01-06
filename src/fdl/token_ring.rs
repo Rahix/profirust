@@ -329,6 +329,10 @@ mod tests {
 
     #[test]
     fn token_rink_eats_bad_addresses() {
+        crate::test_utils::prepare_test_logger_with_warnings(vec![
+            "Witnessed token pass from invalid address #223->#7, ignoring.",
+            "Witnessed token pass to invalid address #223<-#7, ignoring.",
+        ]);
         let mut token_ring = TokenRing::new(&Default::default());
 
         token_ring.witness_token_pass(223, 7);

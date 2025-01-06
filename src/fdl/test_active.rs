@@ -313,7 +313,10 @@ fn ignore_telegrams_listen_token() {
 /// Test that an active station correctly discovers an address collision in an active ring
 #[test]
 fn address_collision_ring() {
-    crate::test_utils::prepare_test_logger();
+    crate::test_utils::prepare_test_logger_with_warnings(vec![
+        "Witnessed collision of another active station with own address (#7)!",
+        "Witnessed second collision of another active station with own address (#7), going offline.",
+    ]);
     let mut fdl_ut = FdlActiveUnderTest::default();
     let addr = fdl_ut.fdl_param().address;
 
@@ -355,7 +358,10 @@ fn address_collision_ring() {
 /// Test that an active station correctly notices an address collision in the ListenToken state.
 #[test]
 fn address_collision_in_listen_token() {
-    crate::test_utils::prepare_test_logger();
+    crate::test_utils::prepare_test_logger_with_warnings(vec![
+        "Witnessed collision of another active station with own address (#7)!",
+        "Witnessed second collision of another active station with own address (#7), going offline."
+    ]);
     let mut fdl_ut = FdlActiveUnderTest::default();
     let addr = fdl_ut.fdl_param().address;
 
@@ -383,7 +389,11 @@ fn address_collision_in_listen_token() {
 /// Test that an active station correctly notices an address collision in the ActiveIdle state.
 #[test]
 fn address_collision_in_active_idle() {
-    crate::test_utils::prepare_test_logger();
+    crate::test_utils::prepare_test_logger_with_warnings(vec![
+        "Unexpected station #7 transmitting after token pass to #15",
+        "Witnessed collision of another active station with own address (#7)!",
+        "Witnessed second collision of another active station with own address (#7), leaving ring.",
+    ]);
     let mut fdl_ut = FdlActiveUnderTest::default();
     let addr = fdl_ut.fdl_param().address;
 
@@ -546,7 +556,10 @@ fn active_station_discovers_neighbor() {
 /// Test that an active station resends the token when not received by next station
 #[test]
 fn active_station_resends_token() {
-    crate::test_utils::prepare_test_logger();
+    crate::test_utils::prepare_test_logger_with_warnings(vec![
+        "Token was apparently not received by #15, resending...",
+        "Token was again not received by #15, resending...",
+    ]);
     let mut fdl_ut = FdlActiveUnderTest::new(7);
 
     fdl_ut.prepare_two_station_ring();
@@ -600,7 +613,11 @@ fn active_station_resends_token() {
 /// station vanishes.
 #[test]
 fn active_station_next_vanishes() {
-    crate::test_utils::prepare_test_logger();
+    crate::test_utils::prepare_test_logger_with_warnings(vec![
+        "Token was apparently not received by #15, resending...",
+        "Token was again not received by #15, resending...",
+        "Token was also not received on third attempt, clearing #15 from LAS.",
+    ]);
     let mut fdl_ut = FdlActiveUnderTest::new(7);
 
     fdl_ut.prepare_two_station_ring();
@@ -721,7 +738,7 @@ fn active_station_responds_unknown() {
 /// Test that a token lost timeout is triggered in the active idle state as well
 #[test]
 fn active_idle_token_lost() {
-    crate::test_utils::prepare_test_logger();
+    crate::test_utils::prepare_test_logger_with_warnings(vec!["Token lost! Generating a new one."]);
     let mut fdl_ut = FdlActiveUnderTest::default();
 
     fdl_ut.prepare_two_station_ring();
@@ -743,7 +760,7 @@ fn active_idle_token_lost() {
 /// Test that the active station correctly rejects a single token from a new previous station
 #[test]
 fn active_station_rejects_new_previous_neighbor() {
-    crate::test_utils::prepare_test_logger();
+    crate::test_utils::prepare_test_logger_with_warnings(vec!["Token lost! Generating a new one."]);
     let mut fdl_ut = FdlActiveUnderTest::default();
 
     fdl_ut.prepare_two_station_ring();
@@ -826,7 +843,9 @@ fn going_offline() {
 
 #[test]
 fn multimaster_smoke() {
-    crate::test_utils::prepare_test_logger();
+    crate::test_utils::prepare_test_logger_with_warnings(vec![
+        "Token was apparently not received by #2, resending...",
+    ]);
     let baud = crate::Baudrate::B19200;
 
     let actives_addr = vec![2, 7, 13, 24];
@@ -881,7 +900,10 @@ fn multimaster_smoke() {
 
 #[test]
 fn active_station_receives_faulty_token_telegram() {
-    crate::test_utils::prepare_test_logger();
+    crate::test_utils::prepare_test_logger_with_warnings(vec![
+        "Unexpected station #174 transmitting after token pass to #15",
+        "Witnessed token pass from invalid address #174->#223, ignoring.",
+    ]);
     let mut fdl_ut = FdlActiveUnderTest::default();
 
     fdl_ut.prepare_two_station_ring();

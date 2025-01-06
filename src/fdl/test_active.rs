@@ -393,6 +393,7 @@ fn address_collision_in_active_idle() {
         "Unexpected station #7 transmitting after token pass to #15",
         "Witnessed collision of another active station with own address (#7)!",
         "Witnessed second collision of another active station with own address (#7), leaving ring.",
+        "Witnessed second collision of another active station with own address (#7), going offline.",
     ]);
     let mut fdl_ut = FdlActiveUnderTest::default();
     let addr = fdl_ut.fdl_param().address;
@@ -408,10 +409,7 @@ fn address_collision_in_active_idle() {
     fdl_ut.advance_bus_time_sync_pause();
 
     // Afer the first collision, the station should still be going.
-    assert_eq!(
-        fdl_ut.active_station.connectivity_state(),
-        crate::fdl::active::ConnectivityState::Online
-    );
+    assert!(fdl_ut.active_station.is_in_ring());
 
     fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(9, 7)));
     fdl_ut.wait_transmission();
@@ -419,6 +417,20 @@ fn address_collision_in_active_idle() {
 
     // Afer the second collision, the station should now no longer be part of the token ring.
     assert!(!fdl_ut.active_station.is_in_ring());
+
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(9, 7)));
+    fdl_ut.wait_transmission();
+    fdl_ut.advance_bus_time_sync_pause();
+
+    fdl_ut.transmit_telegram(|tx| Some(tx.send_token_telegram(9, 7)));
+    fdl_ut.wait_transmission();
+    fdl_ut.advance_bus_time_sync_pause();
+
+    // Afer two more collisions in ListenToken state, the station should now be offline.
+    assert_eq!(
+        fdl_ut.active_station.connectivity_state(),
+        crate::fdl::active::ConnectivityState::Offline
+    );
 }
 
 /// Test that an active station waits at least two full token rotations before reporting to be

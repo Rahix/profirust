@@ -328,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn token_rink_eats_bat_addresses() {
+    fn token_rink_eats_bad_addresses() {
         let mut token_ring = TokenRing::new(&Default::default());
 
         token_ring.witness_token_pass(223, 7);

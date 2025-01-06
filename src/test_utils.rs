@@ -1,7 +1,9 @@
-use std::sync::atomic;
+use std::cell::Cell;
 
-static LOG_TIMESTAMP: atomic::AtomicI64 = atomic::AtomicI64::new(0);
-static ACTIVE_ADDR: atomic::AtomicU8 = atomic::AtomicU8::new(0);
+std::thread_local! {
+    static LOG_TIMESTAMP: Cell<i64> = Cell::new(0);
+    static ACTIVE_ADDR: Cell<crate::Address> = Cell::new(0);
+}
 
 pub fn prepare_test_logger() {
     let _ = env_logger::builder()
@@ -18,10 +20,10 @@ pub fn prepare_test_logger() {
             writeln!(
                 buf,
                 "[{:16} {} {:32} #{}] {}",
-                LOG_TIMESTAMP.load(atomic::Ordering::Relaxed),
+                LOG_TIMESTAMP.get(),
                 level_str,
                 record.module_path().unwrap_or(""),
-                ACTIVE_ADDR.load(atomic::Ordering::Relaxed),
+                ACTIVE_ADDR.get(),
                 record.args(),
             )
         })
@@ -32,16 +34,13 @@ pub fn prepare_test_logger() {
         .try_init();
 
     set_log_timestamp(crate::time::Instant::ZERO);
-
-    // Because we only have one global timestamp, multiple tests that run concurrently will mess
-    // things up.
-    log::warn!("Log timestamps are only accurate when running a single test in isolation!");
+    set_active_addr(0);
 }
 
 pub fn set_log_timestamp(t: crate::time::Instant) {
-    LOG_TIMESTAMP.store(t.total_micros(), atomic::Ordering::SeqCst);
+    LOG_TIMESTAMP.set(t.total_micros());
 }
 
 pub fn set_active_addr(addr: u8) {
-    ACTIVE_ADDR.store(addr, atomic::Ordering::SeqCst);
+    ACTIVE_ADDR.set(addr);
 }

@@ -186,9 +186,9 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     let mut module_selection_list = vec![];
     for i in 0..max_modules {
         let slot_number = i + 1;
-        let (allowed_modules, default_module) =
+        let (allowed_modules, slot) =
             if let Some(slot) = gsd.slots.iter().find(|s| s.number == slot_number) {
-                (&slot.allowed_modules, Some(&slot.default))
+                (&slot.allowed_modules, Some(&*slot))
             } else {
                 // Without a slot definition, all available modules are allowed
                 (&gsd.available_modules, None)
@@ -206,12 +206,18 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
             .items(&module_names)
             .max_length(16);
 
-        if let Some(default_module) = default_module {
+        if let Some(slot) = slot {
+            // Show slot name in prompt
+            fuzzy_select.with_prompt(format!(
+                "Select module for slot \"{}\" {}/{} (ESC to stop)",
+                slot.name, slot_number, gsd.max_modules
+            ));
+
             let default_id = module_names
                 .iter()
                 .enumerate()
                 .find_map(|(i, name)| {
-                    if name == &default_module.name {
+                    if name == &slot.default.name {
                         Some(i)
                     } else {
                         None

@@ -54,10 +54,10 @@ Set_Slave_Add_supp=0
 Min_Slave_Intervall=1
 
 ; Maximum supported sizes
-;Modular_Station=1
-;Max_Module=244
-;Max_Input_Len=244
-;Max_Output_Len=244
+Modular_Station=1
+Max_Module=244
+Max_Input_Len=244
+Max_Output_Len=244
 ;Max_Data_Len=488
 
 Fail_Safe=1

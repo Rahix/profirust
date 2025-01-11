@@ -253,6 +253,30 @@ pub struct Module {
     pub module_prm_data: UserPrmData,
 }
 
+#[derive(PartialEq, Eq, Clone, Default)]
+pub struct Slot {
+    pub name: String,
+    pub number: u8,
+    pub default: Arc<Module>,
+    pub allowed_modules: Vec<Arc<Module>>,
+}
+
+impl std::fmt::Debug for Slot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let module_names = self
+            .allowed_modules
+            .iter()
+            .map(|m| &m.name)
+            .collect::<Vec<_>>();
+        f.debug_struct("Slot")
+            .field("name", &self.name)
+            .field("number", &self.number)
+            .field("default", &self.default.name)
+            .field("allowed_modules", &module_names)
+            .finish()
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct UnitDiagBitInfo {
     pub text: String,
@@ -313,7 +337,8 @@ pub struct GenericStationDescription {
     pub supported_speeds: SupportedSpeeds,
     pub max_tsdr: MaxTsdr,
     //
-    pub available_modules: Vec<Module>,
+    pub available_modules: Vec<Arc<Module>>,
+    pub slots: Vec<Slot>,
     pub user_prm_data: UserPrmData,
     //
     pub unit_diag: UnitDiag,

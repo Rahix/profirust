@@ -128,6 +128,7 @@ GenericStationDescription {
             },
         },
     ],
+    slots: [],
     user_prm_data: UserPrmData {
         length: 0,
         data_const: [

@@ -295,7 +295,85 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                     reference: module_reference,
                     module_prm_data,
                 };
-                gsd.available_modules.push(module);
+                gsd.available_modules.push(Arc::new(module));
+            }
+            gsd_parser::Rule::slot_definition => {
+                for rule in statement.into_inner() {
+                    match rule.as_rule() {
+                        gsd_parser::Rule::slot => {
+                            let mut pairs = rule.into_inner();
+                            let number = parse_number(pairs.next().unwrap())?;
+                            let name = parse_string_literal(pairs.next().unwrap());
+
+                            #[allow(unused)]
+                            let find_module =
+                                |reference: u16,
+                                 slot_ref: &str,
+                                 slot_num: u8|
+                                 -> Option<Arc<crate::Module>> {
+                                    for module in gsd.available_modules.iter() {
+                                        if module.reference == Some(reference.into()) {
+                                            return Some(module.clone());
+                                        }
+                                    }
+                                    // TODO: Warning management?
+                                    // log::warn!("No module with reference {reference} found for slot {slot_num} (\"{slot_ref}\")");
+                                    None
+                                };
+
+                            let default_pair = pairs.next().unwrap();
+                            let default_span = default_pair.as_span();
+                            let default_ref = parse_number(default_pair)?;
+
+                            let value_pair = pairs.next().unwrap();
+                            let allowed_modules = match value_pair.as_rule() {
+                                gsd_parser::Rule::slot_value_range => {
+                                    let mut pairs = value_pair.into_inner();
+                                    let first = parse_number(pairs.next().unwrap())?;
+                                    let last = parse_number(pairs.next().unwrap())?;
+                                    (first..=last)
+                                        .filter_map(|r| find_module(r, &name, number))
+                                        .collect::<Vec<_>>()
+                                }
+                                gsd_parser::Rule::slot_value_set => {
+                                    let mut allowed_modules = Vec::new();
+                                    for pairs in value_pair.into_inner() {
+                                        let reference = parse_number(pairs)?;
+                                        if let Some(module) = find_module(reference, &name, number)
+                                        {
+                                            allowed_modules.push(module);
+                                        }
+                                    }
+                                    allowed_modules
+                                }
+                                r => unreachable!("found rule {r:?}"),
+                            };
+
+                            let Some(default) = find_module(default_ref, &name, number) else {
+                                return Err(parse_error(
+                                    format!(
+                                        "The default module for slot {number} (\"{name}\") with reference {default_ref} is not available",
+                                    ),
+                                    default_span,
+                                ));
+                            };
+                            if !allowed_modules.contains(&default) {
+                                // TODO: Warning management?
+                                // log::warn!("Default module not part of allowed modules?!");
+                            }
+
+                            let slot = crate::Slot {
+                                name,
+                                number,
+                                default,
+                                allowed_modules,
+                            };
+
+                            gsd.slots.push(slot);
+                        }
+                        r => unreachable!("found rule {r:?}"),
+                    }
+                }
             }
             gsd_parser::Rule::setting => {
                 let mut pairs = statement.into_inner();

@@ -60,9 +60,12 @@ data_area = {
 
 slot_definition = {
     ^"SlotDefinition" ~ NEWLINE+ ~
-    (!^"EndSlotDefinition" ~ ANY)* ~
+    (slot ~ NEWLINE+)* ~
     ^"EndSlotDefinition"
 }
+slot = { ^"Slot" ~ "(" ~ number ~ ")" ~ "=" ~ string_literal ~ number ~ ( slot_value_range | slot_value_set ) }
+slot_value_range = { number ~ "-" ~ number }
+slot_value_set = { number ~ ("," ~ number)* }
 
 unit_diag_type = {
     ^"UnitDiagType" ~ "=" ~ number ~ NEWLINE+ ~

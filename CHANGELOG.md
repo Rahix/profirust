@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   adapters on Linux.  This is especially necessary for FTDI-based devices as
   those come with a high latency configured by default.
 
+### `gsd-parser`
+#### Added
+- Slot information is now parsed correctly.
+
+### `gsdtool`
+#### Added
+- `gsdtool` now uses slot information to preselect modules and filter the
+  module list for each slot so only allowed modules can be selected.  This
+  should make it easier to generate correct configurations.
+
 
 ## [0.5.0] - 2024-12-20
 ### `profirust`

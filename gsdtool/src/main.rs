@@ -201,8 +201,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
         fuzzy_select
             .with_prompt(format!(
                 "Select module {}/{} (ESC to stop)",
-                i + 1,
-                gsd.max_modules
+                slot_number, gsd.max_modules
             ))
             .items(&module_names)
             .max_length(16);
@@ -391,7 +390,12 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
         println!("        // Selected Modules:");
         let modid_width = usize::try_from(module_selection_list.len().ilog10()).unwrap() + 1;
         for (i, (module, param)) in module_selection_list.into_iter().enumerate() {
-            println!("        //   [{i:width$}] {}", module, width = modid_width);
+            let slot_number = i + 1;
+            println!(
+                "        //   [{slot_number:width$}] {}",
+                module,
+                width = modid_width
+            );
             let longest_name = param.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
             for (name, value) in param.into_iter() {
                 println!(

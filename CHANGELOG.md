@@ -15,11 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Added
 - Slot information is now parsed correctly.
 
+#### Fixed
+- The `max_modules` field is not forced to the correct value `1` for compact
+  stations in all situations.
+
 ### `gsdtool`
 #### Added
 - `gsdtool` now uses slot information to preselect modules and filter the
   module list for each slot so only allowed modules can be selected.  This
   should make it easier to generate correct configurations.
+- `gsdtool` now automatically selects the module for compact stations.
 
 
 ## [0.5.0] - 2024-12-20

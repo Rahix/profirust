@@ -176,12 +176,6 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
         style(format!("Selecting modules (maximum {}):", gsd.max_modules)).bold()
     );
 
-    let module_names: Vec<String> = gsd
-        .available_modules
-        .iter()
-        .map(|m| m.name.to_string())
-        .collect();
-
     // Dirty way to support compact stations for now
     let max_modules = if gsd.modular_station {
         gsd.max_modules
@@ -191,20 +185,47 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
 
     let mut module_selection_list = vec![];
     for i in 0..max_modules {
-        let selection = dialoguer::FuzzySelect::new()
+        let slot_number = i + 1;
+        let (allowed_modules, default_module) =
+            if let Some(slot) = gsd.slots.iter().find(|s| s.number == slot_number) {
+                (&slot.allowed_modules, Some(&slot.default))
+            } else {
+                // Without a slot definition, all available modules are allowed
+                (&gsd.available_modules, None)
+            };
+
+        let module_names: Vec<String> =
+            allowed_modules.iter().map(|m| m.name.to_string()).collect();
+
+        let mut fuzzy_select = dialoguer::FuzzySelect::new();
+        fuzzy_select
             .with_prompt(format!(
                 "Select module {}/{} (ESC to stop)",
                 i + 1,
                 gsd.max_modules
             ))
             .items(&module_names)
-            .max_length(16)
-            .interact_opt()
-            .unwrap();
+            .max_length(16);
+
+        if let Some(default_module) = default_module {
+            let default_id = module_names
+                .iter()
+                .enumerate()
+                .find_map(|(i, name)| {
+                    if name == &default_module.name {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            fuzzy_select.default(default_id);
+        }
+
+        let selection = fuzzy_select.interact_opt().unwrap();
 
         if let Some(s) = selection {
-            let module = gsd
-                .available_modules
+            let module = allowed_modules
                 .iter()
                 .find(|m| m.name == module_names[s])
                 .unwrap();

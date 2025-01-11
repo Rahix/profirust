@@ -197,37 +197,48 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
         let module_names: Vec<String> =
             allowed_modules.iter().map(|m| m.name.to_string()).collect();
 
-        let mut fuzzy_select = dialoguer::FuzzySelect::new();
-        fuzzy_select
-            .with_prompt(format!(
-                "Select module {}/{} (ESC to stop)",
-                slot_number, gsd.max_modules
-            ))
-            .items(&module_names)
-            .max_length(16);
+        // TODO: Should we really allow module selection for compact stations with modules (an
+        // invalid combination by spec)?
+        let selection = if gsd.modular_station || allowed_modules.len() != 1 {
+            let mut fuzzy_select = dialoguer::FuzzySelect::new();
+            fuzzy_select
+                .with_prompt(format!(
+                    "Select module {}/{} (ESC to stop)",
+                    slot_number, gsd.max_modules
+                ))
+                .items(&module_names)
+                .max_length(16);
 
-        if let Some(slot) = slot {
-            // Show slot name in prompt
-            fuzzy_select.with_prompt(format!(
-                "Select module for slot \"{}\" {}/{} (ESC to stop)",
-                slot.name, slot_number, gsd.max_modules
-            ));
+            if let Some(slot) = slot {
+                // Show slot name in prompt
+                fuzzy_select.with_prompt(format!(
+                    "Select module for slot \"{}\" {}/{} (ESC to stop)",
+                    slot.name, slot_number, gsd.max_modules
+                ));
 
-            let default_id = module_names
-                .iter()
-                .enumerate()
-                .find_map(|(i, name)| {
-                    if name == &slot.default.name {
-                        Some(i)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap();
-            fuzzy_select.default(default_id);
-        }
-
-        let selection = fuzzy_select.interact_opt().unwrap();
+                let default_id = module_names
+                    .iter()
+                    .enumerate()
+                    .find_map(|(i, name)| {
+                        if name == &slot.default.name {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                fuzzy_select.default(default_id);
+            }
+            fuzzy_select.interact_opt().unwrap()
+        } else {
+            // For non-modular (=compact) stations, always select the first and only module
+            debug_assert_eq!(allowed_modules.len(), 1);
+            println!(
+                "Auto-selecting module \"{}\" for this compact station.",
+                module_names[0]
+            );
+            Some(0)
+        };
 
         if let Some(s) = selection {
             let module = allowed_modules

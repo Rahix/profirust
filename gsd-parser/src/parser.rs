@@ -575,5 +575,16 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
         gsd.user_prm_data = prm;
     }
 
+    // If this is a compact station, only allow one module
+    if !gsd.modular_station {
+        if !gsd.max_modules == 1 {
+            // TODO: Warnings
+        }
+        if !gsd.available_modules.len() == 1 {
+            // TODO: Warnings
+        }
+        gsd.max_modules = 1;
+    }
+
     Ok(gsd)
 }

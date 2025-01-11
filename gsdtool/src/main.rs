@@ -80,6 +80,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     println!("{}", style("Global parameters:").bold());
     let mut prm = gsd_parser::PrmBuilder::new(&gsd.user_prm_data);
     let mut global_parameters = vec![];
+    let mut had_parameters = false;
     for (_, prm_ref) in gsd.user_prm_data.data_ref.iter() {
         if !prm_ref.visible || !prm_ref.changeable {
             // Skip invisible or read-only...
@@ -163,6 +164,11 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
 
             global_parameters.push((prm_ref.name.to_owned(), value_str));
         }
+
+        had_parameters = true;
+    }
+    if !had_parameters {
+        println!("No global parameters available.");
     }
     println!();
 

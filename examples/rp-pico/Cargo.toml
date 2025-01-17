@@ -19,12 +19,12 @@ cortex-m = "0.7"
 cortex-m-rt = "0.7"
 embedded-hal = { version = "0.2.5", features = ["unproven"] }
 fugit = "0.3.7"
-heapless = "0.7.16"
+heapless = "0.8"
 nb = "1.1.0"
-process-image = "0.1.1"
-rp-pico = "0.8"
-usb-device = "0.2.9"
-usbd-serial = "0.1.1"
+process-image = "0.2.1"
+rp-pico = "0.9"
+usb-device = "0.3.2"
+usbd-serial = "0.2.2"
 
 [dependencies.log]
 version = "0.4.20"
@@ -37,8 +37,8 @@ version = "0.5.0"
 default-features = false
 features = ["phy-rp2040"]
 
-[patch.crates-io]
-rp2040-hal = { git = "https://github.com/rahix/rp-hal.git", rev = "6baaf07b0ac2017dbbea1ba8cf5986b74cd81104" }
+# [patch.crates-io]
+# rp2040-hal = { git = "https://github.com/rahix/rp-hal.git", rev = "6baaf07b0ac2017dbbea1ba8cf5986b74cd81104" }
 
 # cargo build/run
 [profile.dev]

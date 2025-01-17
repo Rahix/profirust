@@ -1,24 +1,18 @@
 #![no_std]
 #![no_main]
 
+use bsp::hal::{self, clocks::init_clocks_and_plls, pac, sio::Sio, watchdog::Watchdog};
 use rp_pico as bsp;
-use bsp::hal::{
-    self,
-    clocks::init_clocks_and_plls,
-    pac,
-    sio::Sio,
-    watchdog::Watchdog,
-};
 
+use embedded_hal::digital::v2::ToggleableOutputPin;
 use usb_device::{class_prelude::*, prelude::*};
 use usbd_serial::SerialPort;
-use embedded_hal::digital::v2::ToggleableOutputPin;
 
 use profirust::{dp, fdl, phy, Baudrate};
 
 mod logger;
-mod time;
 mod panic_handler;
+mod time;
 
 // Encoder Parameters
 const ENCODER_ADDRESS: u8 = 6;
@@ -82,9 +76,11 @@ fn main() -> ! {
 
     // Create a USB device with a fake VID and PID
     let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x16c0, 0x27dd))
-        .manufacturer("Rahix Automation")
-        .product("PROFIRUST TEST Gadget")
-        .serial_number("FOOBAR")
+        .strings(&[StringDescriptors::default()
+            .manufacturer("Rahix Automation")
+            .product("PROFIRUST TEST Gadget")
+            .serial_number("FOOBAR")])
+        .unwrap()
         .device_class(2) // from: https://www.usb.org/defined-class-codes
         .build();
 
@@ -120,8 +116,8 @@ fn main() -> ! {
         // Selected Modules:
         //   [0] Class 1 Singleturn
         //       - Code sequence: Increasing clockwise (0)
-        user_parameters: Some(&[0x00, 0x00, ]),
-        config: Some(&[0xd0, ]),
+        user_parameters: Some(&[0x00, 0x00]),
+        config: Some(&[0xd0]),
 
         // Set max_tsdr depending on baudrate and assert
         // that a supported baudrate is used.

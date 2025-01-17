@@ -52,7 +52,11 @@ fn main() -> ! {
     .unwrap();
 
     let timer = hal::Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
-    time::init(timer);
+    // SAFETY: No interrupts are active at this point so there is no possibility of violating the
+    // contract of time::init() here.
+    unsafe {
+        time::init(timer);
+    }
 
     let pins = bsp::Pins::new(
         pac.IO_BANK0,

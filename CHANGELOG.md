@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   adapters on Linux.  This is especially necessary for FTDI-based devices as
   those come with a high latency configured by default.
 
+#### Fixed
+- Fixed a regression from `v0.5.0` where `no_std` builds of profirust were no
+  longer possible.  They would fail with errors like the following one:
+  ```text
+  error[E0277]: the trait bound `ManagedSlice<'_, u8>: From<[_; 0]>` is not satisfied
+  ```
+
 ### `gsd-parser`
 #### Added
 - Slot information is now parsed correctly.

@@ -21,6 +21,12 @@ repos:
       entry: cargo check --workspace --examples --tests --bins
       files: ^(src|tests)/.*\.rs$
       pass_filenames: false
+    - id: cargo-check-rp
+      name: Check rp-pico example
+      language: system
+      entry: sh -c 'cd examples/rp-pico; cargo check'
+      files: ^examples/rp-pico/.*\.rs$
+      pass_filenames: false
     - id: cargo-test
       name: Run profirust testsuite
       language: system

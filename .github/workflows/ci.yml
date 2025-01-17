@@ -25,6 +25,14 @@ jobs:
       - run: sudo apt-get install -y libudev-dev
       - run: RUSTFLAGS=-Dwarnings cargo check -p profirust --all-features --examples
 
+  check-rp-example:
+    name: Check rp-pico example
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cd examples/rp-pico; RUSTFLAGS=-Dwarnings cargo check
+
   test-profirust:
     name: Run profirust testsuite
     runs-on: ubuntu-latest

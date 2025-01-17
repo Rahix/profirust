@@ -5,19 +5,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### `profirust`
-#### Added
-- `SerialPortPhy` now automatically configures low-latency mode for USB-serial
-  adapters on Linux.  This is especially necessary for FTDI-based devices as
-  those come with a high latency configured by default.
-
-#### Fixed
-- Fixed a regression from `v0.5.0` where `no_std` builds of profirust were no
-  longer possible.  They would fail with errors like the following one:
-  ```text
-  error[E0277]: the trait bound `ManagedSlice<'_, u8>: From<[_; 0]>` is not satisfied
-  ```
-
 ### `gsd-parser`
 #### Added
 - Slot information is now parsed correctly.
@@ -32,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   module list for each slot so only allowed modules can be selected.  This
   should make it easier to generate correct configurations.
 - `gsdtool` now automatically selects the module for compact stations.
+
+
+## [0.5.1] - 2025-01-17
+### `profirust`
+#### Added
+- `SerialPortPhy` now automatically configures low-latency mode for USB-serial
+  adapters on Linux.  This is especially necessary for FTDI-based devices as
+  those come with a high latency configured by default.
+
+#### Fixed
+- Fixed a regression from `v0.5.0` where `no_std` builds of profirust were no
+  longer possible.  They would fail with errors like the following one:
+  ```text
+  error[E0277]: the trait bound `ManagedSlice<'_, u8>: From<[_; 0]>` is not satisfied
+  ```
 
 
 ## [0.5.0] - 2024-12-20
@@ -168,7 +170,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Initial Release.
 
 
-[Unreleased]: https://github.com/rahix/profirust/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/rahix/profirust/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/rahix/profirust/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/rahix/profirust/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rahix/profirust/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rahix/profirust/compare/v0.2.1...v0.3.0

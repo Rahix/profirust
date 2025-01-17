@@ -46,9 +46,11 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 
     // Create a USB device with a fake VID and PID
     let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x16c0, 0x27dd))
-        .manufacturer("Rahix Automation")
-        .product("Panic Gadget")
-        .serial_number("FOOBAR")
+        .strings(&[StringDescriptors::default()
+            .manufacturer("Rahix Automation")
+            .product("Panic Gadget")
+            .serial_number("FOOBAR")])
+        .unwrap()
         .device_class(2) // from: https://www.usb.org/defined-class-codes
         .build();
 

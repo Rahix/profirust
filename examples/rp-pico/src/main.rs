@@ -138,11 +138,11 @@ fn main() -> ! {
     let encoder_handle = dp_master.add(dp::Peripheral::new(
         ENCODER_ADDRESS,
         options,
-        &mut buffer_inputs,
-        &mut buffer_outputs,
+        &mut buffer_inputs[..],
+        &mut buffer_outputs[..],
     ));
 
-    let mut fdl_master = fdl::FdlMaster::new(
+    let mut fdl_master = fdl::FdlActiveStation::new(
         fdl::ParametersBuilder::new(MASTER_ADDRESS, BAUDRATE)
             .watchdog_timeout(profirust::time::Duration::from_secs(1))
             .slot_bits(1920)
@@ -160,7 +160,9 @@ fn main() -> ! {
             dp_master.enter_operate();
             init = true;
         }
-        let events = fdl_master.poll(now, &mut phy, &mut dp_master);
+        fdl_master.poll(now, &mut phy, &mut dp_master);
+
+        let events = dp_master.take_last_events();
 
         let encoder = dp_master.get_mut(encoder_handle);
         if events.cycle_completed && encoder.is_running() {

@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Slot information is now parsed correctly.
 
 #### Fixed
-- The `max_modules` field is not forced to the correct value `1` for compact
+- The `max_modules` field is now forced to the correct value `1` for compact
   stations in all situations.
 
 ### `gsdtool`

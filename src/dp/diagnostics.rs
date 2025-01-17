@@ -10,7 +10,7 @@ pub struct ExtendedDiagnostics<'a> {
 impl Default for ExtendedDiagnostics<'_> {
     fn default() -> Self {
         Self {
-            buffer: [].into(),
+            buffer: managed::ManagedSlice::Borrowed(&mut []),
             length: 0,
         }
     }
@@ -56,7 +56,7 @@ impl<'a> ExtendedDiagnostics<'a> {
 
     pub(crate) fn take_buffer(&mut self) -> managed::ManagedSlice<'a, u8> {
         self.length = 0;
-        core::mem::replace(&mut self.buffer, [].into())
+        core::mem::replace(&mut self.buffer, managed::ManagedSlice::Borrowed(&mut []))
     }
 
     pub(crate) fn fill(&mut self, buf: &[u8]) -> bool {

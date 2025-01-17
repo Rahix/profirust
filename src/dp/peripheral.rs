@@ -207,8 +207,8 @@ impl Default for Peripheral<'_> {
             state: Default::default(),
             retry_count: Default::default(),
             fcb: Default::default(),
-            pi_i: [].into(),
-            pi_q: [].into(),
+            pi_i: managed::ManagedSlice::Borrowed(&mut []),
+            pi_q: managed::ManagedSlice::Borrowed(&mut []),
             diag: Default::default(),
             ext_diag: Default::default(),
             diag_needed: Default::default(),
@@ -259,8 +259,8 @@ impl<'a> Peripheral<'a> {
     /// place once the device responds at the new address.
     pub fn reset_address(&mut self, new_address: crate::Address) {
         let options = core::mem::take(&mut self.options);
-        let pi_i = core::mem::replace(&mut self.pi_i, [].into());
-        let pi_q = core::mem::replace(&mut self.pi_q, [].into());
+        let pi_i = core::mem::replace(&mut self.pi_i, managed::ManagedSlice::Borrowed(&mut []));
+        let pi_q = core::mem::replace(&mut self.pi_q, managed::ManagedSlice::Borrowed(&mut []));
         let diag_buffer = self.ext_diag.take_buffer();
 
         *self = Self::new(new_address, options, pi_i, pi_q).with_diag_buffer(diag_buffer);

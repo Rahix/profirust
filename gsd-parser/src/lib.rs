@@ -264,15 +264,20 @@ pub struct Slot {
 
 impl std::fmt::Debug for Slot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let module_names = self
-            .allowed_modules
-            .iter()
-            .map(|m| &m.name)
-            .collect::<Vec<_>>();
+        // this ensures we won't accidentally miss new fields
+        let Slot {
+            name,
+            number,
+            default,
+            allowed_modules,
+        } = self;
+
+        let module_names = allowed_modules.iter().map(|m| &m.name).collect::<Vec<_>>();
+
         f.debug_struct("Slot")
-            .field("name", &self.name)
-            .field("number", &self.number)
-            .field("default", &self.default.name)
+            .field("name", name)
+            .field("number", number)
+            .field("default", &default.name)
             .field("allowed_modules", &module_names)
             .finish()
     }

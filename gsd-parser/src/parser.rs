@@ -80,7 +80,10 @@ fn parse_string_literal(pair: pest::iterators::Pair<'_, gsd_parser::Rule>) -> St
     let mut chars = pair.as_str().chars();
     chars.next();
     chars.next_back();
-    chars.as_str().to_owned()
+    let s = chars.as_str().to_owned();
+
+    // remove long-line markers
+    s.replace("\\\r\n", "").replace("\\\n", "")
 }
 
 pub fn parse(

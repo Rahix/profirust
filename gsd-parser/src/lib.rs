@@ -248,6 +248,7 @@ pub struct UserPrmData {
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct Module {
     pub name: String,
+    pub info_text: Option<String>,
     pub config: Vec<u8>,
     pub reference: Option<u32>,
     pub module_prm_data: UserPrmData,

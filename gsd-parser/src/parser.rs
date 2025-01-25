@@ -251,6 +251,7 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
             gsd_parser::Rule::module => {
                 let mut content = statement.into_inner();
                 let name = parse_string_literal(content.next().unwrap());
+                let mut info_text = None;
                 let module_config: Vec<u8> = parse_number_list(content.next().unwrap())?;
                 let mut module_reference = None;
                 let mut module_prm_data = crate::UserPrmData::default();
@@ -281,6 +282,9 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                                     let values: Vec<u8> = parse_number_list(pairs.next().unwrap())?;
                                     module_prm_data.data_const.push((offset, values));
                                 }
+                                "info_text" => {
+                                    info_text = Some(parse_string_literal(value_pair));
+                                }
                                 _ => (),
                             }
                         }
@@ -291,6 +295,7 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
 
                 let module = crate::Module {
                     name,
+                    info_text,
                     config: module_config,
                     reference: module_reference,
                     module_prm_data,

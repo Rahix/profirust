@@ -317,6 +317,8 @@ mod tests {
 
     #[test]
     fn test_diag_byte2() {
+        crate::test_utils::prepare_test_logger();
+
         for b in 0..=255u8 {
             // Filter edge cases
             if b & 0xe0 == 0 {
@@ -333,6 +335,8 @@ mod tests {
 
     #[test]
     fn test_diag_iter() {
+        crate::test_utils::prepare_test_logger();
+
         let mut buffer = [
             0x44, 0x00, 0x01, 0x00, 0x88, 0x41, 0x21, 0x04, 0x10, 0x20, 0x30,
         ];
@@ -378,6 +382,10 @@ mod tests {
 
     #[test]
     fn test_diag_iter_invalid() {
+        crate::test_utils::prepare_test_logger_with_warnings(vec![
+            "Unexpected ext diag block: [255, 18, 52]",
+        ]);
+
         let mut buffer = [0x44, 0x00, 0x01, 0x00, 0xff, 0x12, 0x34];
         let ext_diag = ExtendedDiagnostics {
             length: buffer.len(),
@@ -399,6 +407,12 @@ mod tests {
 
     #[test]
     fn test_diag_iter_short() {
+        crate::test_utils::prepare_test_logger_with_warnings(vec![
+            "Diagnostics cut off: [72, 0, 1, 0]",
+            "Diagnostics cut off: [136, 0]",
+            "Diagnostics cut off: [8, 0, 1, 0]",
+        ]);
+
         // Identifier-based
         let mut buffer = [0x48, 0x00, 0x01, 0x00];
         let ext_diag = ExtendedDiagnostics {

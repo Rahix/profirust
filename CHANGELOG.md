@@ -11,11 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### `gsd-parser`
 #### Added
-- Slot information is now parsed correctly.
+- Slot information is now parsed.
+- Module `Info_Text` is now parsed.
 
 #### Fixed
 - The `max_modules` field is now forced to the correct value `1` for compact
   stations in all situations.
+- Long lines in strings (using `\`) are now parsed correctly.
 
 ### `gsdtool`
 #### Added

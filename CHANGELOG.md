@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Fixed
 - The `max_modules` field is now forced to the correct value `1` for compact
   stations in all situations.
-- Long lines in strings (using `\`) are now parsed correctly.
+- Long lines (using `\`) are now parsed correctly, in whitespace and in strings.
 
 ### `gsdtool`
 #### Added

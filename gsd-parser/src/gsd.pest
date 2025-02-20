@@ -1,6 +1,6 @@
 COMMENT = _{ ";" ~ (!NEWLINE ~ ANY)* }
 
-WHITESPACE = _{ " " | "\t" }
+WHITESPACE = _{ " " | "\t" | ("\\" ~ NEWLINE) }
 
 start = _{ "#" ~ ^"Profibus_DP" ~ NEWLINE }
 

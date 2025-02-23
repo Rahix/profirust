@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `max_modules` field is now forced to the correct value `1` for compact
   stations in all situations.
 - Long lines (using `\`) are now parsed correctly, in whitespace and in strings.
+- gsd-parser now correctly ignores any text before the `#Profibus_DP` marker.
+  Some GSD files store additional settings above this marker which previously
+  triggered parsing errors.
 
 ### `gsdtool`
 #### Added

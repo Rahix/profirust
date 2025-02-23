@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+
+## [0.6.0] - 2025-02-23
 ### `profirust`
 #### Changed
 - Upgraded to `rp2040-hal` version 0.10.
@@ -179,7 +182,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Initial Release.
 
 
-[Unreleased]: https://github.com/rahix/profirust/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/rahix/profirust/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/rahix/profirust/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/rahix/profirust/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/rahix/profirust/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rahix/profirust/compare/v0.3.0...v0.4.0

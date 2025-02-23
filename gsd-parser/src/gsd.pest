@@ -2,7 +2,10 @@ COMMENT = _{ ";" ~ (!NEWLINE ~ ANY)* }
 
 WHITESPACE = _{ " " | "\t" | ("\\" ~ NEWLINE) }
 
-start = _{ "#" ~ ^"Profibus_DP" ~ NEWLINE }
+any_line = @{ !start ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+any_text = @{ any_line* }
+
+start = @{ "#" ~ ^"Profibus_DP" ~ NEWLINE }
 
 number = _{ hex_number | dec_number }
 hex_number = @{ "0x" ~ ASCII_HEX_DIGIT+ }
@@ -119,4 +122,4 @@ statement = _{
     | setting
 }
 
-gsd = { SOI ~ NEWLINE* ~ start ~ NEWLINE* ~ statement ~ (NEWLINE+ ~ statement)* ~ NEWLINE* ~ EOI }
+gsd = { SOI ~ any_text ~ start ~ NEWLINE* ~ statement ~ (NEWLINE+ ~ statement)* ~ NEWLINE* ~ EOI }

@@ -73,6 +73,8 @@ fn main() {
     println!("Connecting to the bus...");
     let mut phy = phy::SerialPortPhy::new(BUS_DEVICE, fdl.parameters().baudrate);
 
+    let start = profirust::time::Instant::now();
+
     fdl.set_online();
     dp_master.enter_operate();
     loop {
@@ -92,11 +94,11 @@ fn main() {
             if io.is_running() {
                 println!("Inputs: {:08b}", io.pi_i()[0]);
 
-                if io.pi_q_mut()[0] == 0x55 {
-                    io.pi_q_mut()[0] = 0xAA;
+                io.pi_q_mut()[0] = if (now - start).secs() % 2 == 0 {
+                    0xAA
                 } else {
-                    io.pi_q_mut()[0] = 0x55;
-                }
+                    0x55
+                };
             }
         }
 

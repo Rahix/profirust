@@ -156,6 +156,7 @@ impl UserPrmDataType {
         }
     }
 
+    // TODO: Make this function fallible
     pub fn write_value_to_slice(self, value: i64, s: &mut [u8]) {
         match self {
             UserPrmDataType::Unsigned8 => {
@@ -394,7 +395,7 @@ impl<'a> PrmBuilder<'a> {
             .data_ref
             .iter()
             .find(|(_, r)| r.name == prm)
-            .unwrap();
+            .expect("TODO");
         data_ref.constraint.assert_valid(value);
         data_ref
             .data_type
@@ -408,9 +409,9 @@ impl<'a> PrmBuilder<'a> {
             .data_ref
             .iter()
             .find(|(_, r)| r.name == prm)
-            .unwrap();
-        let text_ref = data_ref.text_ref.as_ref().unwrap();
-        let value = *text_ref.get(value).unwrap();
+            .expect("TODO");
+        let text_ref = data_ref.text_ref.as_ref().expect("TODO");
+        let value = *text_ref.get(value).expect("TODO");
         data_ref.constraint.assert_valid(value);
         data_ref
             .data_type
@@ -430,9 +431,9 @@ impl<'a> PrmBuilder<'a> {
 pub fn parse_from_file<P: AsRef<Path>>(file: P) -> GenericStationDescription {
     use std::io::Read;
 
-    let mut f = std::fs::File::open(file.as_ref()).unwrap();
+    let mut f = std::fs::File::open(file.as_ref()).expect("TODO");
     let mut source_bytes = Vec::new();
-    f.read_to_end(&mut source_bytes).unwrap();
+    f.read_to_end(&mut source_bytes).expect("TODO");
     let source = String::from_utf8_lossy(&source_bytes);
 
     match parser::parse(file.as_ref(), &source) {

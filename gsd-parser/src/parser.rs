@@ -275,8 +275,10 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                                 "ext_user_prm_data_ref" => {
                                     let offset = parse_number(value_pair)?;
                                     let data_id = parse_number(pairs.next().unwrap())?;
-                                    let data_ref =
-                                        user_prm_data_definitions.get(&data_id).unwrap().clone();
+                                    let data_ref = user_prm_data_definitions
+                                        .get(&data_id)
+                                        .expect("TODO")
+                                        .clone();
                                     module_prm_data.data_ref.push((offset, data_ref));
                                 }
                                 "ext_user_prm_data_const" => {
@@ -482,7 +484,10 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                     "ext_user_prm_data_ref" => {
                         let offset = parse_number(value_pair)?;
                         let data_id = parse_number(pairs.next().unwrap())?;
-                        let data_ref = user_prm_data_definitions.get(&data_id).unwrap().clone();
+                        let data_ref = user_prm_data_definitions
+                            .get(&data_id)
+                            .expect("TODO")
+                            .clone();
                         gsd.user_prm_data.data_ref.push((offset, data_ref));
                         // The presence of this keywords means `User_Prm_Data` and
                         // `User_Prm_Data_Len` should be ignored.

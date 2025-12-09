@@ -8,6 +8,18 @@ fn regress(#[files("tests/data/*.[gG][sS][dD]")] gsd_file: PathBuf) {
 }
 
 #[rstest::rstest]
+fn regress_warnings(#[files("tests/data/*.[gG][sS][dD]")] gsd_file: PathBuf) {
+    let name = gsd_file.file_stem().unwrap().to_string_lossy().to_string();
+    let (_, warnings) = gsd_parser::parse_from_file_with_warnings(gsd_file);
+    let warnings_text = warnings
+        .into_iter()
+        .map(|w| w.with_path(&format!("{name}.gsd")).to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    insta::assert_snapshot!(format!("{name}-WARNINGS"), warnings_text);
+}
+
+#[rstest::rstest]
 fn regress_prm(#[files("tests/data/*.[gG][sS][dD]")] gsd_file: PathBuf) {
     let name = gsd_file.file_stem().unwrap().to_string_lossy().to_string();
     let gsd = gsd_parser::parse_from_file(gsd_file);

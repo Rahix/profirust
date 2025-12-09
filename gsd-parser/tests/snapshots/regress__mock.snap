@@ -132,7 +132,14 @@ GenericStationDescription {
             },
         },
     ],
-    slots: [],
+    slots: [
+        Slot {
+            name: "Data Interface",
+            number: 1,
+            default: "FROBNICATOR 1 byte + 16 word I/O",
+            allowed_modules: [],
+        },
+    ],
     user_prm_data: UserPrmData {
         length: 0,
         data_const: [

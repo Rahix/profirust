@@ -154,3 +154,7 @@ Ext_User_Prm_Data_Const(0) = 0x05,0x00,0x00
 Ext_User_Prm_Data_Ref(1) = 1
 Ext_User_Prm_Data_Ref(1) = 2
 EndModule
+
+SlotDefinition
+Slot(1) = "Data Interface" 1 2-3
+EndSlotDefinition

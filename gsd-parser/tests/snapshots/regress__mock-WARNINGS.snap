@@ -1,0 +1,22 @@
+---
+source: gsd-parser/tests/regress.rs
+expression: warnings_text
+---
+   --> mock.gsd:159:30
+    |
+159 | Slot(1) = "Data Interface" 1 2-3
+    |                              ^-^
+    |
+    = Slot 1 ("Data Interface"): Allowed module 2 does not exist?
+   --> mock.gsd:159:30
+    |
+159 | Slot(1) = "Data Interface" 1 2-3
+    |                              ^-^
+    |
+    = Slot 1 ("Data Interface"): Allowed module 3 does not exist?
+   --> mock.gsd:159:28
+    |
+159 | Slot(1) = "Data Interface" 1 2-3
+    |                            ^
+    |
+    = Slot 1 ("Data Interface"): Default module 1 is not listed in allowed range?

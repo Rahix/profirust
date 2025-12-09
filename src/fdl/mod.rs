@@ -77,7 +77,6 @@ impl FdlApplication for () {
         addr: u8,
         telegram: Telegram,
     ) {
-        ()
     }
 
     fn handle_timeout(&mut self, now: crate::time::Instant, fdl: &FdlActiveStation, addr: u8) {

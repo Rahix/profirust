@@ -18,6 +18,12 @@ pub struct LiveList {
     current_address_done: bool,
 }
 
+impl Default for LiveList {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LiveList {
     pub fn new() -> Self {
         Self {
@@ -28,7 +34,7 @@ impl LiveList {
         }
     }
 
-    pub fn iter_stations(&self) -> impl Iterator<Item = crate::Address> + DoubleEndedIterator + '_ {
+    pub fn iter_stations(&self) -> impl DoubleEndedIterator<Item = crate::Address> + '_ {
         self.stations.iter_ones().map(|a| u8::try_from(a).unwrap())
     }
 

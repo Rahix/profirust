@@ -48,11 +48,11 @@ enum GapState {
 
 impl GapState {
     pub fn increment_wait(&mut self) {
-        match self {
-            GapState::Waiting {
-                ref mut rotation_count,
-            } => *rotation_count += 1,
-            _ => (),
+        if let GapState::Waiting {
+            ref mut rotation_count,
+        } = self
+        {
+            *rotation_count += 1;
         }
     }
 }
@@ -938,8 +938,7 @@ impl FdlActiveStation {
         high_prio_only: bool,
     ) -> Option<PollDone> {
         if let Some(tx_res) = phy.transmit_telegram(now, |tx| {
-            let res = app.transmit_telegram(now, self, tx, high_prio_only);
-            res
+            app.transmit_telegram(now, self, tx, high_prio_only)
         }) {
             if let Some(addr) = tx_res.expects_reply() {
                 let data = *self.state.get_use_token_data();

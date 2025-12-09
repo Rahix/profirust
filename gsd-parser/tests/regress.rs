@@ -23,6 +23,10 @@ fn regress_prm(#[files("tests/data/*.[gG][sS][dD]")] gsd_file: PathBuf) {
                 texts.keys().next().unwrap()
             };
             prm.set_prm_from_text(&prm_ref.name, text).unwrap();
+
+            // Test that trying a wrong text doens't panic
+            let res = prm.set_prm_from_text(&prm_ref.name, "InvalidTextAllTheWay");
+            assert!(res.is_err());
         } else {
             let v = match &prm_ref.constraint {
                 gsd_parser::PrmValueConstraint::MinMax(_, max) => *max,
@@ -30,8 +34,20 @@ fn regress_prm(#[files("tests/data/*.[gG][sS][dD]")] gsd_file: PathBuf) {
                 gsd_parser::PrmValueConstraint::Unconstrained => 1,
             };
             prm.set_prm(&prm_ref.name, v).unwrap();
+
+            // Test that an invalid value results in an error rather than a panic
+            let res = prm.set_prm(&prm_ref.name, i64::MIN);
+            assert!(res.is_err());
+
+            // Test that trying a text PRM doesn't panic
+            let res = prm.set_prm_from_text(&prm_ref.name, "InvalidTextAllTheWay");
+            assert!(res.is_err());
         }
     }
+
+    // Test that a non-existent PRM doesn't panic
+    let res = prm.set_prm("ThisPrmNeverEverExistsEver", 0);
+    assert!(res.is_err());
 
     insta::assert_debug_snapshot!(format!("{}-PRM", name).as_ref(), prm.as_bytes());
 }

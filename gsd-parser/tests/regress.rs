@@ -11,7 +11,7 @@ fn regress(#[files("tests/data/*.[gG][sS][dD]")] gsd_file: PathBuf) {
 fn regress_prm(#[files("tests/data/*.[gG][sS][dD]")] gsd_file: PathBuf) {
     let name = gsd_file.file_stem().unwrap().to_string_lossy().to_string();
     let gsd = gsd_parser::parse_from_file(gsd_file);
-    let mut prm = gsd_parser::PrmBuilder::new(&gsd.user_prm_data);
+    let mut prm = gsd_parser::PrmBuilder::new(&gsd.user_prm_data).unwrap();
 
     // Try setting all the available parameters to some reasonable values.
     for (_, prm_ref) in gsd.user_prm_data.data_ref.iter() {
@@ -22,14 +22,14 @@ fn regress_prm(#[files("tests/data/*.[gG][sS][dD]")] gsd_file: PathBuf) {
                 // Fallback when the list only has one text...
                 texts.keys().next().unwrap()
             };
-            prm.set_prm_from_text(&prm_ref.name, text);
+            prm.set_prm_from_text(&prm_ref.name, text).unwrap();
         } else {
             let v = match &prm_ref.constraint {
                 gsd_parser::PrmValueConstraint::MinMax(_, max) => *max,
                 gsd_parser::PrmValueConstraint::Enum(values) => *values.last().unwrap(),
                 gsd_parser::PrmValueConstraint::Unconstrained => 1,
             };
-            prm.set_prm(&prm_ref.name, v);
+            prm.set_prm(&prm_ref.name, v).unwrap();
         }
     }
 

@@ -142,6 +142,23 @@ pub enum UserPrmDataType {
     BitArea(u8, u8),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrmValueRangeError(pub(crate) ());
+
+impl From<std::num::TryFromIntError> for PrmValueRangeError {
+    fn from(_value: std::num::TryFromIntError) -> Self {
+        PrmValueRangeError(())
+    }
+}
+
+impl std::fmt::Display for PrmValueRangeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        "value for user_prm is not in range for data type".fmt(f)
+    }
+}
+
+impl std::error::Error for PrmValueRangeError {}
+
 impl UserPrmDataType {
     pub fn size(self) -> usize {
         match self {
@@ -156,37 +173,42 @@ impl UserPrmDataType {
         }
     }
 
-    // TODO: Make this function fallible
-    pub fn write_value_to_slice(self, value: i64, s: &mut [u8]) {
+    pub fn write_value_to_slice(self, value: i64, s: &mut [u8]) -> Result<(), PrmValueRangeError> {
         match self {
             UserPrmDataType::Unsigned8 => {
-                s[..1].copy_from_slice(&u8::try_from(value).unwrap().to_be_bytes());
+                s[..1].copy_from_slice(&u8::try_from(value)?.to_be_bytes());
             }
             UserPrmDataType::Unsigned16 => {
-                s[..2].copy_from_slice(&u16::try_from(value).unwrap().to_be_bytes());
+                s[..2].copy_from_slice(&u16::try_from(value)?.to_be_bytes());
             }
             UserPrmDataType::Unsigned32 => {
-                s[..4].copy_from_slice(&u32::try_from(value).unwrap().to_be_bytes());
+                s[..4].copy_from_slice(&u32::try_from(value)?.to_be_bytes());
             }
             UserPrmDataType::Signed8 => {
-                s[..1].copy_from_slice(&i8::try_from(value).unwrap().to_be_bytes());
+                s[..1].copy_from_slice(&i8::try_from(value)?.to_be_bytes());
             }
             UserPrmDataType::Signed16 => {
-                s[..2].copy_from_slice(&u16::try_from(value).unwrap().to_be_bytes());
+                s[..2].copy_from_slice(&u16::try_from(value)?.to_be_bytes());
             }
             UserPrmDataType::Signed32 => {
-                s[..4].copy_from_slice(&i32::try_from(value).unwrap().to_be_bytes());
+                s[..4].copy_from_slice(&i32::try_from(value)?.to_be_bytes());
             }
             UserPrmDataType::Bit(b) => {
+                if value != 0 && value != 1 {
+                    return Err(PrmValueRangeError(()));
+                }
                 assert!(value == 0 || value == 1);
-                s[0] |= u8::try_from(value).unwrap() << b;
+                s[0] |= u8::try_from(value)? << b;
             }
             UserPrmDataType::BitArea(first, last) => {
                 let bit_size = last - first + 1;
-                assert!(value >= 0 && value < 2i64.pow(u32::from(bit_size)));
-                s[0] = u8::try_from(value).unwrap() << first;
+                if value < 0 || value >= 2i64.pow(u32::from(bit_size)) {
+                    return Err(PrmValueRangeError(()));
+                }
+                s[0] = u8::try_from(value)? << first;
             }
         }
+        Ok(())
     }
 }
 
@@ -354,14 +376,14 @@ pub struct PrmBuilder<'a> {
 }
 
 impl<'a> PrmBuilder<'a> {
-    pub fn new(desc: &'a UserPrmData) -> Self {
+    pub fn new(desc: &'a UserPrmData) -> Result<Self, PrmValueRangeError> {
         let mut this = Self {
             desc,
             prm: Vec::new(),
         };
         this.write_const_prm_data();
-        this.write_default_prm_data();
-        this
+        this.write_default_prm_data()?;
+        Ok(this)
     }
 
     fn update_prm_data_len(&mut self, offset: usize, size: usize) {
@@ -379,17 +401,18 @@ impl<'a> PrmBuilder<'a> {
         }
     }
 
-    fn write_default_prm_data(&mut self) {
+    fn write_default_prm_data(&mut self) -> Result<(), PrmValueRangeError> {
         for (offset, data_ref) in self.desc.data_ref.iter() {
             let size = data_ref.data_type.size();
             self.update_prm_data_len(*offset, size);
             data_ref
                 .data_type
-                .write_value_to_slice(data_ref.default_value, &mut self.prm[(*offset)..]);
+                .write_value_to_slice(data_ref.default_value, &mut self.prm[(*offset)..])?;
         }
+        Ok(())
     }
 
-    pub fn set_prm(&mut self, prm: &str, value: i64) -> &mut Self {
+    pub fn set_prm(&mut self, prm: &str, value: i64) -> Result<&mut Self, PrmValueRangeError> {
         let (offset, data_ref) = self
             .desc
             .data_ref
@@ -399,11 +422,15 @@ impl<'a> PrmBuilder<'a> {
         data_ref.constraint.assert_valid(value);
         data_ref
             .data_type
-            .write_value_to_slice(value, &mut self.prm[(*offset)..]);
-        self
+            .write_value_to_slice(value, &mut self.prm[(*offset)..])?;
+        Ok(self)
     }
 
-    pub fn set_prm_from_text(&mut self, prm: &str, value: &str) -> &mut Self {
+    pub fn set_prm_from_text(
+        &mut self,
+        prm: &str,
+        value: &str,
+    ) -> Result<&mut Self, PrmValueRangeError> {
         let (offset, data_ref) = self
             .desc
             .data_ref
@@ -415,8 +442,8 @@ impl<'a> PrmBuilder<'a> {
         data_ref.constraint.assert_valid(value);
         data_ref
             .data_type
-            .write_value_to_slice(value, &mut self.prm[(*offset)..]);
-        self
+            .write_value_to_slice(value, &mut self.prm[(*offset)..])?;
+        Ok(self)
     }
 
     pub fn as_bytes(&self) -> &[u8] {

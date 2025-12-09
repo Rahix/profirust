@@ -219,6 +219,28 @@ pub enum PrmValueConstraint {
     Unconstrained,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrmValueConstraintError {
+    value: i64,
+    constraint: PrmValueConstraint,
+}
+
+impl std::fmt::Display for PrmValueConstraintError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.constraint {
+            PrmValueConstraint::MinMax(min, max) => {
+                write!(f, "value {} not in range {min}..={max}", self.value)
+            }
+            PrmValueConstraint::Enum(values) => {
+                write!(f, "value {} not in set {values:?}", self.value)
+            }
+            PrmValueConstraint::Unconstrained => unreachable!(),
+        }
+    }
+}
+
+impl std::error::Error for PrmValueConstraintError {}
+
 impl PrmValueConstraint {
     pub fn is_valid(&self, value: i64) -> bool {
         match self {
@@ -228,21 +250,29 @@ impl PrmValueConstraint {
         }
     }
 
-    pub fn assert_valid(&self, value: i64) {
+    pub fn assert_valid(&self, value: i64) -> Result<(), PrmValueConstraintError> {
         match self {
             PrmValueConstraint::MinMax(min, max) => {
-                assert!(
-                    *min <= value && value <= *max,
-                    "value {value} not in range {min}..={max}",
-                );
+                if *min > value || value > *max {
+                    Err(PrmValueConstraintError {
+                        value,
+                        constraint: self.clone(),
+                    })
+                } else {
+                    Ok(())
+                }
             }
             PrmValueConstraint::Enum(values) => {
-                assert!(
-                    values.contains(&value),
-                    "value {value} not in set {values:?}",
-                );
+                if !values.contains(&value) {
+                    Err(PrmValueConstraintError {
+                        value,
+                        constraint: self.clone(),
+                    })
+                } else {
+                    Ok(())
+                }
             }
-            PrmValueConstraint::Unconstrained => (),
+            PrmValueConstraint::Unconstrained => Ok(()),
         }
     }
 }
@@ -370,6 +400,46 @@ pub struct GenericStationDescription {
     pub unit_diag: UnitDiag,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SetPrmError {
+    PrmNotFound(String),
+    PrmWithoutTexts(String),
+    PrmTextNotFound { prm: String, text: String },
+    ValueConstraint(PrmValueConstraintError),
+    ValueRange { value: i64, ty: UserPrmDataType },
+}
+
+impl From<PrmValueConstraintError> for SetPrmError {
+    fn from(value: PrmValueConstraintError) -> Self {
+        Self::ValueConstraint(value)
+    }
+}
+
+impl std::fmt::Display for SetPrmError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SetPrmError::PrmNotFound(name) => {
+                write!(f, "prm {name} was not found")
+            }
+            SetPrmError::ValueConstraint(prm_value_constraint_error) => {
+                prm_value_constraint_error.fmt(f)
+            }
+            SetPrmError::ValueRange { value, ty } => {
+                write!(f, "value {value} is out of range for type {ty:?}")
+            }
+            SetPrmError::PrmWithoutTexts(name) => {
+                write!(f, "prm {name} does not have texts")
+            }
+            SetPrmError::PrmTextNotFound { prm, text } => {
+                write!(f, "prm {prm} does not have text {text:?}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SetPrmError {}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct PrmBuilder<'a> {
     desc: &'a UserPrmData,
     prm: Vec<u8>,
@@ -412,37 +482,49 @@ impl<'a> PrmBuilder<'a> {
         Ok(())
     }
 
-    pub fn set_prm(&mut self, prm: &str, value: i64) -> Result<&mut Self, PrmValueRangeError> {
+    pub fn set_prm(&mut self, prm: &str, value: i64) -> Result<&mut Self, SetPrmError> {
         let (offset, data_ref) = self
             .desc
             .data_ref
             .iter()
             .find(|(_, r)| r.name == prm)
-            .expect("TODO");
-        data_ref.constraint.assert_valid(value);
+            .ok_or_else(|| SetPrmError::PrmNotFound(prm.to_string()))?;
+        data_ref.constraint.assert_valid(value)?;
         data_ref
             .data_type
-            .write_value_to_slice(value, &mut self.prm[(*offset)..])?;
+            .write_value_to_slice(value, &mut self.prm[(*offset)..])
+            .map_err(|_e| SetPrmError::ValueRange {
+                value,
+                ty: data_ref.data_type,
+            })?;
         Ok(self)
     }
 
-    pub fn set_prm_from_text(
-        &mut self,
-        prm: &str,
-        value: &str,
-    ) -> Result<&mut Self, PrmValueRangeError> {
+    pub fn set_prm_from_text(&mut self, prm: &str, value: &str) -> Result<&mut Self, SetPrmError> {
         let (offset, data_ref) = self
             .desc
             .data_ref
             .iter()
             .find(|(_, r)| r.name == prm)
-            .expect("TODO");
-        let text_ref = data_ref.text_ref.as_ref().expect("TODO");
-        let value = *text_ref.get(value).expect("TODO");
-        data_ref.constraint.assert_valid(value);
+            .ok_or_else(|| SetPrmError::PrmNotFound(prm.to_string()))?;
+        let text_ref = data_ref
+            .text_ref
+            .as_ref()
+            .ok_or_else(|| SetPrmError::PrmWithoutTexts(prm.to_string()))?;
+        let value = *text_ref
+            .get(value)
+            .ok_or_else(|| SetPrmError::PrmTextNotFound {
+                prm: prm.to_string(),
+                text: value.to_string(),
+            })?;
+        data_ref.constraint.assert_valid(value)?;
         data_ref
             .data_type
-            .write_value_to_slice(value, &mut self.prm[(*offset)..])?;
+            .write_value_to_slice(value, &mut self.prm[(*offset)..])
+            .map_err(|_e| SetPrmError::ValueRange {
+                value,
+                ty: data_ref.data_type,
+            })?;
         Ok(self)
     }
 

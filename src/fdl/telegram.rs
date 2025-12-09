@@ -207,6 +207,15 @@ pub enum FunctionCode {
     },
 }
 
+#[expect(clippy::enum_variant_names)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum FcParseError {
+    InvalidRequestType,
+    InvalidResponseState,
+    InvalidResponseStatus,
+}
+
 impl FunctionCode {
     pub fn to_byte(self) -> u8 {
         match self {
@@ -217,18 +226,20 @@ impl FunctionCode {
         }
     }
 
-    pub fn from_byte(b: u8) -> Result<Self, ()> {
+    pub fn from_byte(b: u8) -> Result<Self, FcParseError> {
         if b & (1 << 6) != 0 {
             let fcv = b & (1 << 4) != 0;
             let fcb = b & (1 << 5) != 0;
-            let req = RequestType::from_u8(b & 0x8F).ok_or(())?;
+            let req = RequestType::from_u8(b & 0x8F).ok_or(FcParseError::InvalidRequestType)?;
             Ok(Self::Request {
                 fcb: FrameCountBit::from_fcv_fcb(fcv, fcb),
                 req,
             })
         } else {
-            let state = ResponseState::from_u8((b & 0x30) >> 4).ok_or(())?;
-            let status = ResponseStatus::from_u8(b & 0x0F).ok_or(())?;
+            let state = ResponseState::from_u8((b & 0x30) >> 4)
+                .ok_or(FcParseError::InvalidResponseState)?;
+            let status =
+                ResponseStatus::from_u8(b & 0x0F).ok_or(FcParseError::InvalidResponseStatus)?;
             Ok(Self::Response { state, status })
         }
     }

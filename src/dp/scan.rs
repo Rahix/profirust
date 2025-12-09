@@ -12,11 +12,18 @@ pub enum DpScanEvent {
     PeripheralLost(crate::Address),
 }
 
+#[derive(Debug)]
 pub struct DpScanner {
     stations: bitvec::BitArr!(for 128),
     cursor: crate::Address,
     pending_event: Option<DpScanEvent>,
     current_address_done: bool,
+}
+
+impl Default for DpScanner {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DpScanner {

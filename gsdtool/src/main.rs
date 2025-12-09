@@ -67,7 +67,17 @@ fn main() {
 }
 
 fn run_config_wizard(args: &ConfigWizardOptions) {
-    let gsd = gsd_parser::parse_from_file(&args.gsd_path);
+    let (gsd, warnings) = gsd_parser::parse_from_file_with_warnings(&args.gsd_path);
+
+    if !warnings.is_empty() {
+        eprintln!("{}", style("Warnings while parsing the GSD file!").yellow());
+
+        for warning in warnings.into_iter() {
+            eprintln!("{}", warning);
+        }
+
+        eprintln!();
+    }
 
     println!(
         "{}",

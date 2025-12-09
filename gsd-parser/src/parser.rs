@@ -57,7 +57,6 @@ where
     Ok(match pair.as_rule() {
         gsd_parser::Rule::number_list => pair
             .into_inner()
-            .into_iter()
             .map(|p| parse_number::<T>(p))
             .collect::<ParseResult<Vec<T>>>()?,
         gsd_parser::Rule::dec_number | gsd_parser::Rule::hex_number => {
@@ -96,7 +95,7 @@ pub fn parse(
 fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
     use pest::Parser;
 
-    let gsd_pairs = gsd_parser::GsdParser::parse(gsd_parser::Rule::gsd, &source)?
+    let gsd_pairs = gsd_parser::GsdParser::parse(gsd_parser::Rule::gsd, source)?
         .next()
         .expect("pest grammar wrong?");
 

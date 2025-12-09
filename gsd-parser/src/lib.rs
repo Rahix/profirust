@@ -1,3 +1,4 @@
+#![expect(clippy::result_large_err)]
 #![deny(clippy::as_conversions)]
 
 use std::collections::BTreeMap;

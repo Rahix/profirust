@@ -67,9 +67,7 @@ impl TokenRing {
         }
     }
 
-    pub fn iter_active_stations(
-        &self,
-    ) -> impl Iterator<Item = crate::Address> + DoubleEndedIterator + '_ {
+    pub fn iter_active_stations(&self) -> impl DoubleEndedIterator<Item = crate::Address> + '_ {
         self.active_stations
             .iter_ones()
             .map(|a| u8::try_from(a).unwrap())
@@ -153,7 +151,7 @@ impl TokenRing {
             .find(|a| *a < self.this_station)
         {
             previous
-        } else if let Some(last) = self.iter_active_stations().rev().next() {
+        } else if let Some(last) = self.iter_active_stations().next_back() {
             last
         } else {
             self.this_station

@@ -1,5 +1,6 @@
 #![cfg_attr(test, allow(non_local_definitions))]
 
+#[expect(clippy::identity_op)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 #[repr(u8)]

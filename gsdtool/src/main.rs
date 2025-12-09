@@ -78,7 +78,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
     println!();
 
     println!("{}", style("Global parameters:").bold());
-    let mut prm = gsd_parser::PrmBuilder::new(&gsd.user_prm_data);
+    let mut prm = gsd_parser::PrmBuilder::new(&gsd.user_prm_data).expect("TODO");
     let mut global_parameters = vec![];
     let mut had_parameters = false;
     for (_, prm_ref) in gsd.user_prm_data.data_ref.iter() {
@@ -103,8 +103,9 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                 .interact()
                 .unwrap();
 
-            let sel_text = &texts_list[selection];
-            prm.set_prm_from_text(&prm_ref.name, sel_text);
+            let sel_text = &texts_list.get(selection).expect("TODO");
+            prm.set_prm_from_text(&prm_ref.name, sel_text)
+                .expect("TODO");
 
             global_parameters.push((prm_ref.name.to_owned(), sel_text.to_string()));
         } else if let gsd_parser::PrmValueConstraint::MinMax(min, max) = prm_ref.constraint {
@@ -121,8 +122,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                 .interact()
                 .unwrap();
 
-            let value: i64 = str::parse(&value).unwrap();
-            prm.set_prm(&prm_ref.name, value);
+            let value: i64 = str::parse(&value).expect("TODO");
+            prm.set_prm(&prm_ref.name, value).expect("TODO");
 
             global_parameters.push((prm_ref.name.to_owned(), value.to_string()));
         } else if let gsd_parser::PrmValueConstraint::Enum(values) = &prm_ref.constraint {
@@ -141,8 +142,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                 .interact()
                 .unwrap();
 
-            let value: i64 = values[selection];
-            prm.set_prm(&prm_ref.name, value);
+            let value: i64 = values.get(selection).copied().expect("TODO");
+            prm.set_prm(&prm_ref.name, value).expect("TODO");
 
             global_parameters.push((prm_ref.name.to_owned(), value.to_string()));
         } else {
@@ -159,8 +160,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                 .interact()
                 .unwrap();
 
-            let value: i64 = str::parse(&value_str).unwrap();
-            prm.set_prm(&prm_ref.name, value);
+            let value: i64 = str::parse(&value_str).expect("TODO");
+            prm.set_prm(&prm_ref.name, value).expect("TODO");
 
             global_parameters.push((prm_ref.name.to_owned(), value_str));
         }
@@ -254,7 +255,7 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
 
             module_config.append(&mut module.config.to_vec());
 
-            let mut prm = gsd_parser::PrmBuilder::new(&module.module_prm_data);
+            let mut prm = gsd_parser::PrmBuilder::new(&module.module_prm_data).expect("TODO");
             let mut module_parameters = vec![];
             for (_, prm_ref) in module.module_prm_data.data_ref.iter() {
                 if !prm_ref.visible || !prm_ref.changeable {
@@ -279,7 +280,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                         .unwrap();
 
                     let sel_text = &texts_list[selection];
-                    prm.set_prm_from_text(&prm_ref.name, sel_text);
+                    prm.set_prm_from_text(&prm_ref.name, sel_text)
+                        .expect("TODO");
 
                     module_parameters.push((prm_ref.name.to_owned(), sel_text.to_string()));
                 } else if let gsd_parser::PrmValueConstraint::MinMax(min, max) = prm_ref.constraint
@@ -297,8 +299,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                         .interact()
                         .unwrap();
 
-                    let value: i64 = str::parse(&value).unwrap();
-                    prm.set_prm(&prm_ref.name, value);
+                    let value: i64 = str::parse(&value).expect("TODO");
+                    prm.set_prm(&prm_ref.name, value).expect("TODO");
 
                     module_parameters.push((prm_ref.name.to_owned(), value.to_string()));
                 } else if let gsd_parser::PrmValueConstraint::Enum(values) = &prm_ref.constraint {
@@ -317,8 +319,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                         .interact()
                         .unwrap();
 
-                    let value: i64 = values[selection];
-                    prm.set_prm(&prm_ref.name, value);
+                    let value: i64 = values.get(selection).copied().expect("TODO");
+                    prm.set_prm(&prm_ref.name, value).expect("TODO");
 
                     module_parameters.push((prm_ref.name.to_owned(), value.to_string()));
                 } else {
@@ -335,8 +337,8 @@ fn run_config_wizard(args: &ConfigWizardOptions) {
                         .interact()
                         .unwrap();
 
-                    let value: i64 = str::parse(&value_str).unwrap();
-                    prm.set_prm(&prm_ref.name, value);
+                    let value: i64 = str::parse(&value_str).expect("TODO");
+                    prm.set_prm(&prm_ref.name, value).expect("TODO");
 
                     module_parameters.push((prm_ref.name.to_owned(), value_str));
                 }

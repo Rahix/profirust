@@ -106,7 +106,7 @@ fn watchdog_factors(dur: crate::time::Duration) -> Option<Result<(u8, u8), ()>> 
             let timeout_10ms: u32 = (dur.total_millis() / 10).try_into().or(Err(()))?;
 
             for f1 in 1..256 {
-                let f2 = (timeout_10ms + f1 - 1) / f1;
+                let f2 = timeout_10ms.div_ceil(f1);
 
                 if f2 < 256 {
                     return Ok((u8::try_from(f1).unwrap(), u8::try_from(f2).unwrap()));

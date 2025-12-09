@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### `gsd-parser`
+#### Changed
+- Make `PrmBuilder::set_prm()` and `PrmBuilder::set_prm_from_text()` fallible
+  instead of panicking when invalid values/prm information is provided.
+- General code improvements in a few places.
+
+### `profirust`
+#### Changed
+- General code improvements in a few places.
 
 
 ## [0.6.0] - 2025-02-23

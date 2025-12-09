@@ -16,17 +16,11 @@ enum PhyData<'a> {
 
 impl PhyData<'_> {
     pub fn is_rx(&self) -> bool {
-        match self {
-            PhyData::Rx { .. } => true,
-            _ => false,
-        }
+        matches!(self, PhyData::Rx { .. })
     }
 
     pub fn is_tx(&self) -> bool {
-        match self {
-            PhyData::Tx { .. } => true,
-            _ => false,
-        }
+        matches!(self, PhyData::Tx { .. })
     }
 
     pub fn make_rx(&mut self) {

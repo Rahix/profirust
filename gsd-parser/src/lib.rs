@@ -1,3 +1,5 @@
+#![deny(clippy::as_conversions)]
+
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -156,37 +158,31 @@ impl UserPrmDataType {
     pub fn write_value_to_slice(self, value: i64, s: &mut [u8]) {
         match self {
             UserPrmDataType::Unsigned8 => {
-                assert!(0 <= value && value <= 255);
-                s[..1].copy_from_slice(&(value as u8).to_be_bytes());
+                s[..1].copy_from_slice(&u8::try_from(value).unwrap().to_be_bytes());
             }
             UserPrmDataType::Unsigned16 => {
-                assert!(0 <= value && value <= 65535);
-                s[..2].copy_from_slice(&(value as u16).to_be_bytes());
+                s[..2].copy_from_slice(&u16::try_from(value).unwrap().to_be_bytes());
             }
             UserPrmDataType::Unsigned32 => {
-                assert!(0 <= value && value <= 4294967295);
-                s[..4].copy_from_slice(&(value as u32).to_be_bytes());
+                s[..4].copy_from_slice(&u32::try_from(value).unwrap().to_be_bytes());
             }
             UserPrmDataType::Signed8 => {
-                assert!(-127 <= value && value <= 127);
-                s[..1].copy_from_slice(&(value as i8).to_be_bytes());
+                s[..1].copy_from_slice(&i8::try_from(value).unwrap().to_be_bytes());
             }
             UserPrmDataType::Signed16 => {
-                assert!(-32767 <= value && value <= 32767);
-                s[..2].copy_from_slice(&(value as i16).to_be_bytes());
+                s[..2].copy_from_slice(&u16::try_from(value).unwrap().to_be_bytes());
             }
             UserPrmDataType::Signed32 => {
-                assert!(2147483647 <= value && value <= 2147483647);
-                s[..4].copy_from_slice(&(value as i32).to_be_bytes());
+                s[..4].copy_from_slice(&i32::try_from(value).unwrap().to_be_bytes());
             }
             UserPrmDataType::Bit(b) => {
                 assert!(value == 0 || value == 1);
-                s[0] |= (value as u8) << b;
+                s[0] |= u8::try_from(value).unwrap() << b;
             }
             UserPrmDataType::BitArea(first, last) => {
                 let bit_size = last - first + 1;
-                assert!(value >= 0 && value < 2i64.pow(bit_size as u32));
-                s[0] = (value as u8) << first;
+                assert!(value >= 0 && value < 2i64.pow(u32::from(bit_size)));
+                s[0] = u8::try_from(value).unwrap() << first;
             }
         }
     }
@@ -387,7 +383,7 @@ impl<'a> PrmBuilder<'a> {
             self.update_prm_data_len(*offset, size);
             data_ref
                 .data_type
-                .write_value_to_slice(data_ref.default_value, &mut self.prm[(*offset as usize)..]);
+                .write_value_to_slice(data_ref.default_value, &mut self.prm[(*offset)..]);
         }
     }
 
@@ -401,7 +397,7 @@ impl<'a> PrmBuilder<'a> {
         data_ref.constraint.assert_valid(value);
         data_ref
             .data_type
-            .write_value_to_slice(value, &mut self.prm[(*offset as usize)..]);
+            .write_value_to_slice(value, &mut self.prm[(*offset)..]);
         self
     }
 
@@ -417,7 +413,7 @@ impl<'a> PrmBuilder<'a> {
         data_ref.constraint.assert_valid(value);
         data_ref
             .data_type
-            .write_value_to_slice(value, &mut self.prm[(*offset as usize)..]);
+            .write_value_to_slice(value, &mut self.prm[(*offset)..]);
         self
     }
 

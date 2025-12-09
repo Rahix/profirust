@@ -77,6 +77,9 @@
 // TODO: Remove this once the crate has matured.
 #![allow(dead_code)]
 #![allow(unused_variables)]
+#![allow(clippy::len_zero)]
+#![allow(clippy::collapsible_if)]
+#![allow(clippy::manual_range_contains)]
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 
 mod consts;

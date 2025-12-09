@@ -288,11 +288,50 @@ pub struct UserPrmDataDefinition {
     pub visible: bool,
 }
 
+impl UserPrmDataDefinition {
+    fn get_value_from_text(&self, name: &str, value: &str) -> Result<i64, SetPrmError> {
+        self.text_ref
+            .as_ref()
+            .ok_or_else(|| SetPrmError::PrmWithoutTexts(name.to_string()))?
+            .get(value)
+            .ok_or_else(|| SetPrmError::PrmTextNotFound {
+                prm: name.to_string(),
+                text: value.to_string(),
+            })
+            .copied()
+    }
+
+    fn write_constrained_value_to_slice(
+        &self,
+        prm_slice: &mut [u8],
+        value: i64,
+    ) -> Result<(), SetPrmError> {
+        self.constraint.assert_valid(value)?;
+        self.data_type
+            .write_value_to_slice(value, prm_slice)
+            .map_err(|_e| SetPrmError::ValueRange {
+                value,
+                ty: self.data_type,
+            })?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct UserPrmData {
     pub length: u8,
     pub data_const: Vec<(usize, Vec<u8>)>,
     pub data_ref: Vec<(usize, Arc<UserPrmDataDefinition>)>,
+}
+
+impl UserPrmData {
+    fn get_prm(&self, prm: &str) -> Result<(usize, Arc<UserPrmDataDefinition>), SetPrmError> {
+        self.data_ref
+            .iter()
+            .find(|(_, r)| r.name == prm)
+            .cloned()
+            .ok_or_else(|| SetPrmError::PrmNotFound(prm.to_string()))
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
@@ -483,48 +522,18 @@ impl<'a> PrmBuilder<'a> {
     }
 
     pub fn set_prm(&mut self, prm: &str, value: i64) -> Result<&mut Self, SetPrmError> {
-        let (offset, data_ref) = self
-            .desc
-            .data_ref
-            .iter()
-            .find(|(_, r)| r.name == prm)
-            .ok_or_else(|| SetPrmError::PrmNotFound(prm.to_string()))?;
-        data_ref.constraint.assert_valid(value)?;
-        data_ref
-            .data_type
-            .write_value_to_slice(value, &mut self.prm[(*offset)..])
-            .map_err(|_e| SetPrmError::ValueRange {
-                value,
-                ty: data_ref.data_type,
-            })?;
+        let (offset, data_ref) = self.desc.get_prm(prm)?;
+
+        data_ref.write_constrained_value_to_slice(&mut self.prm[offset..], value)?;
         Ok(self)
     }
 
     pub fn set_prm_from_text(&mut self, prm: &str, value: &str) -> Result<&mut Self, SetPrmError> {
-        let (offset, data_ref) = self
-            .desc
-            .data_ref
-            .iter()
-            .find(|(_, r)| r.name == prm)
-            .ok_or_else(|| SetPrmError::PrmNotFound(prm.to_string()))?;
-        let text_ref = data_ref
-            .text_ref
-            .as_ref()
-            .ok_or_else(|| SetPrmError::PrmWithoutTexts(prm.to_string()))?;
-        let value = *text_ref
-            .get(value)
-            .ok_or_else(|| SetPrmError::PrmTextNotFound {
-                prm: prm.to_string(),
-                text: value.to_string(),
-            })?;
-        data_ref.constraint.assert_valid(value)?;
-        data_ref
-            .data_type
-            .write_value_to_slice(value, &mut self.prm[(*offset)..])
-            .map_err(|_e| SetPrmError::ValueRange {
-                value,
-                ty: data_ref.data_type,
-            })?;
+        let (offset, data_ref) = self.desc.get_prm(prm)?;
+
+        let value = data_ref.get_value_from_text(prm, value)?;
+
+        data_ref.write_constrained_value_to_slice(&mut self.prm[offset..], value)?;
         Ok(self)
     }
 

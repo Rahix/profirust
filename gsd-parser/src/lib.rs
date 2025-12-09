@@ -559,3 +559,20 @@ pub fn parse_from_file<P: AsRef<Path>>(file: P) -> GenericStationDescription {
         Err(e) => panic!("{}", e),
     }
 }
+
+pub fn parse_from_file_with_warnings<P: AsRef<Path>>(
+    file: P,
+) -> (GenericStationDescription, Vec<parser::ParseError>) {
+    use std::io::Read;
+
+    let mut f = std::fs::File::open(file.as_ref()).expect("TODO");
+    let mut source_bytes = Vec::new();
+    f.read_to_end(&mut source_bytes).expect("TODO");
+    let source = String::from_utf8_lossy(&source_bytes);
+
+    let (res, warnings) = parser::parse_with_warnings(file.as_ref(), &source);
+    match res {
+        Ok(gsd) => (gsd, warnings),
+        Err(e) => panic!("{}", e),
+    }
+}

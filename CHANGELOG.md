@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### `gsd-parser`
+#### Added
+- The parser now tracks warnings about inconsistencies in the GSD file and
+  makes them available to the user.
+
 #### Changed
 - Make `PrmBuilder::set_prm()` and `PrmBuilder::set_prm_from_text()` fallible
   instead of panicking when invalid values/prm information is provided.

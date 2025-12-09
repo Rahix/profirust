@@ -89,10 +89,29 @@ pub fn parse(
     file: &std::path::Path,
     source: &str,
 ) -> ParseResult<crate::GenericStationDescription> {
-    parse_inner(source).map_err(|e| e.with_path(&file.to_string_lossy()))
+    parse_inner(source, &mut Vec::new()).map_err(|e| e.with_path(&file.to_string_lossy()))
 }
 
-fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
+pub fn parse_with_warnings(
+    file: &std::path::Path,
+    source: &str,
+) -> (
+    ParseResult<crate::GenericStationDescription>,
+    Vec<ParseError>,
+) {
+    let mut warnings = Vec::new();
+    let file = file.to_string_lossy();
+    let res = parse_inner(source, &mut warnings).map_err(|e| e.with_path(&file));
+    for w in warnings.iter_mut() {
+        *w = w.clone().with_path(&file);
+    }
+    (res, warnings)
+}
+
+fn parse_inner(
+    source: &str,
+    warnings: &mut Vec<ParseError>,
+) -> ParseResult<crate::GenericStationDescription> {
     use pest::Parser;
 
     let gsd_pairs = gsd_parser::GsdParser::parse(gsd_parser::Rule::gsd, source)?
@@ -314,8 +333,14 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                             let number = parse_number(pairs.next().unwrap())?;
                             let name = parse_string_literal(pairs.next().unwrap());
 
-                            #[allow(unused)]
-                            let find_module =
+                            let default_pair = pairs.next().unwrap();
+                            let default_span = default_pair.as_span();
+                            let default_ref = parse_number(default_pair)?;
+
+                            let value_pair = pairs.next().unwrap();
+                            let allowed_modules_span = value_pair.as_span();
+
+                            let mut find_module =
                                 |reference: u16,
                                  slot_ref: &str,
                                  slot_num: u8|
@@ -325,16 +350,15 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                                             return Some(module.clone());
                                         }
                                     }
-                                    // TODO: Warning management?
-                                    // log::warn!("No module with reference {reference} found for slot {slot_num} (\"{slot_ref}\")");
+                                    warnings.push(parse_error(
+                                        format!(
+                                            "Slot {slot_num} (\"{slot_ref}\"): Allowed module {reference} does not exist?",
+                                        ),
+                                        allowed_modules_span,
+                                    ));
                                     None
                                 };
 
-                            let default_pair = pairs.next().unwrap();
-                            let default_span = default_pair.as_span();
-                            let default_ref = parse_number(default_pair)?;
-
-                            let value_pair = pairs.next().unwrap();
                             let allowed_modules = match value_pair.as_rule() {
                                 gsd_parser::Rule::slot_value_range => {
                                     let mut pairs = value_pair.into_inner();
@@ -361,14 +385,18 @@ fn parse_inner(source: &str) -> ParseResult<crate::GenericStationDescription> {
                             let Some(default) = find_module(default_ref, &name, number) else {
                                 return Err(parse_error(
                                     format!(
-                                        "The default module for slot {number} (\"{name}\") with reference {default_ref} is not available",
+                                        "Slot {number} (\"{name}\"): Default module with reference {default_ref} is not available",
                                     ),
                                     default_span,
                                 ));
                             };
                             if !allowed_modules.contains(&default) {
-                                // TODO: Warning management?
-                                // log::warn!("Default module not part of allowed modules?!");
+                                warnings.push(parse_error(
+                                    format!(
+                                        "Slot {number} (\"{name}\"): Default module {default_ref} is not listed in allowed range?",
+                                    ),
+                                    default_span,
+                                ));
                             }
 
                             let slot = crate::Slot {

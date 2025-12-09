@@ -71,3 +71,16 @@ User_Prm_Data_Len = 3
     let path = std::path::PathBuf::from(format!("{}", file!()));
     println!("{}", gsd_parser::parser::parse(&path, source).unwrap_err());
 }
+
+#[test]
+fn parse_missing_slot_default_module() {
+    let source = r#"
+#Profibus_DP
+SlotDefinition
+Slot(1) = "Process Data Interface" 1 1-3
+EndSlotDefinition
+"#;
+
+    let path = std::path::PathBuf::from(format!("{}", file!()));
+    println!("{}", gsd_parser::parser::parse(&path, source).unwrap_err());
+}

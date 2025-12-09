@@ -314,7 +314,7 @@ impl<'a> Peripheral<'a> {
 
     /// Get the last diagnostics information received from this peripheral.
     #[inline]
-    pub fn last_diagnostics(&self) -> Option<PeripheralDiagnostics> {
+    pub fn last_diagnostics(&self) -> Option<PeripheralDiagnostics<'_>> {
         self.diag.as_ref().map(|diag| PeripheralDiagnostics {
             flags: diag.flags,
             ident_number: diag.ident_number,
@@ -399,7 +399,7 @@ impl<'a> Peripheral<'a> {
                             // Groups
                             buf[6] = self.options.groups;
                             // User Prm Data
-                            buf[7..].copy_from_slice(&user_parameters);
+                            buf[7..].copy_from_slice(user_parameters);
                         },
                     ))
                 } else {
@@ -420,7 +420,7 @@ impl<'a> Peripheral<'a> {
                         },
                         config.len(),
                         |buf| {
-                            buf.copy_from_slice(&config);
+                            buf.copy_from_slice(config);
                         },
                     ))
                 } else {
@@ -598,7 +598,7 @@ impl<'a> Peripheral<'a> {
 
                             if data_ok {
                                 if t.pdu.len() == self.pi_i.len() {
-                                    self.pi_i.copy_from_slice(&t.pdu);
+                                    self.pi_i.copy_from_slice(t.pdu);
                                     self.state = PeripheralState::DataExchange;
                                     Some(PeripheralEvent::DataExchanged)
                                 } else {

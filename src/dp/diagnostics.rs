@@ -152,7 +152,7 @@ impl ChannelError {
             8 => ChannelError::LowerLimitUndershoot,
             9 => ChannelError::Error,
             v @ 16..=31 => ChannelError::Vendor(v),
-            r @ _ => ChannelError::Reserved(r),
+            r => ChannelError::Reserved(r),
         }
     }
 

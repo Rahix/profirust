@@ -176,10 +176,9 @@ impl SimulatorBus {
         &self.stream[t.index..t.index + t.length]
     }
 
-    pub fn get_telegram(&self, t: &CapturedTelegram) -> Option<crate::fdl::Telegram> {
+    pub fn get_telegram(&self, t: &CapturedTelegram) -> Option<crate::fdl::Telegram<'_>> {
         crate::fdl::Telegram::deserialize(self.get_telegram_data(t))
-            .map(Result::ok)
-            .flatten()
+            .and_then(Result::ok)
             .map(|(t, _)| t)
     }
 

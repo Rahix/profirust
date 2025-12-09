@@ -118,10 +118,15 @@ fn parse_inner(
         .next()
         .expect("pest grammar wrong?");
 
+    let start_pos = gsd_pairs.as_span().start_pos();
+
     let mut gsd = crate::GenericStationDescription::default();
     let mut prm_texts = BTreeMap::new();
     let mut user_prm_data_definitions = BTreeMap::new();
     let mut legacy_prm = Some(crate::UserPrmData::default());
+
+    let mut modular_station_span = None;
+    let mut max_modules_span = None;
 
     for statement in gsd_pairs.into_inner() {
         let statement_span = statement.as_span();
@@ -499,8 +504,14 @@ fn parse_inner(
                         gsd.implementation_type = parse_string_literal(value_pair)
                     }
                     //
-                    "modular_station" => gsd.modular_station = parse_bool(value_pair)?,
-                    "max_module" => gsd.max_modules = parse_number(value_pair)?,
+                    "modular_station" => {
+                        modular_station_span = Some(value_pair.as_span());
+                        gsd.modular_station = parse_bool(value_pair)?
+                    }
+                    "max_module" => {
+                        max_modules_span = Some(value_pair.as_span());
+                        gsd.max_modules = parse_number(value_pair)?
+                    }
                     "max_input_len" => gsd.max_input_length = parse_number(value_pair)?,
                     "max_output_len" => gsd.max_output_length = parse_number(value_pair)?,
                     "max_data_len" => gsd.max_data_length = parse_number(value_pair)?,
@@ -615,13 +626,37 @@ fn parse_inner(
         gsd.user_prm_data = prm;
     }
 
+    // When no Max_Module was set, default to 1
+    if max_modules_span.is_none() {
+        gsd.max_modules = 1;
+    }
+
     // If this is a compact station, only allow one module
     if !gsd.modular_station {
-        if !gsd.max_modules == 1 {
-            // TODO: Warnings
+        if gsd.max_modules != 1 {
+            warnings.push(parse_error(
+                format!(
+                    "Is a compact station but Max_Module is {} instead of 1",
+                    gsd.max_modules
+                ),
+                // Either must be present to hit this situation
+                max_modules_span.or(modular_station_span).unwrap(),
+            ));
         }
-        if !gsd.available_modules.len() == 1 {
-            // TODO: Warnings
+        if gsd.available_modules.len() != 1 {
+            let message = format!(
+                "Is a compact station but there are {} modules available instead of 1",
+                gsd.available_modules.len()
+            );
+
+            if let Some(span) = modular_station_span {
+                warnings.push(parse_error(message, span));
+            } else {
+                warnings.push(pest::error::Error::new_from_pos(
+                    pest::error::ErrorVariant::CustomError { message },
+                    start_pos,
+                ));
+            }
         }
         gsd.max_modules = 1;
     }

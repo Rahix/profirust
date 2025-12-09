@@ -1,6 +1,12 @@
 //! Implementation of an FDL active station.
 
 #![deny(unused_must_use)]
+#![allow(clippy::unneeded_struct_pattern)]
+#![allow(clippy::wildcard_in_or_patterns)]
+#![allow(clippy::extra_unused_lifetimes)]
+#![allow(clippy::unit_arg)]
+#![allow(clippy::useless_conversion)]
+
 use crate::fdl::FdlApplication;
 use crate::phy::ProfibusPhy;
 

@@ -565,6 +565,36 @@ fn active_station_discovers_neighbor() {
     fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 4, sa: 7 }));
 }
 
+/// Test that an active station discovers a direct (active) neighbor station.
+#[test]
+fn active_station_discovers_direct_neighbor() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::new(7);
+
+    fdl_ut.wait_for_matching(|t| {
+        if let fdl::Telegram::Data(data_telegram) = t {
+            data_telegram.is_fdl_status_request().is_some()
+                && data_telegram.h.da == 8
+                && data_telegram.h.sa == 7
+        } else {
+            false
+        }
+    });
+
+    fdl_ut.advance_bus_time_min_tsdr();
+    fdl_ut.transmit_telegram(|tx| {
+        Some(tx.send_fdl_status_response(
+            7,
+            8,
+            fdl::ResponseState::MasterWithoutToken,
+            fdl::ResponseStatus::Ok,
+        ))
+    });
+    fdl_ut.wait_transmission();
+
+    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 8, sa: 7 }));
+}
+
 /// Test that an active station resends the token when not received by next station
 #[test]
 fn active_station_resends_token() {

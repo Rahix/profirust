@@ -666,6 +666,9 @@ impl FdlActiveStation {
         if next_address >= next_station && next_station > self.p.address {
             // We have reached the end of the GAP, enter waiting state.
             GapState::Waiting { rotation_count: 0 }
+        } else if next_address == next_station && next_station == self.p.address {
+            // We have reached the end of the GAP, enter waiting state (NS==TS case).
+            GapState::Waiting { rotation_count: 0 }
         } else if next_address >= next_station
             && next_station < self.p.address
             && next_address < self.p.address

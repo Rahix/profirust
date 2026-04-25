@@ -1128,6 +1128,8 @@ impl FdlActiveStation {
             }
 
             if let GapState::DoPoll { current_address } = self.gap_state {
+                debug_assert_ne!(current_address, self.p.address);
+
                 let tx_res = phy
                     .transmit_telegram(now, |tx| {
                         Some(tx.send_fdl_status_request(current_address, self.p.address))

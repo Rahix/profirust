@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Changed
 - General code improvements in a few places.
 
+#### Fixed
+- Fixed an active station polling itself when it is alone on the bus.
+
 
 ## [0.6.0] - 2025-02-23
 ### `profirust`

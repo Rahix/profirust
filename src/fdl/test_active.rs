@@ -535,6 +535,25 @@ fn two_rotations_before_ready() {
     fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 15, sa: 7 }));
 }
 
+/// Test that an active station polls all its GAP fine
+#[test]
+fn active_station_full_gap_scanned() {
+    crate::test_utils::prepare_test_logger();
+    let mut fdl_ut = FdlActiveUnderTest::new(7);
+
+    for addr in [8, 3, 6, 8, 11] {
+        fdl_ut.wait_for_matching(|t| {
+            if let fdl::Telegram::Data(data_telegram) = t {
+                data_telegram.is_fdl_status_request().is_some()
+                    && data_telegram.h.da == addr
+                    && data_telegram.h.sa == 7
+            } else {
+                false
+            }
+        });
+    }
+}
+
 /// Test that an active station discovers another active neighbor station.
 #[test]
 fn active_station_discovers_neighbor() {

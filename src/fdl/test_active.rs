@@ -1010,8 +1010,9 @@ fn slot_time_timing() {
 
     log::debug!("After receiving request...");
 
-    let time =
-        fdl_ut.assert_next_telegram(fdl::Telegram::Token(fdl::TokenTelegram { da: 7, sa: 7 }));
+    let (time, _) = fdl_ut.wait_next_telegram(|t| {
+        assert_eq!(t.source_address(), Some(7));
+    });
 
     // We have to subtract the telegram runtime of the just received token telegram
     let time = time - fdl_ut.bits_to_time(33);

@@ -654,7 +654,29 @@ impl FdlActiveStation {
             None
         }
     }
+}
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
+enum GapPollResponse {
+    /// The slot expired without receiving any response.
+    ///
+    /// Bus is immediately free for further activity.
+    NoResponse,
+
+    /// Station responded.
+    ///
+    /// Bus will need a wait time until ready for next activity.
+    StationResponded,
+
+    /// Unexpected telegram was received.
+    ///
+    /// It is probably best to back off into ActiveIdle and wait for another active station to call
+    /// us again.
+    UnexpectedTelegram,
+}
+
+impl FdlActiveStation {
     fn next_gap_poll(&self, current_address: crate::Address) -> GapState {
         let next_station = self.token_ring.next_station();
         let next_address = if current_address == (self.p.highest_station_address - 1) {
@@ -699,6 +721,57 @@ impl FdlActiveStation {
             Some((self.mark_tx(now, tx_res.bytes_sent()), current_address))
         } else {
             None
+        }
+    }
+
+    fn await_gap_poll_response<PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+        poll_address: crate::Address,
+    ) -> Result<GapPollResponse, PollDone> {
+        debug_assert_ne!(poll_address, self.p.address);
+        debug_assert!(
+            matches!(self.gap_state, GapState::DoPoll { current_address } if current_address == poll_address)
+        );
+
+        // Here we conservatively only receive the first pending telegram because it is very
+        // unlikely that some other station randomly stole our token.  If it did, we will notice in
+        // the next poll cycle.
+        let received = phy.receive_telegram(now, |telegram| {
+            self.mark_rx(now);
+
+            if let crate::fdl::Telegram::Data(telegram) = &telegram {
+                if telegram.h.sa == poll_address && telegram.h.da == self.p.address {
+                    if let crate::fdl::FunctionCode::Response { state, status } = telegram.h.fc {
+                        log::trace!("Address #{poll_address} responded");
+
+                        if status == crate::fdl::ResponseStatus::Ok
+                            && matches!(state, crate::fdl::ResponseState::MasterWithoutToken | crate::fdl::ResponseState::MasterInRing) {
+                            self.token_ring.set_next_station(poll_address);
+                        }
+
+                        return GapPollResponse::StationResponded;
+                    }
+                }
+            }
+
+            // TODO: We should probably differentiate a bit here. If this is a malformed response
+            // from the right station, we don't have to back off from the bus entirely...
+            // Ref: wohp7Aex
+            log::warn!("Received unexpected telegram while waiting for status reply from #{poll_address}: {telegram:?}");
+            return GapPollResponse::UnexpectedTelegram;
+        });
+
+        if let Some(res) = received {
+            return Ok(res);
+        }
+
+        if self.check_slot_expired(now) {
+            log::trace!("No reply from #{poll_address}");
+            Ok(GapPollResponse::NoResponse)
+        } else {
+            Err(PollDone::waiting_for_bus())
         }
     }
 }
@@ -1186,45 +1259,27 @@ impl FdlActiveStation {
 
         let address = *self.state.get_await_status_response_address();
 
-        // Here we conservatively only receive the first pending telegram because it is very
-        // unlikely that some other station randomly stole our token.  If it did, we will notice in
-        // the next poll cycle.
-        let received = phy.receive_telegram(now, |telegram| {
-            self.mark_rx(now);
-
-            if let crate::fdl::Telegram::Data(telegram) = &telegram {
-                if telegram.h.sa == address && telegram.h.da == self.p.address {
-                    if let crate::fdl::FunctionCode::Response { state, status } = telegram.h.fc {
-                        log::trace!("Address #{address} responded");
-                        if status == crate::fdl::ResponseStatus::Ok
-                            && matches!(state, crate::fdl::ResponseState::MasterWithoutToken | crate::fdl::ResponseState::MasterInRing) {
-                            self.token_ring.set_next_station(address);
-                        }
-                        self.state.transition_pass_token(false, PassTokenAttempt::First);
-                        return PollDone::waiting_for_delay();
-                    }
-                }
-
+        match self.await_gap_poll_response(now, phy, address) {
+            Err(poll_done) => poll_done,
+            Ok(GapPollResponse::StationResponded) => {
+                self.state
+                    .transition_pass_token(false, PassTokenAttempt::First);
+                PollDone::waiting_for_delay()
             }
-
-            log::warn!("Received unexpected telegram while waiting for status reply from #{address}: {telegram:?}");
-            self.state.transition_active_idle();
-            PollDone::waiting_for_bus()
-        });
-
-        if let Some(res) = received {
-            return res;
-        }
-
-        if self.check_slot_expired(now) {
-            log::trace!("No reply from #{address}");
-            self.state
-                .transition_pass_token(false, PassTokenAttempt::First);
-            // Immediately evaluate PassToken state because the bus is free for immediate
-            // transmission
-            self.do_pass_token(now, phy)
-        } else {
-            PollDone::waiting_for_bus()
+            Ok(GapPollResponse::NoResponse) => {
+                self.state
+                    .transition_pass_token(false, PassTokenAttempt::First);
+                // Immediately evaluate PassToken state because the bus is free for immediate
+                // transmission
+                self.do_pass_token(now, phy)
+            }
+            Ok(GapPollResponse::UnexpectedTelegram) => {
+                // TODO: For now, let's play it safe and back off from the bus entirely if an
+                // unexpected telegram is received.
+                // Ref: wohp7Aex
+                self.state.transition_active_idle();
+                PollDone::waiting_for_bus()
+            }
         }
     }
 

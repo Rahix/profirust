@@ -100,6 +100,13 @@ enum ClaimTokenStep {
     ScanAwaitResponse { address: crate::Address },
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
+enum DoGap {
+    Yes,
+    No,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum State {
     Offline,
@@ -125,7 +132,7 @@ enum State {
         data: UseTokenData,
     },
     PassToken {
-        do_gap: bool,
+        do_gap: DoGap,
         attempt: PassTokenAttempt,
     },
     CheckTokenPass {
@@ -239,7 +246,7 @@ impl State {
         *self = State::AwaitDataResponse { address, data };
     }
 
-    fn transition_pass_token(&mut self, do_gap: bool, attempt: PassTokenAttempt) {
+    fn transition_pass_token(&mut self, do_gap: DoGap, attempt: PassTokenAttempt) {
         debug_assert_state!(
             self,
             State::PassToken { .. }
@@ -347,7 +354,7 @@ impl State {
         }
     }
 
-    fn get_pass_token_do_gap(&mut self) -> &mut bool {
+    fn get_pass_token_do_gap(&mut self) -> &mut DoGap {
         match self {
             Self::PassToken { do_gap, .. } => do_gap,
             _ => unreachable!(),
@@ -1054,7 +1061,7 @@ impl FdlActiveStation {
                         // We are done scanning the gap, let's proceed
                         log::trace!("Polled full GAP after claiming token, passing on...");
                         self.state
-                            .transition_pass_token(false, PassTokenAttempt::First);
+                            .transition_pass_token(DoGap::No, PassTokenAttempt::First);
                         return PollDone::waiting_for_delay();
                     }
                     GapState::DoPoll { current_address } => {
@@ -1186,7 +1193,7 @@ impl FdlActiveStation {
         }
 
         self.state
-            .transition_pass_token(true, PassTokenAttempt::First);
+            .transition_pass_token(DoGap::Yes, PassTokenAttempt::First);
 
         PollDone::waiting_for_delay()
     }
@@ -1268,7 +1275,7 @@ impl FdlActiveStation {
 
         return_if_done!(self.wait_synchronization_pause(now));
 
-        if *self.state.get_pass_token_do_gap() {
+        if *self.state.get_pass_token_do_gap() == DoGap::Yes {
             match &mut self.gap_state {
                 GapState::Waiting {
                     ref mut rotation_count,
@@ -1327,12 +1334,12 @@ impl FdlActiveStation {
             Err(poll_done) => poll_done,
             Ok(GapPollResponse::StationResponded) => {
                 self.state
-                    .transition_pass_token(false, PassTokenAttempt::First);
+                    .transition_pass_token(DoGap::No, PassTokenAttempt::First);
                 PollDone::waiting_for_delay()
             }
             Ok(GapPollResponse::NoResponse) => {
                 self.state
-                    .transition_pass_token(false, PassTokenAttempt::First);
+                    .transition_pass_token(DoGap::No, PassTokenAttempt::First);
                 // Immediately evaluate PassToken state because the bus is free for immediate
                 // transmission
                 self.do_pass_token(now, phy)
@@ -1363,7 +1370,7 @@ impl FdlActiveStation {
                         self.token_ring.next_station()
                     );
                     self.state
-                        .transition_pass_token(false, PassTokenAttempt::Second);
+                        .transition_pass_token(DoGap::No, PassTokenAttempt::Second);
                 }
                 PassTokenAttempt::Second => {
                     log::warn!(
@@ -1371,7 +1378,7 @@ impl FdlActiveStation {
                         self.token_ring.next_station()
                     );
                     self.state
-                        .transition_pass_token(false, PassTokenAttempt::Third);
+                        .transition_pass_token(DoGap::No, PassTokenAttempt::Third);
                 }
                 PassTokenAttempt::Third => {
                     log::warn!(
@@ -1382,7 +1389,7 @@ impl FdlActiveStation {
                         .remove_station(self.token_ring.next_station());
                     // For the new NS, we are now on the first attempt again.
                     self.state
-                        .transition_pass_token(false, PassTokenAttempt::First);
+                        .transition_pass_token(DoGap::No, PassTokenAttempt::First);
                 }
             }
             // Immediately evaluate PassToken state because the bus is free for immediate

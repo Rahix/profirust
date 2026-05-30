@@ -91,6 +91,15 @@ impl UseTokenData {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
+enum ClaimTokenStep {
+    FirstToken,
+    SecondToken,
+    Scan,
+    ScanAwaitResponse { address: crate::Address },
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum State {
     Offline,
@@ -109,7 +118,7 @@ enum State {
         first_cycle_done: bool,
     },
     ClaimToken {
-        first: bool,
+        step: ClaimTokenStep,
     },
     AwaitDataResponse {
         address: crate::Address,
@@ -217,7 +226,9 @@ impl State {
             self,
             State::ClaimToken { .. } | State::ListenToken { .. } | State::ActiveIdle { .. }
         );
-        *self = State::ClaimToken { first: true };
+        *self = State::ClaimToken {
+            step: ClaimTokenStep::FirstToken,
+        };
     }
 
     fn transition_await_data_response(&mut self, address: crate::Address, data: UseTokenData) {
@@ -315,9 +326,9 @@ impl State {
         }
     }
 
-    fn get_claim_token_first(&mut self) -> &mut bool {
+    fn get_claim_token_step(&mut self) -> &mut ClaimTokenStep {
         match self {
-            Self::ClaimToken { first, .. } => first,
+            Self::ClaimToken { step, .. } => step,
             _ => unreachable!(),
         }
     }
@@ -1009,26 +1020,79 @@ impl FdlActiveStation {
     ) -> PollDone {
         debug_assert_state!(self.state, State::ClaimToken { .. });
 
-        // The token is claimed by sending a telegram to ourselves twice.
-        return_if_done!(self.wait_synchronization_pause(now));
-        let tx_res = phy
-            .transmit_telegram(now, |tx| {
-                Some(tx.send_token_telegram(self.p.address, self.p.address))
-            })
-            .unwrap();
+        // TODO: Work on https://github.com/Rahix/profirust/issues/25
+        match *self.state.get_claim_token_step() {
+            s @ ClaimTokenStep::FirstToken | s @ ClaimTokenStep::SecondToken => {
+                // The token is claimed by sending a telegram to ourselves twice.
+                return_if_done!(self.wait_synchronization_pause(now));
+                let tx_res = phy
+                    .transmit_telegram(now, |tx| {
+                        Some(tx.send_token_telegram(self.p.address, self.p.address))
+                    })
+                    .unwrap();
 
-        self.token_ring.claim_token();
+                self.token_ring.claim_token();
 
-        if *self.state.get_claim_token_first() {
-            // This will lead to sending the claim token telegram again
-            *self.state.get_claim_token_first() = false;
-        } else {
-            // Now we have claimed the token and can proceed to use it.
-            self.state
-                .transition_use_token(UseTokenData::with_token_time(now));
+                *self.state.get_claim_token_step() = match s {
+                    ClaimTokenStep::FirstToken => ClaimTokenStep::SecondToken,
+                    ClaimTokenStep::SecondToken => ClaimTokenStep::Scan,
+                    _ => unreachable!(),
+                };
+
+                // So we will start scanning at the next address following ourselves.
+                self.gap_state = GapState::DoPoll {
+                    current_address: self.p.address,
+                };
+
+                self.mark_tx(now, tx_res.bytes_sent())
+            }
+            ClaimTokenStep::Scan => {
+                return_if_done!(self.wait_synchronization_pause(now));
+
+                match &mut self.gap_state {
+                    GapState::Waiting { .. } => {
+                        // We are done scanning the gap, let's proceed
+                        log::trace!("Polled full GAP after claiming token, proceeding...");
+                        self.state
+                            .transition_use_token(UseTokenData::with_token_time(now));
+                        return PollDone::waiting_for_delay();
+                    }
+                    GapState::DoPoll { current_address } => {
+                        let current_address = *current_address;
+                        self.gap_state = self.next_gap_poll(current_address);
+                    }
+                }
+
+                if let Some((res, address)) = self.transmit_gap_poll_if_pending(now, phy) {
+                    *self.state.get_claim_token_step() =
+                        ClaimTokenStep::ScanAwaitResponse { address };
+                    res
+                } else {
+                    PollDone::waiting_for_delay()
+                }
+            }
+            ClaimTokenStep::ScanAwaitResponse { address } => {
+                match self.await_gap_poll_response(now, phy, address) {
+                    Err(poll_done) => poll_done,
+                    Ok(GapPollResponse::StationResponded) => {
+                        *self.state.get_claim_token_step() = ClaimTokenStep::Scan;
+                        PollDone::waiting_for_delay()
+                    }
+                    Ok(GapPollResponse::NoResponse) => {
+                        *self.state.get_claim_token_step() = ClaimTokenStep::Scan;
+                        // Recursive call to immediately handle the next scan
+                        self.do_claim_token(now, phy)
+                    }
+                    Ok(GapPollResponse::UnexpectedTelegram) => {
+                        // TODO: For now, let's play it safe and back off from the bus entirely if an
+                        // unexpected telegram is received.
+                        // Ref: wohp7Aex
+                        self.state.transition_active_idle();
+                        PollDone::waiting_for_bus()
+                    }
+                }
+            }
         }
-
-        self.mark_tx(now, tx_res.bytes_sent())
     }
 
     #[must_use = "poll done marker"]

@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - General code improvements in a few places.
 
 #### Fixed
+- Fixed the active station not searching for other active stations immediately
+  after claiming the bus.  This delayed setup of the token ring unnecessarily.
 - Fixed an active station polling itself when it is alone on the bus.
 
 

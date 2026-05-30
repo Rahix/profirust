@@ -681,6 +681,26 @@ impl FdlActiveStation {
             }
         }
     }
+
+    fn transmit_gap_poll_if_pending<PHY: ProfibusPhy>(
+        &mut self,
+        now: crate::time::Instant,
+        phy: &mut PHY,
+    ) -> Option<(PollDone, crate::Address)> {
+        if let GapState::DoPoll { current_address } = self.gap_state {
+            debug_assert_ne!(current_address, self.p.address);
+
+            let tx_res = phy
+                .transmit_telegram(now, |tx| {
+                    Some(tx.send_fdl_status_request(current_address, self.p.address))
+                })
+                .unwrap();
+
+            Some((self.mark_tx(now, tx_res.bytes_sent()), current_address))
+        } else {
+            None
+        }
+    }
 }
 
 /// State Machine of the FDL active station
@@ -1130,18 +1150,9 @@ impl FdlActiveStation {
                 }
             }
 
-            if let GapState::DoPoll { current_address } = self.gap_state {
-                debug_assert_ne!(current_address, self.p.address);
-
-                let tx_res = phy
-                    .transmit_telegram(now, |tx| {
-                        Some(tx.send_fdl_status_request(current_address, self.p.address))
-                    })
-                    .unwrap();
-
-                self.state.transition_await_status_response(current_address);
-
-                return self.mark_tx(now, tx_res.bytes_sent());
+            if let Some((res, poll_address)) = self.transmit_gap_poll_if_pending(now, phy) {
+                self.state.transition_await_status_response(poll_address);
+                return res;
             }
         }
 

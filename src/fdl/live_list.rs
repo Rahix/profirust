@@ -49,7 +49,7 @@ impl crate::fdl::FdlApplication for LiveList {
         now: crate::time::Instant,
         fdl: &super::FdlActiveStation,
         tx: super::TelegramTx,
-        high_prio_only: bool,
+        high_prio_only: super::HighPrioOnly,
     ) -> Option<super::TelegramTxResponse> {
         let this_station = fdl.parameters().address;
         let address = self.cursor;

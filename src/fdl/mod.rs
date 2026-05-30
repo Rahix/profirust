@@ -24,6 +24,13 @@ pub use telegram::{
     ResponseStatus, ShortConfirmation, Telegram, TelegramTx, TelegramTxResponse, TokenTelegram,
 };
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
+pub enum HighPrioOnly {
+    Yes,
+    No,
+}
+
 /// The interface for application layer components.
 ///
 /// Only one application layer component is permitted per FDL master.
@@ -42,7 +49,7 @@ pub trait FdlApplication {
         now: crate::time::Instant,
         fdl: &FdlActiveStation,
         tx: TelegramTx,
-        high_prio_only: bool,
+        high_prio_only: HighPrioOnly,
     ) -> Option<TelegramTxResponse>;
 
     /// Receive the reply for the telegram that was last transmitted.
@@ -65,7 +72,7 @@ impl FdlApplication for () {
         now: crate::time::Instant,
         fdl: &FdlActiveStation,
         tx: TelegramTx,
-        high_prio_only: bool,
+        high_prio_only: HighPrioOnly,
     ) -> Option<TelegramTxResponse> {
         None
     }

@@ -339,7 +339,7 @@ impl<'a> Peripheral<'a> {
         dp: &crate::dp::DpMasterState,
         fdl: &crate::fdl::FdlActiveStation,
         tx: crate::fdl::TelegramTx<'b>,
-        high_prio_only: bool,
+        high_prio_only: crate::fdl::HighPrioOnly,
     ) -> Result<crate::fdl::TelegramTxResponse, (crate::fdl::TelegramTx<'b>, Option<PeripheralEvent>)>
     {
         // We never expect to be called in `Stop` or even worse `Offline` operating states.

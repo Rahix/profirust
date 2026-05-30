@@ -105,7 +105,7 @@ impl crate::fdl::FdlApplication for DpScanner {
         now: crate::time::Instant,
         fdl: &crate::fdl::FdlActiveStation,
         tx: crate::fdl::TelegramTx,
-        high_prio_only: bool,
+        high_prio_only: crate::fdl::HighPrioOnly,
     ) -> Option<crate::fdl::TelegramTxResponse> {
         let this_station = fdl.parameters().address;
         let address = self.cursor;

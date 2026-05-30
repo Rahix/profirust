@@ -7,7 +7,7 @@
 #![allow(clippy::unit_arg)]
 #![allow(clippy::useless_conversion)]
 
-use crate::fdl::FdlApplication;
+use crate::fdl::{FdlApplication, HighPrioOnly};
 use crate::phy::ProfibusPhy;
 
 /// Operating state of the FDL active station
@@ -1108,7 +1108,7 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
         app: &mut dyn FdlApplication,
-        high_prio_only: bool,
+        high_prio_only: HighPrioOnly,
     ) -> Option<PollDone> {
         if let Some(tx_res) = phy.transmit_telegram(now, |tx| {
             app.transmit_telegram(now, self, tx, high_prio_only)
@@ -1140,7 +1140,7 @@ impl FdlActiveStation {
         now: crate::time::Instant,
         phy: &mut PHY,
         apps: &mut [&mut dyn FdlApplication],
-        high_prio_only: bool,
+        high_prio_only: HighPrioOnly,
     ) -> Option<PollDone> {
         for _ in 0..apps.len() {
             // TODO: Need to deal with the application list changing size.  Currently, this will lead
@@ -1185,11 +1185,11 @@ impl FdlActiveStation {
 
         if now < self.end_token_hold_time {
             *self.state.get_use_token_first_cycle_done() = true;
-            return_if_done!(self.apps_transmit_telegram(now, phy, apps, false));
+            return_if_done!(self.apps_transmit_telegram(now, phy, apps, HighPrioOnly::No));
         } else if !*self.state.get_use_token_first_cycle_done() {
             // Do one high priority message cycle
             *self.state.get_use_token_first_cycle_done() = true;
-            return_if_done!(self.apps_transmit_telegram(now, phy, apps, true));
+            return_if_done!(self.apps_transmit_telegram(now, phy, apps, HighPrioOnly::Yes));
         }
 
         self.state

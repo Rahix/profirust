@@ -244,7 +244,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         now: crate::time::Instant,
         fdl: &crate::fdl::FdlActiveStation,
         mut tx: crate::fdl::TelegramTx,
-        high_prio_only: bool,
+        high_prio_only: crate::fdl::HighPrioOnly,
     ) -> Option<crate::fdl::TelegramTxResponse> {
         // In STOP state, never send anything
         if self.state.operating_state.is_stop() {
@@ -257,7 +257,7 @@ impl<'a> crate::fdl::FdlApplication for DpMaster<'a> {
         //
         // TODO: 50 Tsl is an arbitrary interval.  Documentation talks about 3 times the watchdog
         // period, but that seems rather arbitrary as well.
-        if !high_prio_only
+        if high_prio_only == crate::fdl::HighPrioOnly::No
             && self
                 .state
                 .last_global_control

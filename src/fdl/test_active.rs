@@ -619,7 +619,7 @@ fn active_station_discovers_neighbor_after_claim() {
     });
     fdl_ut.wait_transmission();
 
-    fdl_ut.wait_for_matching(|t| t == fdl::Telegram::Token(fdl::TokenTelegram { da: 4, sa: 7 }));
+    fdl_ut.assert_next_telegram(fdl::Telegram::Token(fdl::TokenTelegram { da: 4, sa: 7 }));
 }
 
 /// Test that an active station discovers a direct (active) neighbor station.

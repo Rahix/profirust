@@ -1052,9 +1052,9 @@ impl FdlActiveStation {
                 match &mut self.gap_state {
                     GapState::Waiting { .. } => {
                         // We are done scanning the gap, let's proceed
-                        log::trace!("Polled full GAP after claiming token, proceeding...");
+                        log::trace!("Polled full GAP after claiming token, passing on...");
                         self.state
-                            .transition_use_token(UseTokenData::with_token_time(now));
+                            .transition_pass_token(false, PassTokenAttempt::First);
                         return PollDone::waiting_for_delay();
                     }
                     GapState::DoPoll { current_address } => {

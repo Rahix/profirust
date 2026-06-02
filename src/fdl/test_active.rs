@@ -34,9 +34,17 @@ impl FdlActiveUnderTest {
                 .build(),
         );
 
+        assert!(active_station.connectivity_state().is_offline());
+        assert!(!active_station.connectivity_state().is_online());
+        assert!(!active_station.connectivity_state().is_passive());
+
         crate::test_utils::with_active_addr(active_station.parameters().address, || {
             active_station.set_online();
         });
+
+        assert!(!active_station.connectivity_state().is_offline());
+        assert!(active_station.connectivity_state().is_online());
+        assert!(!active_station.connectivity_state().is_passive());
 
         Self {
             control_addr,

@@ -218,6 +218,11 @@ mod tests {
                         "Got telegram from very unexpected addres #{}? {dt:?}",
                         dt.h.sa
                     );
+                    assert!(
+                        dt.h.da <= 125,
+                        "Live list must not scan any address above #125, got #{}",
+                        dt.h.da
+                    );
                     scanned_addr = Some(dt.h.da);
                     true
                 });
@@ -262,7 +267,7 @@ mod tests {
         crate::test_utils::prepare_test_logger();
         let mut ut = LiveListUnderTest::new(7, crate::time::Duration::from_secs(10));
 
-        let live_stations = vec![3, 8, 11, 67];
+        let live_stations = vec![3, 8, 11, 67, 125];
 
         let events = ut.drive_until_events(&live_stations, live_stations.len());
 

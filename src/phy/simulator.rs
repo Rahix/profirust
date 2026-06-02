@@ -218,8 +218,10 @@ impl SimulatorPhy {
         self.bus.lock().unwrap().bus_time = time;
     }
 
-    pub fn advance_bus_time(&self, dur: crate::time::Duration) {
-        self.bus.lock().unwrap().bus_time += dur;
+    pub fn advance_bus_time(&self, dur: crate::time::Duration) -> crate::time::Instant {
+        let mut bus = self.bus.lock().unwrap();
+        bus.bus_time += dur;
+        bus.bus_time
     }
 
     pub fn bus_time(&self) -> crate::time::Instant {
@@ -246,10 +248,11 @@ impl SimulatorPhy {
         }
     }
 
-    pub fn advance_bus_time_min_tsdr(&self) {
+    pub fn advance_bus_time_min_tsdr(&self) -> crate::time::Instant {
         let mut bus = self.bus.lock().unwrap();
         let min_tsdr = bus.baudrate.bits_to_time(11);
         bus.bus_time += min_tsdr;
+        bus.bus_time
     }
 }
 

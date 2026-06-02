@@ -1048,12 +1048,13 @@ fn slot_time_timing() {
 
     log::debug!("After receiving request...");
 
-    let (time, _) = fdl_ut.wait_next_telegram(|t| {
+    let (time, telegram_bytes) = fdl_ut.wait_next_telegram(|t| {
         assert_eq!(t.source_address(), Some(7));
+        t.telegram_len()
     });
 
     // We have to subtract the telegram runtime of the just received token telegram
-    let time = time - fdl_ut.bits_to_time(33);
+    let time = time - fdl_ut.bits_to_time(u32::try_from(telegram_bytes).unwrap() * 11);
 
     let bits_over = fdl_ut.time_to_bits(time - slot_time);
     log::debug!("Slot time was {bits_over} bits over projected time.");

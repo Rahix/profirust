@@ -332,7 +332,24 @@ impl DataTelegramHeader {
         buffer[cursor + 1] = crate::consts::ED;
         cursor += 2;
 
+        debug_assert_eq!(
+            cursor,
+            self.telegram_len(pdu_len),
+            "Inconsistent length for {self:?} with pdu_len={pdu_len}"
+        );
+
         cursor
+    }
+
+    pub fn telegram_len(&self, pdu_len: usize) -> usize {
+        let length_byte =
+            pdu_len + usize::from(self.dsap.is_some()) + usize::from(self.ssap.is_some()) + 3;
+
+        if matches!(length_byte, 3 | 11) {
+            length_byte + 3
+        } else {
+            length_byte + 6
+        }
     }
 }
 
@@ -460,6 +477,10 @@ impl<'a> DataTelegram<'a> {
             buffer_length,
         )))
     }
+
+    pub fn telegram_len(&self) -> usize {
+        self.h.telegram_len(self.pdu.len())
+    }
 }
 
 impl DataTelegram<'_> {
@@ -515,6 +536,10 @@ impl TokenTelegram {
         3
     }
 
+    pub fn telegram_len(&self) -> usize {
+        3
+    }
+
     pub fn deserialize(buffer: &[u8]) -> Option<Result<(Self, usize), ()>> {
         if buffer.len() < 3 {
             return None;
@@ -535,6 +560,10 @@ pub struct ShortConfirmation;
 impl ShortConfirmation {
     pub fn serialize(&self, buffer: &mut [u8]) -> usize {
         buffer[0] = crate::consts::SC;
+        1
+    }
+
+    pub fn telegram_len(&self) -> usize {
         1
     }
 }
@@ -606,6 +635,14 @@ impl<'a> Telegram<'a> {
             Telegram::Data(t) => Some(t.h.da),
             Telegram::Token(t) => Some(t.da),
             Telegram::ShortConfirmation(_) => None,
+        }
+    }
+
+    pub fn telegram_len(&self) -> usize {
+        match self {
+            Telegram::Data(data_telegram) => data_telegram.telegram_len(),
+            Telegram::Token(token_telegram) => token_telegram.telegram_len(),
+            Telegram::ShortConfirmation(short_confirmation) => short_confirmation.telegram_len(),
         }
     }
 

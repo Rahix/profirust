@@ -130,13 +130,14 @@ mod tests {
         phy_active: phy::SimulatorPhy,
         active_station: fdl::FdlActiveStation,
         live_list: LiveList,
+        max_time: crate::time::Instant,
     }
 
     impl LiveListUnderTest {
-        fn new(addr: crate::Address) -> Self {
+        fn new(addr: crate::Address, max_time: crate::time::Duration) -> Self {
             let baud = crate::Baudrate::B19200;
             let control_addr = 15;
-            let timestep = crate::time::Duration::from_micros(100);
+            let timestep = crate::time::Duration::from_millis(1);
 
             let phy_control = phy::SimulatorPhy::new(baud, "phy#control");
             let phy_active = phy_control.duplicate("phy#ut");
@@ -152,6 +153,9 @@ mod tests {
                 active_station.set_online();
             });
 
+            let now = phy_control.bus_time();
+            let max_time = now + max_time;
+
             Self {
                 control_addr,
                 timestep,
@@ -159,12 +163,16 @@ mod tests {
                 phy_active,
                 active_station,
                 live_list: LiveList::new(),
+                max_time,
             }
         }
 
         fn wait_for_matching<F: FnMut(fdl::Telegram) -> bool>(&mut self, f: F) {
             for now in self.phy_control.iter_until_matching(self.timestep, f) {
                 crate::test_utils::set_log_timestamp(now);
+                if now >= self.max_time {
+                    panic!("Test exceeded maximum time!");
+                }
                 crate::test_utils::with_active_addr(
                     self.active_station.parameters().address,
                     || {
@@ -252,7 +260,7 @@ mod tests {
     #[test]
     fn live_list_application() {
         crate::test_utils::prepare_test_logger();
-        let mut ut = LiveListUnderTest::new(7);
+        let mut ut = LiveListUnderTest::new(7, crate::time::Duration::from_secs(10));
 
         let live_stations = vec![3, 8, 11, 67];
 
@@ -282,7 +290,7 @@ mod tests {
     #[test]
     fn live_list_looses_stations() {
         crate::test_utils::prepare_test_logger();
-        let mut ut = LiveListUnderTest::new(7);
+        let mut ut = LiveListUnderTest::new(7, crate::time::Duration::from_secs(10));
 
         let test_stations = vec![3, 8, 11, 67];
         let removed = vec![8, 67];

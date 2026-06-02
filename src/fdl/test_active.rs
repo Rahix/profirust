@@ -22,6 +22,8 @@ impl FdlActiveUnderTest {
         let control_addr = 15;
         let timestep = crate::time::Duration::from_micros(100);
 
+        crate::test_utils::set_active_addr(control_addr);
+
         let phy_control = phy::SimulatorPhy::new(baud, "phy#control");
         let phy_active = phy_control.duplicate("phy#ut");
 
@@ -32,8 +34,9 @@ impl FdlActiveUnderTest {
                 .build(),
         );
 
-        crate::test_utils::set_active_addr(active_station.parameters().address);
-        active_station.set_online();
+        crate::test_utils::with_active_addr(active_station.parameters().address, || {
+            active_station.set_online();
+        });
 
         Self {
             control_addr,
@@ -53,10 +56,10 @@ impl FdlActiveUnderTest {
     }
 
     pub fn do_fdl_active_station_cycle(&mut self) {
-        crate::test_utils::set_active_addr(self.active_station.parameters().address);
-        self.active_station
-            .poll(self.phy_control.bus_time(), &mut self.phy_active, &mut ());
-        crate::test_utils::set_active_addr(self.control_addr);
+        let now = self.phy_control.bus_time();
+        crate::test_utils::with_active_addr(self.active_station.parameters().address, || {
+            self.active_station.poll(now, &mut self.phy_active, &mut ());
+        });
     }
 
     pub fn do_timestep(&mut self) {
@@ -70,12 +73,11 @@ impl FdlActiveUnderTest {
         f: F,
     ) -> crate::time::Duration {
         let start = self.phy_control.bus_time();
-        crate::test_utils::set_active_addr(self.control_addr);
         for now in self.phy_control.iter_until_matching(self.timestep, f) {
             crate::test_utils::set_log_timestamp(now);
-            crate::test_utils::set_active_addr(self.active_station.parameters().address);
-            self.active_station.poll(now, &mut self.phy_active, &mut ());
-            crate::test_utils::set_active_addr(self.control_addr);
+            crate::test_utils::with_active_addr(self.active_station.parameters().address, || {
+                self.active_station.poll(now, &mut self.phy_active, &mut ());
+            });
         }
         self.phy_control.bus_time() - start
     }
@@ -85,7 +87,6 @@ impl FdlActiveUnderTest {
         f: F,
     ) -> (crate::time::Duration, R) {
         let start = self.phy_control.bus_time();
-        crate::test_utils::set_active_addr(self.control_addr);
         let mut res = Default::default();
         let mut f = Some(f);
         for now in self.phy_control.iter_until_matching(self.timestep, |t| {
@@ -93,9 +94,9 @@ impl FdlActiveUnderTest {
             true
         }) {
             crate::test_utils::set_log_timestamp(now);
-            crate::test_utils::set_active_addr(self.active_station.parameters().address);
-            self.active_station.poll(now, &mut self.phy_active, &mut ());
-            crate::test_utils::set_active_addr(self.control_addr);
+            crate::test_utils::with_active_addr(self.active_station.parameters().address, || {
+                self.active_station.poll(now, &mut self.phy_active, &mut ());
+            });
         }
         (self.phy_control.bus_time() - start, res)
     }

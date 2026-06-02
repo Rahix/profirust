@@ -148,8 +148,9 @@ mod tests {
                     .build(),
             );
 
-            crate::test_utils::set_active_addr(active_station.parameters().address);
-            active_station.set_online();
+            crate::test_utils::with_active_addr(active_station.parameters().address, || {
+                active_station.set_online();
+            });
 
             Self {
                 control_addr,
@@ -162,23 +163,25 @@ mod tests {
         }
 
         fn wait_for_matching<F: FnMut(fdl::Telegram) -> bool>(&mut self, f: F) {
-            crate::test_utils::set_active_addr(self.control_addr);
             for now in self.phy_control.iter_until_matching(self.timestep, f) {
                 crate::test_utils::set_log_timestamp(now);
-                crate::test_utils::set_active_addr(self.active_station.parameters().address);
-                self.active_station
-                    .poll(now, &mut self.phy_active, &mut self.live_list);
-                crate::test_utils::set_active_addr(self.control_addr);
+                crate::test_utils::with_active_addr(
+                    self.active_station.parameters().address,
+                    || {
+                        self.active_station
+                            .poll(now, &mut self.phy_active, &mut self.live_list);
+                    },
+                );
             }
         }
 
         fn advance_bus_time_min_tsdr(&mut self) -> crate::time::Instant {
             let now = self.phy_control.advance_bus_time_min_tsdr();
             crate::test_utils::set_log_timestamp(now);
-            crate::test_utils::set_active_addr(self.active_station.parameters().address);
-            self.active_station
-                .poll(now, &mut self.phy_active, &mut self.live_list);
-            crate::test_utils::set_active_addr(self.control_addr);
+            crate::test_utils::with_active_addr(self.active_station.parameters().address, || {
+                self.active_station
+                    .poll(now, &mut self.phy_active, &mut self.live_list);
+            });
             now
         }
 
@@ -223,13 +226,15 @@ mod tests {
 
                 if live_stations.contains(&target) {
                     let now = self.advance_bus_time_min_tsdr();
-                    self.phy_control.transmit_telegram(now, |tx| {
-                        Some(tx.send_fdl_status_response(
-                            active_station_address,
-                            target,
-                            fdl::ResponseState::Slave,
-                            fdl::ResponseStatus::Ok,
-                        ))
+                    crate::test_utils::with_active_addr(target, || {
+                        self.phy_control.transmit_telegram(now, |tx| {
+                            Some(tx.send_fdl_status_response(
+                                active_station_address,
+                                target,
+                                fdl::ResponseState::Slave,
+                                fdl::ResponseStatus::Ok,
+                            ))
+                        });
                     });
                 }
             }

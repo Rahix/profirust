@@ -66,3 +66,14 @@ pub fn set_log_timestamp(t: crate::time::Instant) {
 pub fn set_active_addr(addr: u8) {
     ACTIVE_ADDR.set(addr);
 }
+
+pub fn with_active_addr<F, R>(addr: u8, f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    let last_addr = ACTIVE_ADDR.get();
+    ACTIVE_ADDR.set(addr);
+    let res = f();
+    ACTIVE_ADDR.set(last_addr);
+    res
+}

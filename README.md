@@ -19,23 +19,23 @@ If you want to learn more, I suggest reading my blog posts about
 [blog-profibus]: https://blog.rahix.de/profibus-primer/
 
 ## Project Status
-**profirust** works well for the features it currently supports, however it has
+*profirust* works well for the features it currently supports, however it has
 not proven itself in a real application yet.  There are still some features
 missing which are needed for production use.  Check the roadmap below.
 
-At this time, **profirust** is developed as a spare time project.  If you are
+At this time, *profirust* is developed as a spare time project.  If you are
 interested in this project, help is gladly accepted in the following forms:
 
 - Code Contributions
 - Donation of PROFIBUS peripherals or other equipment for testing purposes
 - Funding of access to the needed IEC standards for improving compliance
-- Reporting any kinds of issues encountered while using **profirust**
+- Reporting any kinds of issues encountered while using *profirust*
 
 ## Supported Hardware
-**profirust** is designed to have as little hardware dependency as possible.
+*profirust* is designed to have as little hardware dependency as possible.
 All you need is a UART interface with an RS-485 transceiver.  You can then
 write a matching implementation of [`ProfibusPhy`].  It is encouraged to submit
-such implementations for inclusion in **profirust**.
+such implementations for inclusion in *profirust*.
 
 At the moment, the following implementations are available:
 
